@@ -47,6 +47,17 @@
 
         #report-capture-area { width: 794px; min-height: 1123px; background: white; padding: 50px; box-sizing: border-box; display: flex; flex-direction: column; transform-origin: top center; }
         .highlight-item { background-color: #fef3c7 !important; border-left: 4px solid #f59e0b !important; }
+
+        /* Status Conexão */
+        #conn-status {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 100; transition: all 0.3s ease; pointer-events: none;
+            display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+            border-radius: 99px; font-size: 10px; font-weight: 800; text-transform: uppercase;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); opacity: 0; visibility: hidden;
+        }
+        #conn-status.offline { background: #ef4444; color: white; opacity: 1; visibility: visible; }
+        #conn-status.online-recovered { background: #10b981; color: white; opacity: 1; visibility: visible; }
     </style>
     <link rel="manifest" href="./manifest.json">
 </head>
@@ -59,6 +70,9 @@
             <span class="loading-text">Carregando Agenda...</span>
         </div>
     </div>
+
+    <!-- Connection Status Toast -->
+    <div id="conn-status"></div>
 
     <!-- Modals Overlay -->
     <div id="modal-container" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"></div>
@@ -148,7 +162,7 @@
                 period: { enabled: false, start: '', end: '' },
                 validationErrors: []
             },
-            formErrors: [], // Novo estado para controle de erros do form de eventos
+            formErrors: [], 
             clockMode: 'hour', 
             clockTempHour: '08',
             clockTempMinute: '00'
@@ -829,7 +843,17 @@
             try { const { error } = await supabaseClient.from('agenda').delete().eq('id', id.trim()); if (error) { console.error(`ERRO: ${error.message}`); } else { state.events = state.events.filter((e) => e.id !== id.trim()); state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; closeModal(); navigateTo('home'); } } catch(e) { console.error("Erro inesperado."); }
         }
 
-        function navigateTo(screen) { state.currentScreen = screen; state.isMenuOpen = false; state.managerSearchTerm = ''; state.highlightedItemId = null; state.formErrors = []; }
+        function navigateTo(screen, push = true) { 
+            if (push && state.currentScreen !== screen) {
+                window.history.pushState({ screen }, "");
+            }
+            state.currentScreen = screen; 
+            state.isMenuOpen = false; 
+            state.managerSearchTerm = ''; 
+            state.highlightedItemId = null; 
+            state.formErrors = []; 
+        }
+
         function openMenu() { state.isMenuOpen = true; }
         function closeMenu() { state.isMenuOpen = false; }
         function closeModal() { const m = document.getElementById('modal-container'); if(m){ m.classList.add('hidden'); m.innerHTML=''; } }
@@ -872,6 +896,34 @@
                 const isS = isA ? state.advancedFilter?.[tar]?.id === i.id : state[prop] === i.id;
                 return `<button onclick="${isA ? `window.state.advancedFilter.${tar}.id = '${i.id}'; window.state.advancedFilter.validationErrors = window.state.advancedFilter.validationErrors.filter(e => e !== '${tar}'); window.renderAdvancedFilterModal();` : `window.state.${prop} = '${i.id}'; window.state.formErrors = window.state.formErrors.filter(e => !'${prop}'.includes(e)); window.closeModal();`}" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><div class="flex flex-col min-w-0 flex-1"><span class="group-hover:text-navy transition-colors font-bold text-sm leading-tight">${name}</span></div>${isS ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0 ml-2"></i>' : ''}</button>`;
             }).join('');
+        }
+
+        /**
+         * ==========================================
+         * 5. SINCRONIZAÇÃO E REDE
+         * ==========================================
+         */
+        async function refreshAllData() {
+            const tables = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'agenda': 'events', 'feriados': 'feriados' };
+            for (const [table, key] of Object.entries(tables)) {
+                const { data } = await supabaseClient.from(table).select('*');
+                if (data) state[key] = data;
+            }
+        }
+
+        function showConnStatus(status) {
+            const el = document.getElementById('conn-status');
+            if (!el) return;
+            el.className = '';
+            if (status === 'offline') {
+                el.innerHTML = '<i data-lucide="wifi-off" class="w-3.5 h-3.5"></i> Sem conexão com a internet';
+                el.classList.add('offline');
+            } else if (status === 'online-recovered') {
+                el.innerHTML = '<i data-lucide="wifi" class="w-3.5 h-3.5"></i> Conexão restabelecida. Dados atualizados.';
+                el.classList.add('online-recovered');
+                setTimeout(() => { el.classList.remove('online-recovered'); }, 3000);
+            }
+            renderIcons();
         }
 
         Object.assign(window, {
@@ -1056,7 +1108,7 @@
                 
                 if (errs.length > 0) {
                     state.formErrors = errs;
-                    renderEventForm(); // Força re-render para mostrar as bordas vermelhas
+                    renderEventForm(); 
                     return;
                 }
 
@@ -1088,6 +1140,24 @@
         });
 
         async function init() {
+            // Inicializa histórico para navegação do botão "voltar" do celular
+            window.history.replaceState({ screen: 'home' }, "");
+
+            window.addEventListener('popstate', (event) => {
+                if (state.isMenuOpen) { state.isMenuOpen = false; return; }
+                const modal = document.getElementById('modal-container');
+                if (modal && !modal.classList.contains('hidden')) { closeModal(); return; }
+                if (event.state && event.state.screen) { navigateTo(event.state.screen, false); } else { if (state.currentScreen !== 'home') navigateTo('home', false); }
+            });
+
+            // Listeners de Conexão
+            window.addEventListener('offline', () => { showConnStatus('offline'); });
+            window.addEventListener('online', async () => { 
+                showConnStatus('online-recovered'); 
+                await refreshAllData();
+                scheduleRender();
+            });
+
             supabaseClient.auth.onAuthStateChange((event, session) => { 
                 state.user = session?.user || null; 
                 state.isAdmin = session?.user?.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase(); 
