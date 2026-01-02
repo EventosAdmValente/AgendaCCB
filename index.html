@@ -425,8 +425,8 @@
             if (!container) return;
 
             container.innerHTML = `
-                <div class="flex justify-between items-start px-1 mb-1 gap-2">
-                    <div class="font-bold text-navy uppercase flex-1 min-w-0 text-[9px] leading-tight whitespace-normal">
+                <div class="flex justify-between items-start px-1 mb-1 gap-2 min-h-[18px] overflow-visible">
+                    <div id="home-filter-label" class="font-bold text-navy uppercase flex-1 min-w-0 leading-tight whitespace-normal break-words overflow-visible transition-all duration-200" style="font-size: 13px;">
                         ${getFilterDescription()}
                     </div>
                     <span class="text-[10px] font-medium text-slate-500 uppercase shrink-0 pt-0.5">${filtered.length} registros</span>
@@ -457,7 +457,7 @@
                                                 ${type?.sigla || 'EVT'}
                                             </span>
                                             ${hasStats ? `
-                                                <div class="flex flex-col items-end text-[10px] font-semibold text-slate-400 leading-tight">
+                                                <div class="flex flex-col items-end text-[16.9px] font-semibold text-slate-400 leading-tight">
                                                     <div>Irmãs: ${e.irmas || 0}</div>
                                                     <div>Irmãos: ${e.irmaos || 0}</div>
                                                     <div>Total: ${total}</div>
@@ -470,11 +470,11 @@
                                                 <i data-lucide="${isPast ? 'check-circle' : 'calendar-clock'}" class="w-6 h-6"></i>
                                             </div>
                                             <div class="min-w-0 flex-1 pr-16 flex flex-col justify-center">
-                                                <div class="font-bold text-navy text-xl leading-tight whitespace-normal">${type?.name || 'Evento'}</div>
-                                                <div class="text-[15px] font-semibold text-slate-600 mt-1 leading-tight">${formatDate(e.date)} - ${e.time}</div>
+                                                <div class="font-bold text-navy text-[16.2px] leading-tight whitespace-normal">${type?.name || 'Evento'}</div>
+                                                <div class="text-[12.15px] font-semibold text-slate-600 mt-1 leading-tight">${formatDate(e.date)} - ${e.time}</div>
                                                 <div class="flex flex-col gap-1 mt-1 leading-tight">
-                                                    <div class="text-[15px] text-slate-600 flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5 shrink-0"></i> <span class="whitespace-normal">${loc?.localidade || ''}</span></div>
-                                                    <div class="text-[15px] text-slate-600 flex items-center gap-1"><i data-lucide="user" class="w-3.5 h-3.5 shrink-0"></i> <span class="whitespace-normal">${att?.name || ''}</span></div>
+                                                    <div class="text-[12.15px] text-slate-600 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3 shrink-0"></i> <span class="whitespace-normal">${loc?.localidade || ''}</span></div>
+                                                    <div class="text-[12.15px] text-slate-600 flex items-center gap-1"><i data-lucide="user" class="w-3 h-3 shrink-0"></i> <span class="whitespace-normal">${att?.name || ''}</span></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -485,6 +485,19 @@
                     `}
                 </div>
             `;
+            
+            // Lógica de auto-shrink para o rótulo de filtro (garantir caber em no máximo 2 linhas)
+            const labelEl = document.getElementById('home-filter-label');
+            if (labelEl) {
+                let currentSize = 13;
+                labelEl.style.fontSize = currentSize + 'px';
+                // Threshold para 2 linhas: scrollHeight maior que ~34px indica necessidade de reduzir fonte
+                while (labelEl.scrollHeight > 34 && currentSize > 9) {
+                    currentSize -= 0.2;
+                    labelEl.style.fontSize = currentSize + 'px';
+                }
+            }
+
             renderIcons();
 
             if (state.highlightedItemId) {
@@ -814,7 +827,8 @@
             if (af.period.enabled && af.period.start) {
                 const d = new Date(af.period.start + 'T00:00:00');
                 const dEnd = new Date(af.period.end + 'T00:00:00');
-                const isFullMonth = d.getDate() === 1 && dEnd.getDate() === new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+                
+                const isFullMonth = d.getDate() === 1 && dEnd.getDate() === new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() && d.getMonth() === dEnd.getMonth();
                 const isFullYear = d.getDate() === 1 && d.getMonth() === 0 && dEnd.getDate() === 31 && dEnd.getMonth() === 11;
                 
                 if (isFullYear) {
@@ -822,7 +836,7 @@
                     selMonthLabel = 'Mês';
                 } else if (isFullMonth) {
                     selMonthLabel = monthNames[d.getMonth()];
-                    selYearLabel = 'Ano';
+                    selYearLabel = d.getFullYear().toString();
                 }
             }
 
@@ -1043,7 +1057,15 @@
         Object.assign(window, {
             renderApp, scheduleRender, navigateTo, openMenu, closeMenu, closeModal, showModal, handleLogout, showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, updateHomeList, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; updateHomeList(); },
             startOpenAgenda: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; const t = new Date().toISOString().split('T')[0]; if (!state.selectedDate) state.selectedDate = t; state.viewDate = new Date(state.selectedDate + 'T00:00:00'); renderCalendar('filter'); },
-            changeMonth: (o, m) => { const d = new Date(state.viewDate); d.setMonth(d.getMonth() + o); state.viewDate = d; renderCalendar(m); },
+            changeMonth: (o, m) => { 
+                const d = new Date(state.viewDate); 
+                d.setMonth(d.getMonth() + o); 
+                state.viewDate = d; 
+                if (m === 'filter') {
+                    state.selectedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+                }
+                renderCalendar(m); 
+            },
             changePickerYear: (o, m) => { 
                 const d = new Date(state.viewDate); 
                 d.setFullYear(d.getFullYear() + o); 
@@ -1063,6 +1085,7 @@
                     state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period');
                     window.renderAdvancedFilterModal();
                 } else {
+                    if (m === 'filter') state.selectedDate = `${d.getFullYear()}-${String(i + 1).padStart(2, '0')}-01`;
                     renderCalendar(m);
                 }
             },
@@ -1076,6 +1099,7 @@
                     state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period');
                     window.renderAdvancedFilterModal();
                 } else {
+                    if (m === 'filter') state.selectedDate = `${y}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
                     renderCalendar(m);
                 }
             },
@@ -1087,7 +1111,7 @@
                 }
                 const names = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"]; 
                 const year = state.viewDate.getFullYear();
-                showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-[320px] flex flex-col items-center relative">
+                showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative">
                     <button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button>
                     <div class="flex items-center justify-center gap-3 w-full mb-6">
                         <button onclick="window.changePickerYear(-1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>
@@ -1106,7 +1130,7 @@
                 const years = []; 
                 for(let i = currentYear - 30; i < currentYear + 30; i++) years.push(i); 
 
-                showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-[320px] flex flex-col items-center relative">
+                showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative">
                     <button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button>
                     <div class="flex items-center justify-center w-full mb-6">
                         <span class="text-sm font-black text-navy uppercase tracking-widest">ANO</span>
