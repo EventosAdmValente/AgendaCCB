@@ -1355,42 +1355,82 @@
         });
 
         async function init() {
-            window.history.replaceState({ screen: 'home' }, "");
-            window.addEventListener('popstate', (event) => {
-                if (state.isMenuOpen) { state.isMenuOpen = false; return; }
-                const modal = document.getElementById('modal-container');
-                if (modal && !modal.classList.contains('hidden')) { closeModal(); return; }
-                if (event.state && event.state.screen) { navigateTo(event.state.screen, false); } else { if (state.currentScreen !== 'home') navigateTo('home', false); }
-            });
-            window.addEventListener('offline', () => { showConnStatus('offline'); });
-            window.addEventListener('online', async () => { 
-                showConnStatus('online-recovered'); 
-                await refreshAllData();
-                scheduleRender();
-            });
-            supabaseClient.auth.onAuthStateChange((event, session) => { 
-                state.user = session?.user || null; 
-                state.isAdmin = session?.user?.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase(); 
-                if (event === 'SIGNED_IN') { navigateTo('home'); closeModal(); } 
-                scheduleRender(); 
-            });
-            const setupListener = (table, key) => {
-                supabaseClient.from(table).select('*').then(({ data }) => { 
-                    if (data) state[key] = data; 
-                    if (state.types && state.types.length >= 0) state.isLoading = false; 
-                });
-                supabaseClient.channel(`public:${table}`).on('postgres_changes', { event: '*', schema: 'public', table }, () => { 
-                    supabaseClient.from(table).select('*').then(({ data }) => { if (data) state[key] = data; }); 
-                }).subscribe();
-            };
-            setupListener('types', 'types'); 
-            setupListener('locations', 'locations'); 
-            setupListener('attendants', 'attendants'); 
-            setupListener('agenda', 'events'); 
-            setupListener('feriados', 'feriados');
-            loadExternalHolidays(new Date().getFullYear());
+    // --- NOVO: CARREGAMENTO DE CACHE OFFLINE ---
+    const tablesToCache = ['types', 'locations', 'attendants', 'agenda', 'feriados'];
+    tablesToCache.forEach(table => {
+        const cachedData = localStorage.getItem(`cache_${table}`);
+        if (cachedData) {
+            // Mapeia 'agenda' para 'events' no seu objeto state
+            const key = table === 'agenda' ? 'events' : table;
+            state[key] = JSON.parse(cachedData);
         }
-        init();
+    });
+    // Se já carregamos algo do cache, podemos liberar o loading para o usuário ver
+    if (state.events && state.events.length > 0) state.isLoading = false;
+    // -------------------------------------------
+
+    window.history.replaceState({ screen: 'home' }, "");
+    
+    window.addEventListener('popstate', (event) => {
+        if (state.isMenuOpen) { state.isMenuOpen = false; return; }
+        const modal = document.getElementById('modal-container');
+        if (modal && !modal.classList.contains('hidden')) { closeModal(); return; }
+        if (event.state && event.state.screen) { 
+            navigateTo(event.state.screen, false); 
+        } else { 
+            if (state.currentScreen !== 'home') navigateTo('home', false); 
+        }
+    });
+
+    window.addEventListener('offline', () => { showConnStatus('offline'); });
+    
+    window.addEventListener('online', async () => { 
+        showConnStatus('online-recovered'); 
+        await refreshAllData();
+        scheduleRender();
+    });
+
+    supabaseClient.auth.onAuthStateChange((event, session) => { 
+        state.user = session?.user || null; 
+        state.isAdmin = session?.user?.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase(); 
+        if (event === 'SIGNED_IN') { navigateTo('home'); closeModal(); } 
+        scheduleRender(); 
+    });
+
+    const setupListener = (table, key) => {
+        // Busca inicial no Supabase
+        supabaseClient.from(table).select('*').then(({ data }) => { 
+            if (data) {
+                state[key] = data; 
+                // SALVA NO CACHE
+                localStorage.setItem(`cache_${table}`, JSON.stringify(data));
+            }
+            if (state.types && state.types.length >= 0) state.isLoading = false; 
+            scheduleRender(); // Garante que a tela atualize após baixar do banco
+        });
+
+        // Escuta mudanças em tempo real
+        supabaseClient.channel(`public:${table}`).on('postgres_changes', { event: '*', schema: 'public', table }, () => { 
+            supabaseClient.from(table).select('*').then(({ data }) => { 
+                if (data) {
+                    state[key] = data;
+                    // ATUALIZA O CACHE
+                    localStorage.setItem(`cache_${table}`, JSON.stringify(data));
+                    scheduleRender();
+                }
+            }); 
+        }).subscribe();
+    };
+
+    setupListener('types', 'types'); 
+    setupListener('locations', 'locations'); 
+    setupListener('attendants', 'attendants'); 
+    setupListener('agenda', 'events'); 
+    setupListener('feriados', 'feriados');
+
+    loadExternalHolidays(new Date().getFullYear());
+}
+init();
     </script>
 </body>
 </html>
