@@ -235,6 +235,11 @@
                     window.updateHomeList();
                 }
 
+                if (property === 'currentScreen' && value === 'home') {
+                    // Limpar highlight ao voltar para home se não for via locateDuplicate
+                    if (!state.highlightedItemId) state.highlightedItemId = null;
+                }
+
                 if (['clockMode', 'clockTempHour', 'clockTempMinute'].includes(property)) {
                     if (typeof window.renderClockUI === 'function') window.renderClockUI();
                 }
@@ -865,8 +870,26 @@
             else if (coll === 'attendants') { p.name = name; p.ministerio = extraV; }
             else if (coll === 'feriados') { p.nome_feriado = name; p.data = dateVal; p.tipo_feriado = document.getElementById('feriado-tipo')?.value.trim(); }
             
-            const ext = state[coll].find((i) => coll === 'feriados' ? (i.data === p.data && i.nome_feriado.toLowerCase() === name.toLowerCase() && i.id !== id) : (((coll === 'locations' ? i.localidade : i.name) || '').toLowerCase() === name.toLowerCase() && i.id !== id));
-            if (ext) { showDuplicateModal(name, coll, ext.id, id, p); return; }
+            // BUSCA DE DUPLICADOS MELHORADA
+            let ext = null;
+            if (coll === 'types') {
+                // Para tipos, não permite repetir NOME nem SIGLA
+                ext = state.types.find(i => 
+                    i.id !== id && 
+                    ((i.name || '').toLowerCase() === name.toLowerCase() || (i.sigla || '').toUpperCase() === p.sigla)
+                );
+            } else if (coll === 'feriados') {
+                ext = state.feriados.find(i => i.id !== id && i.data === p.data && (i.nome_feriado || '').toLowerCase() === name.toLowerCase());
+            } else {
+                const key = coll === 'locations' ? 'localidade' : 'name';
+                ext = state[coll].find(i => i.id !== id && (i[key] || '').toLowerCase() === name.toLowerCase());
+            }
+
+            if (ext) { 
+                showDuplicateModal(name, coll, ext.id, id, p); 
+                return; 
+            }
+
             const isN = !id || id === 'undefined' || id === '';
             try {
                 const { data, error } = isN ? await supabaseClient.from(coll).insert([p]).select() : await supabaseClient.from(coll).update(p).eq('id', id).select();
@@ -877,11 +900,13 @@
 
         function showDuplicateModal(name, coll, dupId, edId, curVals) {
             window.__duplicate_temp_data = curVals;
-            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden relative border-t-[10px] border-orange-custom"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mb-6"><i data-lucide="copy" class="text-orange-custom w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3 leading-tight">Registro Duplicado</h3><p class="text-sm text-slate-500 mb-8 leading-relaxed px-2">Já existe um registro com o nome <br><strong class="text-slate-700">"${name}"</strong>.</p><div class="w-full flex flex-col gap-3"><button onclick="window.locateDuplicate('${dupId}', '${coll}')" class="w-full bg-navy text-white py-4 rounded-xl font-black flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all text-[13px] uppercase tracking-wide"><i data-lucide="search" class="w-4 h-4"></i> Localizar Duplicata</button><button onclick="window.openRowModal('${coll}', '${edId}', window.__duplicate_temp_data)" class="w-full bg-slate-50 text-slate-500 py-4 rounded-xl font-bold active:scale-95 transition-all text-[13px] uppercase tracking-wide">Cancelar e Editar</button></div></div></div>`);
+            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden relative border-t-[10px] border-orange-custom"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mb-6"><i data-lucide="copy" class="text-orange-custom w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3 leading-tight">Registro Duplicado</h3><p class="text-sm text-slate-500 mb-8 leading-relaxed px-2">Já existe um registro com este nome ou sigla:<br><strong class="text-slate-700">"${name}"</strong>.</p><div class="w-full flex flex-col gap-3"><button onclick="window.locateDuplicate('${dupId}', '${coll}')" class="w-full bg-navy text-white py-4 rounded-xl font-black flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all text-[13px] uppercase tracking-wide"><i data-lucide="search" class="w-4 h-4"></i> Localizar Duplicata</button><button onclick="window.openRowModal('${coll}', '${edId}', window.__duplicate_temp_data)" class="w-full bg-slate-50 text-slate-500 py-4 rounded-xl font-bold active:scale-95 transition-all text-[13px] uppercase tracking-wide">Cancelar e Editar</button></div></div></div>`);
         }
 
         function showEventDuplicateModal(dup) {
-            const name = `${state.types.find((t) => t.id === dup.type_id)?.name || 'Evento'} - ${state.locations.find((l) => l.id === dup.location_id)?.localidade || 'Local'} (${formatDate(dup.date)} às ${dup.time})`;
+            const type = state.types.find((t) => t.id === dup.type_id);
+            const loc = state.locations.find((l) => l.id === dup.location_id);
+            const name = `${type?.name || 'Evento'} em ${loc?.localidade || 'Local'} (${formatDate(dup.date)} às ${dup.time})`;
             showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden relative border-t-[10px] border-orange-custom"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mb-6"><i data-lucide="copy" class="text-orange-custom w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3 leading-tight">Evento Duplicado</h3><p class="text-sm text-slate-500 mb-8 leading-relaxed px-2">Já existe um evento idêntico cadastrado:<br><strong class="text-slate-700">"${name}"</strong>.</p><div class="w-full flex flex-col gap-3"><button onclick="window.locateDuplicate('${dup.id}', 'agenda')" class="w-full bg-navy text-white py-4 rounded-xl font-black flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all text-[13px] uppercase tracking-wide"><i data-lucide="search" class="w-4 h-4"></i> Localizar Duplicata</button><button onclick="window.closeModal()" class="w-full bg-slate-50 text-slate-500 py-4 rounded-xl font-bold active:scale-95 transition-all text-[13px] uppercase tracking-wide">Cancelar e Editar</button></div></div></div>`);
         }
 
@@ -973,7 +998,7 @@
             const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
             const todayT = `${bD.today.toLocaleDateString('pt-BR', { weekday: 'long' }).charAt(0).toUpperCase() + bD.today.toLocaleDateString('pt-BR', { weekday: 'long' }).slice(1)}, dia ${fBR(bD.today)}`;
             const dW1 = new Date(bD.week); dW1.setDate(bD.week.getDate() - bD.week.getDay()); const dW2 = new Date(dW1); dW2.setDate(dW1.getDate() + 6);
-            showModal(`<div class="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-sm flex flex-col"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-center gap-2 text-navy"><i data-lucide="filter" class="w-5 h-5 text-orange-custom"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtro</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${renderFFRow('Por dia', todayT, 'today', sel)}${renderFFRow('Semana', fBR(dW1) + ' a ' + fBR(dW2), 'week', sel)}<div class="flex gap-3"><div class="flex-1">${renderFFRow('Mês', `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][bD.month.getMonth()]} / ${bD.month.getFullYear()}`, 'month', sel)}</div><div class="flex-1">${renderFFRow('Ano', bD.year.getFullYear().toString(), 'year', sel)}</div></div></div><div class="p-4 bg-white border-t border-slate-50"><button onclick="window.applyNewFastFilter()" class="w-full bg-navy text-white py-4 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
+            showModal(`<div class="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-sm flex flex-col"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-center gap-2 text-navy"><i data-lucide="filter" class="w-5 h-5 text-orange-custom"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtro</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${renderFFRow('Por dia', todayT, 'today', sel)}${renderFFRow('Semana', fBR(dW1) + ' a ' + fBR(dW2), 'week', sel)}<div class="flex gap-3"><div class="flex-1">${renderFFRow('Mês', `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][bD.month.getMonth()]} / ${bD.month.getFullYear()}`, 'month', sel)}</div><div class="flex-1">${renderFFRow('Ano', bD.year.getFullYear().toString(), 'year', sel)}</div></div></div><div class="p-4 bg-white border-t border-slate-50"><button onclick="window.applyNewFastFilter()" class="w-full bg-navy text-white py-4 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
             renderIcons();
         }
 
@@ -1208,6 +1233,20 @@
                     irmas: parseInt(document.getElementById('event-irmas')?.value || '0')
                 };
 
+                // VERIFICAÇÃO DE DUPLICIDADE
+                const duplicate = state.events.find(e => 
+                    e.date === eventData.date && 
+                    e.time === eventData.time && 
+                    e.location_id === eventData.location_id && 
+                    e.type_id === eventData.type_id &&
+                    e.id !== state.editingEventId
+                );
+
+                if (duplicate) {
+                    showEventDuplicateModal(duplicate);
+                    return;
+                }
+
                 const action = state.editingEventId ? 'UPDATE' : 'INSERT';
                 
                 // CHAMADA PARA O MOTOR OFFLINE
@@ -1237,14 +1276,30 @@
             confirmarEDeletar,
             locateDuplicate: (id, coll) => { 
                 const targetScreen = coll === 'agenda' ? 'home' : coll;
+                
+                // Primeiro fecha o modal
+                closeModal();
+                
+                // Navega para a tela alvo
                 navigateTo(targetScreen); 
+                
+                // Reseta filtros para garantir que o item seja visível
                 state.managerSearchTerm = ''; 
                 state.searchTerm = ''; 
                 state.selectedDate = null; 
                 state.fastFilter = { active: false }; 
                 state.advancedFilter.active = false; 
+                
+                // Define o highlight para o item duplicado
                 state.highlightedItemId = id; 
-                closeModal(); 
+                
+                // Se for na home, força atualização da lista
+                if (targetScreen === 'home') {
+                    updateHomeList();
+                } else {
+                    // Se for gerência, a renderização já ocorre via Proxy, mas chamamos para garantir
+                    if (window.updateManagerListUI) window.updateManagerListUI(coll);
+                }
             }
         });
 
