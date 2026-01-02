@@ -1177,11 +1177,12 @@
                 };
 
                 const action = state.editingEventId ? 'UPDATE' : 'INSERT';
+                // Chama a lógica inteligente de offline que vamos colocar lá em cima
                 const result = await window.smartSave('agenda', action, eventData, state.editingEventId);
 
                 if (result.success) {
                     if (result.offline) {
-                        const tempId = 'temp_' + Date.now();
+                        const tempId = 'temp-' + Date.now();
                         state.events = [...state.events, { id: tempId, ...eventData, is_temp: true }];
                     }
                     window.navigateTo('home');
