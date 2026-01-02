@@ -887,7 +887,6 @@
             // BUSCA DE DUPLICADOS MELHORADA
             let ext = null;
             if (coll === 'types') {
-                // Para tipos, não permite repetir NOME nem SIGLA
                 ext = state.types.find(i => 
                     i.id !== id && 
                     ((i.name || '').toLowerCase() === name.toLowerCase() || (i.sigla || '').toUpperCase() === p.sigla)
@@ -905,11 +904,30 @@
             }
 
             const isN = !id || id === 'undefined' || id === '';
-            try {
-                const { data, error } = isN ? await supabaseClient.from(coll).insert([p]).select() : await supabaseClient.from(coll).update(p).eq('id', id).select();
-                if (error) { console.error(error.message); }
-                else { if (data && data[0]) { const nI = data[0]; const cL = [...state[coll]]; if (isN) cL.push(nI); else { const idx = cL.findIndex(i => i.id === nI.id); if (idx !== -1) cL[idx] = nI; } state[coll] = cL; state.highlightedItemId = nI.id; } closeModal(); }
-            } catch(e) { console.error("Erro de rede."); }
+            const action = isN ? 'INSERT' : 'UPDATE';
+            
+            // LÓGICA DE SALVAMENTO INTELIGENTE (SUPORTE OFFLINE)
+            const result = await window.smartSave(coll, action, p, id);
+
+            if (result.success) {
+                if (result.offline) {
+                    const cL = [...state[coll]];
+                    if (isN) {
+                        cL.push({ id: 'temp_' + Date.now(), ...p });
+                    } else {
+                        const idx = cL.findIndex(i => i.id === id);
+                        if (idx !== -1) cL[idx] = { ...cL[idx], ...p };
+                    }
+                    state[coll] = cL;
+                } else {
+                    // Atualização via Supabase disparará o listener em tempo real, 
+                    // mas por precaução o estado é atualizado aqui também.
+                    await refreshAllData();
+                }
+                closeModal();
+            } else {
+                console.error("Erro ao salvar:", result.error);
+            }
         }
 
         function showDuplicateModal(name, coll, dupId, edId, curVals) {
@@ -931,7 +949,31 @@
 
         async function confirmarExclusaoColecao(id, coll) {
             if (!state.isAdmin) return;
-            try { const { error } = await supabaseClient.from(coll).delete().eq('id', id); if (error) { console.error(error.message); } else closeModal(); } catch(e) { console.error("Erro de rede."); }
+            
+            // LÓGICA DE EXCLUSÃO OFFLINE
+            if (!navigator.onLine) {
+                const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                queue.push({ table: coll, action: 'DELETE', id: id });
+                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+                
+                // Atualização otimista: remove do estado local imediatamente
+                state[coll] = state[coll].filter(i => i.id !== id);
+                
+                closeModal();
+                showConnStatus('offline');
+                return;
+            }
+
+            try { 
+                const { error } = await supabaseClient.from(coll).delete().eq('id', id); 
+                if (error) { 
+                    console.error(error.message); 
+                } else {
+                    closeModal();
+                }
+            } catch(e) { 
+                console.error("Erro de rede."); 
+            }
         }
 
         async function confirmarEDeletar(id) {
@@ -952,7 +994,7 @@
                 return;
             }
 
-            // --- LÓGICA PARA MODO ONLINE (Original atualizada) ---
+            // --- LÓGICA PARA MODO ONLINE ---
             try { 
                 const { error } = await supabaseClient.from('agenda').delete().eq('id', id.trim()); 
                 if (error) { 
@@ -1257,7 +1299,6 @@
                     irmas: parseInt(document.getElementById('event-irmas')?.value || '0')
                 };
 
-                // VERIFICAÇÃO DE DUPLICIDADE
                 const duplicate = state.events.find(e => 
                     e.date === eventData.date && 
                     e.time === eventData.time && 
@@ -1272,13 +1313,10 @@
                 }
 
                 const action = state.editingEventId ? 'UPDATE' : 'INSERT';
-                
-                // CHAMADA PARA O MOTOR OFFLINE
                 const result = await window.smartSave('agenda', action, eventData, state.editingEventId);
 
                 if (result.success) {
                     if (result.offline) {
-                        // ATUALIZAÇÃO MANUAL DA TELA (Importante para a edição aparecer)
                         if (action === 'UPDATE') {
                             state.events = state.events.map(e => 
                                 e.id === state.editingEventId ? { ...e, ...eventData } : e
@@ -1300,59 +1338,42 @@
             confirmarEDeletar,
             locateDuplicate: (id, coll) => { 
                 const targetScreen = coll === 'agenda' ? 'home' : coll;
-                
-                // Primeiro fecha o modal
                 closeModal();
-                
-                // Navega para a tela alvo
                 navigateTo(targetScreen); 
-                
-                // Reseta filtros para garantir que o item seja visível
                 state.managerSearchTerm = ''; 
                 state.searchTerm = ''; 
                 state.selectedDate = null; 
                 state.fastFilter = { active: false }; 
                 state.advancedFilter.active = false; 
-                
-                // Define o highlight para o item duplicado
                 state.highlightedItemId = id; 
-                
-                // Se for na home, força atualização da lista
                 if (targetScreen === 'home') {
                     updateHomeList();
                 } else {
-                    // Se for gerência, a renderização já ocorre via Proxy, mas chamamos para garantir
                     if (window.updateManagerListUI) window.updateManagerListUI(coll);
                 }
             }
         });
 
         async function init() {
-            // Inicializa histórico para navegação do botão "voltar" do celular
             window.history.replaceState({ screen: 'home' }, "");
-
             window.addEventListener('popstate', (event) => {
                 if (state.isMenuOpen) { state.isMenuOpen = false; return; }
                 const modal = document.getElementById('modal-container');
                 if (modal && !modal.classList.contains('hidden')) { closeModal(); return; }
                 if (event.state && event.state.screen) { navigateTo(event.state.screen, false); } else { if (state.currentScreen !== 'home') navigateTo('home', false); }
             });
-
-            // Listeners de Conexão
             window.addEventListener('offline', () => { showConnStatus('offline'); });
             window.addEventListener('online', async () => { 
                 showConnStatus('online-recovered'); 
                 await refreshAllData();
                 scheduleRender();
             });
-
             supabaseClient.auth.onAuthStateChange((event, session) => { 
                 state.user = session?.user || null; 
                 state.isAdmin = session?.user?.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase(); 
                 if (event === 'SIGNED_IN') { navigateTo('home'); closeModal(); } 
                 scheduleRender(); 
             });
-
             const setupListener = (table, key) => {
                 supabaseClient.from(table).select('*').then(({ data }) => { 
                     if (data) state[key] = data; 
@@ -1362,7 +1383,6 @@
                     supabaseClient.from(table).select('*').then(({ data }) => { if (data) state[key] = data; }); 
                 }).subscribe();
             };
-
             setupListener('types', 'types'); 
             setupListener('locations', 'locations'); 
             setupListener('attendants', 'attendants'); 
@@ -1370,7 +1390,6 @@
             setupListener('feriados', 'feriados');
             loadExternalHolidays(new Date().getFullYear());
         }
-
         init();
     </script>
 </body>
