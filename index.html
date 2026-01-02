@@ -113,7 +113,60 @@
         const ADMIN_EMAIL = "eventosadmvalente@gmail.com"; 
 
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            /**
+             * ==========================================
+             * LÓGICA DE PERSISTÊNCIA OFFLINE
+             * ==========================================
+             */
+            const SYNC_QUEUE_KEY = 'adm_valente_sync_queue';
 
+            async function processOfflineQueue() {
+                if (!navigator.onLine) return;
+                const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                if (queue.length === 0) return;
+
+                console.log(`[Offline Sync] Sincronizando ${queue.length} itens...`);
+                state.isLoading = true;
+
+                for (const item of queue) {
+                    try {
+                        const { table, action, data, id } = item;
+                        if (action === 'INSERT') await supabaseClient.from(table).insert(data);
+                        if (action === 'UPDATE') await supabaseClient.from(table).update(data).eq('id', id);
+                        if (action === 'DELETE') await supabaseClient.from(table).delete().eq('id', id);
+                    } catch (err) {
+                        console.error("Erro ao sincronizar item da fila:", err);
+                    }
+                }
+
+                localStorage.removeItem(SYNC_QUEUE_KEY);
+                await refreshAllData();
+                state.isLoading = false;
+                showConnStatus('online-recovered');
+            }
+
+            window.smartSave = async (table, action, data, id = null) => {
+                if (!navigator.onLine) {
+                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                    queue.push({ table, action, data, id, timestamp: Date.now() });
+                    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+                    showConnStatus('offline');
+                    return { success: true, offline: true };
+                }
+                try {
+                    let res;
+                    if (action === 'INSERT') res = await supabaseClient.from(table).insert(data);
+                    if (action === 'UPDATE') res = await supabaseClient.from(table).update(data).eq('id', id);
+                    if (res.error) throw res.error;
+                    return { success: true, offline: false };
+                } catch (err) {
+                    console.error("Erro no smartSave:", err);
+                    return { success: false, error: err.message };
+                }
+            };
+
+            window.addEventListener('online', processOfflineQueue);
+        
         /**
          * ==========================================
          * 2. ESTADO GLOBAL (STATE)
@@ -1099,8 +1152,6 @@
                 renderIcons();
             },
             saveEvent: async () => {
-                const irV = document.getElementById('event-irmaos')?.value; 
-                const imV = document.getElementById('event-irmas')?.value;
                 const errs = [];
                 if (!state.formTempDate) errs.push('date');
                 if (!state.formTempLoc) errs.push('loc');
@@ -1108,18 +1159,33 @@
                 
                 if (errs.length > 0) {
                     state.formErrors = errs;
-                    renderEventForm(); 
                     return;
                 }
 
-                const p = { date: state.formTempDate, time: state.formTempTime, location_id: state.formTempLoc, type_id: state.formTempType, attendant_id: state.formTempAtt || null, irmaos: irV ? parseInt(irV) : 0, irmas: imV ? parseInt(imV) : 0 };
-                const dup = state.events.find((e) => e.date === p.date && e.time === p.time && e.location_id === p.location_id && e.type_id === p.type_id && (e.attendant_id || null) === (p.attendant_id || null) && e.id !== state.editingEventId);
-                if (dup) { showEventDuplicateModal(dup); return; }
-                try {
-                    const { data, error } = state.editingEventId ? await supabaseClient.from('agenda').update(p).eq('id', state.editingEventId).select() : await supabaseClient.from('agenda').insert([p]).select();
-                    if (error) { console.error(error.message); }
-                    else if (data && data[0]) { const sav = data[0]; const cur = [...state.events]; if (state.editingEventId) { const idx = cur.findIndex(e => e.id === sav.id); if (idx !== -1) cur[idx] = sav; } else cur.push(sav); state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.events = cur; state.highlightedItemId = sav.id; state.formErrors = []; navigateTo('home'); }
-                } catch(e) { console.error("Falha ao salvar."); }
+                const eventData = {
+                    date: state.formTempDate,
+                    time: state.formTempTime,
+                    location_id: state.formTempLoc,
+                    type_id: state.formTempType,
+                    attendant_id: state.formTempAtt || null,
+                    irmaos: parseInt(document.getElementById('event-irmaos')?.value || '0'),
+                    irmas: parseInt(document.getElementById('event-irmas')?.value || '0')
+                };
+
+                const action = state.editingEventId ? 'UPDATE' : 'INSERT';
+                // Chama a lógica inteligente de offline que vamos colocar lá em cima
+                const result = await window.smartSave('agenda', action, eventData, state.editingEventId);
+
+                if (result.success) {
+                    if (result.offline) {
+                        const tempId = 'temp-' + Date.now();
+                        state.events = [...state.events, { id: tempId, ...eventData, is_temp: true }];
+                    }
+                    window.navigateTo('home');
+                    state.editingEventId = null;
+                } else {
+                    alert("Erro ao salvar: " + result.error);
+                }
             },
             requestDeleteEvent: (id) => {
                 const ev = state.events.find((e) => e.id === id); const type = state.types.find((t) => t.id === ev?.type_id); const loc = state.locations.find((l) => l.id === ev?.location_id);
