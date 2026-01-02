@@ -1,13 +1,20 @@
 
 {
-  "name": "Eventos Adm Valente",
-  "short_name": "Adm Valente",
+  "name": "Agenda CCB",
+  "short_name": "Agenda CCB",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#ffffff",
-  "theme_color": "#003366",
+  "theme_color": "#4285f4",
   "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2693/2693507.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "https://cdn-icons-png.flaticon.com/512/2693/2693507.png",
       "sizes": "512x512",
