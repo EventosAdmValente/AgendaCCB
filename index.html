@@ -1355,31 +1355,22 @@
         });
 
        async function init() {
-    // --- CARREGAMENTO DE CACHE OFFLINE ---
+    // --- NOVO: CARREGAMENTO DE CACHE OFFLINE ---
     const tablesToCache = ['types', 'locations', 'attendants', 'agenda', 'feriados'];
-    let hasCache = false;
-
     tablesToCache.forEach(table => {
         const cachedData = localStorage.getItem(`cache_${table}`);
         if (cachedData) {
+            // Mapeia 'agenda' para 'events' no seu objeto state
             const key = table === 'agenda' ? 'events' : table;
             state[key] = JSON.parse(cachedData);
-            hasCache = true; // Identifica que temos dados locais
         }
     });
-
-    // SE TEM CACHE, JÁ DESLIGA O LOADING E MOSTRA A TELA
-    if (hasCache) {
-        state.isLoading = false; 
-        console.log("[Offline] Iniciando com dados do cache...");
-        // Se você tiver uma função que desenha a tela, chame-a aqui:
-        if (typeof scheduleRender === 'function') scheduleRender();
-    }
+    // Se já carregamos algo do cache, podemos liberar o loading para o usuário ver
+    if (state.events && state.events.length > 0) state.isLoading = false;
     // -------------------------------------------
 
     window.history.replaceState({ screen: 'home' }, "");
     
-    // Listeners de navegação
     window.addEventListener('popstate', (event) => {
         if (state.isMenuOpen) { state.isMenuOpen = false; return; }
         const modal = document.getElementById('modal-container');
@@ -1396,36 +1387,36 @@
     window.addEventListener('online', async () => { 
         showConnStatus('online-recovered'); 
         await refreshAllData();
-        if (typeof scheduleRender === 'function') scheduleRender();
+        scheduleRender();
     });
 
     supabaseClient.auth.onAuthStateChange((event, session) => { 
         state.user = session?.user || null; 
         state.isAdmin = session?.user?.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase(); 
         if (event === 'SIGNED_IN') { navigateTo('home'); closeModal(); } 
-        if (typeof scheduleRender === 'function') scheduleRender(); 
+        scheduleRender(); 
     });
 
     const setupListener = (table, key) => {
-        supabaseClient.from(table).select('*').then(({ data, error }) => { 
+        // Busca inicial no Supabase
+        supabaseClient.from(table).select('*').then(({ data }) => { 
             if (data) {
                 state[key] = data; 
+                // SALVA NO CACHE
                 localStorage.setItem(`cache_${table}`, JSON.stringify(data));
             }
-            // Desliga o loading mesmo se der erro (importante para offline)
-            state.isLoading = false; 
-            if (typeof scheduleRender === 'function') scheduleRender();
-        }).catch(() => {
-            state.isLoading = false;
-            if (typeof scheduleRender === 'function') scheduleRender();
+            if (state.types && state.types.length >= 0) state.isLoading = false; 
+            scheduleRender(); // Garante que a tela atualize após baixar do banco
         });
 
+        // Escuta mudanças em tempo real
         supabaseClient.channel(`public:${table}`).on('postgres_changes', { event: '*', schema: 'public', table }, () => { 
             supabaseClient.from(table).select('*').then(({ data }) => { 
                 if (data) {
                     state[key] = data;
+                    // ATUALIZA O CACHE
                     localStorage.setItem(`cache_${table}`, JSON.stringify(data));
-                    if (typeof scheduleRender === 'function') scheduleRender();
+                    scheduleRender();
                 }
             }); 
         }).subscribe();
