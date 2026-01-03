@@ -35,7 +35,7 @@
         .bg-navy { background-color: #003366; } .text-navy { color: #003366; } .border-navy { border-color: #003366; }
         .bg-orange-custom { background-color: #FF8C00; } .text-orange-custom { color: #FF8C00; } .border-orange-custom { border-color: #FF8C00; }
         input:focus, select:focus, textarea:focus { outline: none; }
-        input:-webkit-autofill { -webkit-box-shadow: 0 0 0 30px white !important; }
+        input:-webkit-autofill { -webkit-box-shadow: 0 0 0 30px white inset !important; }
         .disabled-area { opacity: 0.5; pointer-events: none; filter: grayscale(1); }
         .input-error { border-color: #ef4444 !important; background-color: #fef2f2 !important; border-width: 2px !important; }
 
@@ -393,7 +393,7 @@
                                 <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status Atual</span>
                                 <span class="text-xs font-bold text-orange-500 uppercase">Pendente</span>
                             </div>
-                            <button onclick="window.handleLogout()" class="text-xs font-bold text-navy uppercase tracking-widest flex items-center gap-2 border-b-2 border-navy/20 pb-1 mt-6 active:scale-95 transition-transform"><i data-lucide="log-out" class="w-4 h-4"></i> Sair da conta</button>
+                            <button onclick="window.handleLogout()" class="mt-8 px-8 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="log-out" class="w-4 h-4 text-white"></i> Sair da conta</button>
                         </div>
                     </div>
                     <div id="nav-menu-placeholder">${renderNavMenu()}</div>
@@ -669,7 +669,7 @@
                             `).join('')}
                         </nav>
                         <div class="p-4 border-t border-white/10 bg-[#002244]">
-                            ${state.user ? `<button onclick="window.handleLogout()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600/20 text-red-200 rounded-lg font-bold border border-red-500/30"><i data-lucide="log-out" class="w-4 h-4"></i> Sair</button>` : `<button onclick="window.showLoginModal()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white/10 text-white rounded-lg font-bold hover:bg-white/20 border border-white/10"><i data-lucide="lock" class="w-4 h-4"></i> Login Admin</button>`}
+                            ${state.user ? `<button onclick="window.handleLogout()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600/20 text-red-200 rounded-lg font-bold border border-red-500/30 active:scale-95 transition-transform"><i data-lucide="log-out" class="w-4 h-4"></i> Sair da Conta</button>` : `<button onclick="window.showLoginModal()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white/10 text-white rounded-lg font-bold hover:bg-white/20 border border-white/10"><i data-lucide="lock" class="w-4 h-4"></i> Login Admin</button>`}
                         </div>
                     </div>
                 </div>
@@ -1201,30 +1201,26 @@
 
         Object.assign(window, {
             renderApp, scheduleRender, navigateTo, openMenu, closeMenu, closeModal, showModal,
-            handleLogout: async () => { 
-                try {
-                    // 1. Sair no Supabase
-                    await supabaseClient.auth.signOut(); 
-                    
-                    // 2. Limpar cache local e sessão
-                    localStorage.clear();
-                    sessionStorage.clear();
-                    
-                    // 3. Resetar estado em memória imediatamente
-                    state.user = null;
-                    state.isAuthorized = false;
-                    state.isAdmin = false;
-                    state.events = [];
-                    state.currentScreen = 'home';
-                    
-                    // 4. Forçar recarregamento para limpar instâncias e garantir tela de login
-                    window.location.reload();
-                } catch (e) {
-                    console.error("Erro no logout:", e);
-                    // Fallback de segurança
-                    localStorage.clear();
-                    window.location.reload();
-                }
+            handleLogout: () => { 
+                // Feedback visual imediato
+                state.isLoading = true;
+                
+                // Limpeza agressiva do armazenamento local
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Notificar Supabase (em segundo plano, sem aguardar resposta)
+                supabaseClient.auth.signOut();
+                
+                // Reset de estado na memória
+                state.user = null;
+                state.isAuthorized = false;
+                state.isAdmin = false;
+                state.events = [];
+                state.currentScreen = 'home';
+                
+                // Forçar recarregamento para limpar totalmente o JS context e Service Worker
+                window.location.href = window.location.origin + window.location.pathname;
             }, 
             showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, updateHomeList, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; updateHomeList(); },
             startOpenAgenda: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; const t = new Date().toISOString().split('T')[0]; if (!state.selectedDate) state.selectedDate = t; state.viewDate = new Date(state.selectedDate + 'T00:00:00'); renderCalendar('filter'); },
@@ -1260,7 +1256,11 @@
             requestDeleteEvent: (id) => { const ev = state.events.find((e) => e.id === id); const type = state.types.find((t) => t.id === ev?.type_id); const loc = state.locations.find((l) => l.id === ev?.location_id); showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative border-t-[8px] border-red-500"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5"><i data-lucide="alert-triangle" class="text-red-500 w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3">Excluir?</h3><p class="text-sm text-slate-500 mb-8 px-2">Deseja excluir este evento?<br><strong class="text-slate-700">${type?.name || ''} em ${loc?.localidade || ''}</strong></p><div class="w-full flex gap-3"><button onclick="window.closeModal()" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold uppercase text-sm">Não</button><button onclick="window.confirmarEDeletar('${id}')" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-black uppercase text-sm">Sim</button></div></div></div>`); },
             confirmarEDeletar,
             locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
-            showExitConfirmation: () => showModal(`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border-t-4 border-navy"><div class="p-6 flex flex-col items-center text-center"><div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-navy"><i data-lucide="log-out"></i></div><h3 class="text-lg font-black text-navy uppercase tracking-tight mb-2">Sair do App?</h3><p class="text-xs font-medium text-slate-500 mb-6">Deseja realmente encerrar a aplicação?</p><div class="w-full flex gap-2"><button onclick="window.closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all">Não</button><button onclick="window.closeApp()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Sim, Sair</button></div></div></div>`),
+            showExitConfirmation: () => {
+                // Apenas exibe modal se não estiver na tela de login/acesso restrito
+                if (!state.user) return;
+                showModal(`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border-t-4 border-navy"><div class="p-6 flex flex-col items-center text-center"><div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-navy"><i data-lucide="home"></i></div><h3 class="text-lg font-black text-navy uppercase tracking-tight mb-2">Início</h3><p class="text-xs font-medium text-slate-500 mb-6">Você já está na tela principal.</p><div class="w-full flex gap-2"><button onclick="window.closeModal()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Entendido</button></div></div></div>`);
+            },
             closeApp: () => { window.close(); setTimeout(() => { alert("Para sair, use o gerenciador de tarefas do seu celular ou feche a aba do navegador."); closeModal(); }, 300); }
         });
 
@@ -1283,7 +1283,7 @@
             window.addEventListener('online', async () => { showConnStatus('online-recovered'); await refreshAllData(); scheduleRender(); });
 
             supabaseClient.auth.onAuthStateChange(async (event, session) => { 
-                if (event === 'SIGNED_OUT') {
+                if (event === 'SIGNED_OUT' || !session) {
                     state.user = null;
                     state.isAuthorized = false;
                     state.isAdmin = false;
@@ -1296,12 +1296,15 @@
                 state.isAdmin = session?.user?.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase(); 
                 
                 if (session?.user) {
-                    const { data: profile } = await supabaseClient.from('perfis').select('permissao').eq('id', session.user.id).single();
-                    const isMasterAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-                    // Normalização para evitar erros de autorização por causa de maiúsculas/minúsculas
-                    const permissaoNormalizada = (profile?.permissao || '').toLowerCase();
-                    state.isAuthorized = isMasterAdmin || (profile && permissaoNormalizada !== 'pendente');
-                    if (state.isAuthorized) await refreshAllData();
+                    try {
+                        const { data: profile } = await supabaseClient.from('perfis').select('permissao').eq('id', session.user.id).single();
+                        const isMasterAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+                        const permissaoNormalizada = (profile?.permissao || '').toLowerCase();
+                        state.isAuthorized = isMasterAdmin || (profile && permissaoNormalizada !== 'pendente');
+                        if (state.isAuthorized) await refreshAllData();
+                    } catch (e) {
+                        console.error("Erro ao validar sessão:", e);
+                    }
                 } else {
                     state.isAuthorized = false;
                     state.isAdmin = false;
