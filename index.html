@@ -122,7 +122,13 @@
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdjc3ZhcG9xcGJycnF1Ynhhd2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4OTgyMzYsImV4cCI6MjA4MDQ3NDIzNn0.QtIldObznGEYTXyEf0MS4mIgIDgbMKmS0M2FBVInTZQ";
         const ADMIN_EMAIL = "eventosadmvalente@gmail.com"; 
 
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        });
 
         /**
          * Tradução de erros de autenticação do Supabase
@@ -1202,25 +1208,12 @@
         Object.assign(window, {
             renderApp, scheduleRender, navigateTo, openMenu, closeMenu, closeModal, showModal,
             handleLogout: () => { 
-                // Feedback visual imediato
                 state.isLoading = true;
-                
-                // Limpeza agressiva do armazenamento local
                 localStorage.clear();
                 sessionStorage.clear();
-                
-                // Notificar Supabase (em segundo plano, sem aguardar resposta)
-                supabaseClient.auth.signOut();
-                
-                // Reset de estado na memória
-                state.user = null;
-                state.isAuthorized = false;
-                state.isAdmin = false;
-                state.events = [];
-                state.currentScreen = 'home';
-                
-                // Forçar recarregamento para limpar totalmente o JS context e Service Worker
-                window.location.href = window.location.origin + window.location.pathname;
+                supabaseClient.auth.signOut().then(() => {
+                    window.location.href = window.location.origin + window.location.pathname;
+                });
             }, 
             showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, updateHomeList, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; updateHomeList(); },
             startOpenAgenda: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; const t = new Date().toISOString().split('T')[0]; if (!state.selectedDate) state.selectedDate = t; state.viewDate = new Date(state.selectedDate + 'T00:00:00'); renderCalendar('filter'); },
@@ -1257,7 +1250,6 @@
             confirmarEDeletar,
             locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
             showExitConfirmation: () => {
-                // Apenas exibe modal se não estiver na tela de login/acesso restrito
                 if (!state.user) return;
                 showModal(`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border-t-4 border-navy"><div class="p-6 flex flex-col items-center text-center"><div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-navy"><i data-lucide="home"></i></div><h3 class="text-lg font-black text-navy uppercase tracking-tight mb-2">Início</h3><p class="text-xs font-medium text-slate-500 mb-6">Você já está na tela principal.</p><div class="w-full flex gap-2"><button onclick="window.closeModal()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Entendido</button></div></div></div>`);
             },
@@ -1265,9 +1257,34 @@
         });
 
        async function init() {
+            // 1. Carregar cache local imediatamente para a UI não começar vazia
             const tablesToCache = ['types', 'locations', 'attendants', 'agenda', 'feriados', 'perfis'];
-            tablesToCache.forEach(table => { const cachedData = localStorage.getItem(`cache_${table}`); if (cachedData) { const key = table === 'agenda' ? 'events' : table; state[key] = JSON.parse(cachedData); } });
-            if (state.events && state.events.length > 0) state.isLoading = false;
+            tablesToCache.forEach(table => { 
+                const cachedData = localStorage.getItem(`cache_${table}`); 
+                if (cachedData) { 
+                    const key = table === 'agenda' ? 'events' : table; 
+                    state[key] = JSON.parse(cachedData); 
+                } 
+            });
+
+            // 2. Verificar Sessão Persistida ANTES de qualquer renderização
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                state.user = session.user;
+                state.isAdmin = session.user.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase();
+                try {
+                    const { data: profile } = await supabaseClient.from('perfis').select('permissao').eq('id', session.user.id).single();
+                    const isMasterAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+                    const permissaoNormalizada = (profile?.permissao || '').toLowerCase();
+                    state.isAuthorized = isMasterAdmin || (profile && permissaoNormalizada !== 'pendente');
+                    if (state.isAuthorized) await refreshAllData();
+                } catch (e) {
+                    console.error("Erro ao validar perfil inicial:", e);
+                }
+            }
+            
+            // Uma vez verificado o login, paramos o loading principal
+            state.isLoading = false;
 
             window.history.pushState({ screen: 'home' }, "");
             window.addEventListener('popstate', (event) => {
@@ -1305,9 +1322,6 @@
                     } catch (e) {
                         console.error("Erro ao validar sessão:", e);
                     }
-                } else {
-                    state.isAuthorized = false;
-                    state.isAdmin = false;
                 }
                 if (event === 'SIGNED_IN') closeModal(); 
                 scheduleRender(); 
@@ -1316,7 +1330,6 @@
             const setupListener = (table, key) => {
                 supabaseClient.from(table).select('*').then(({ data }) => { 
                     if (data) { state[key] = data; localStorage.setItem(`cache_${table}`, JSON.stringify(data)); }
-                    if (state.types && state.types.length >= 0) state.isLoading = false; 
                     scheduleRender();
                 });
                 supabaseClient.channel(`public:${table}`).on('postgres_changes', { event: '*', schema: 'public', table }, () => { 
