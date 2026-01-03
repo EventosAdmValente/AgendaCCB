@@ -35,7 +35,7 @@
         .bg-navy { background-color: #003366; } .text-navy { color: #003366; } .border-navy { border-color: #003366; }
         .bg-orange-custom { background-color: #FF8C00; } .text-orange-custom { color: #FF8C00; } .border-orange-custom { border-color: #FF8C00; }
         input:focus, select:focus, textarea:focus { outline: none; }
-        input:-webkit-autofill { -webkit-box-shadow: 0 0 0 30px white inset !important; }
+        input:-webkit-autofill { -webkit-box-shadow: 0 0 0 30px white !important; }
         .disabled-area { opacity: 0.5; pointer-events: none; filter: grayscale(1); }
         .input-error { border-color: #ef4444 !important; background-color: #fef2f2 !important; border-width: 2px !important; }
 
@@ -999,7 +999,7 @@
             else if (coll === 'locations') { p.localidade = name; p.adm = document.getElementById('loc-adm')?.value.trim(); p.setor = document.getElementById('loc-setor')?.value.trim(); p.cidade = document.getElementById('loc-cidade')?.value.trim(); }
             else if (coll === 'attendants') { p.name = name; p.ministerio = extraV; }
             else if (coll === 'feriados') { p.nome_feriado = name; p.data = dateVal; p.tipo_feriado = document.getElementById('feriado-tipo')?.value.trim(); }
-            else if (coll === 'perfis') { p.nome = name; p.permissao = extraV || 'Pendente'; } // Garantindo que permissao seja preenchida (Pendente por padrão)
+            else if (coll === 'perfis') { p.nome = name; p.permissao = extraV || 'pendente'; } // Garantindo que permissao seja preenchida (Pendente por padrão)
             
             let ext = null;
             if (coll === 'types') {
@@ -1042,11 +1042,13 @@
 
         function showDeleteConfirmModal(id, coll, name) {
             if (!state.isAdmin) return;
-            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative border-t-[8px] border-red-500"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5"><i data-lucide="alert-triangle" class="text-red-500 w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3">Confirmação</h3><p class="text-sm text-slate-500 mb-8 leading-relaxed px-2">Deseja realmente excluir <br><strong class="text-slate-700">"${name || ''}"</strong>?</p><div class="w-full flex gap-3"><button onclick="window.closeModal()" class="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold active:scale-95 transition-all text-sm uppercase">Não</button><button onclick="window.confirmarExclusaoColecao('${id}', '${coll}')" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-black shadow-lg active:scale-95 transition-all text-sm uppercase">Sim, Excluir</button></div></div></div>`);
+            const isUser = coll === 'perfis';
+            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative border-t-[8px] border-red-500"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5"><i data-lucide="${isUser ? 'user-minus' : 'alert-triangle'}" class="text-red-500 w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3">Confirmação</h3><p class="text-sm text-slate-500 mb-8 leading-relaxed px-2">Deseja realmente excluir ${isUser ? 'o usuário e sua conta' : 'o registro'} <br><strong class="text-slate-700">"${name || ''}"</strong>?</p><div class="w-full flex gap-3"><button onclick="window.closeModal()" class="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold active:scale-95 transition-all text-sm uppercase">Não</button><button onclick="window.confirmarExclusaoColecao('${id}', '${coll}')" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-black shadow-lg active:scale-95 transition-all text-sm uppercase">Sim, Excluir</button></div></div></div>`);
         }
 
         async function confirmarExclusaoColecao(id, coll) {
             if (!state.isAdmin) return;
+            
             if (!navigator.onLine) {
                 const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                 queue.push({ table: coll, action: 'DELETE', id: id });
@@ -1056,7 +1058,19 @@
                 showConnStatus('offline');
                 return;
             }
-            try { const { error } = await supabaseClient.from(coll).delete().eq('id', id); if (!error) closeModal(); } catch(e) {}
+
+            try { 
+                const { error } = await supabaseClient.from(coll).delete().eq('id', id); 
+                if (!error) {
+                    state[coll] = state[coll].filter(i => i.id !== id);
+                    closeModal(); 
+                    if (window.updateManagerListUI) window.updateManagerListUI(coll);
+                } else {
+                    alert("Erro ao excluir: " + error.message);
+                }
+            } catch(e) {
+                console.error("Erro na exclusão:", e);
+            }
         }
 
         async function confirmarEDeletar(id) {
@@ -1113,12 +1127,12 @@
                             if (!name) throw new Error("O nome é obrigatório para cadastro.");
                             const { data, error } = await supabaseClient.auth.signUp({ email, password });
                             if (error) throw error;
-                            // Implementação solicitada: Cadastro do nome na tabela perfis com permissão pendente
+                            // Cadastro do nome na tabela perfis com permissão pendente
                             if (data?.user) {
                                 const { error: profileError } = await supabaseClient.from('perfis').insert({ 
                                     id: data.user.id, 
                                     nome: name, 
-                                    permissao: 'Pendente' 
+                                    permissao: 'pendente' 
                                 });
                                 if (profileError) console.error("Erro ao criar perfil:", profileError);
                             }
@@ -1189,18 +1203,27 @@
             renderApp, scheduleRender, navigateTo, openMenu, closeMenu, closeModal, showModal,
             handleLogout: async () => { 
                 try {
+                    // 1. Sair no Supabase
                     await supabaseClient.auth.signOut(); 
+                    
+                    // 2. Limpar cache local e sessão
                     localStorage.clear();
-                    // Reset manual do estado para transição imediata para a tela de Acesso Restrito
+                    sessionStorage.clear();
+                    
+                    // 3. Resetar estado em memória imediatamente
                     state.user = null;
                     state.isAuthorized = false;
                     state.isAdmin = false;
                     state.events = [];
                     state.currentScreen = 'home';
+                    
+                    // 4. Forçar recarregamento para limpar instâncias e garantir tela de login
+                    window.location.reload();
                 } catch (e) {
                     console.error("Erro no logout:", e);
-                    state.user = null;
-                    state.currentScreen = 'home';
+                    // Fallback de segurança
+                    localStorage.clear();
+                    window.location.reload();
                 }
             }, 
             showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, updateHomeList, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; updateHomeList(); },
