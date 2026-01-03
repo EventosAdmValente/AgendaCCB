@@ -85,22 +85,27 @@
     <!-- Template: Login Modal -->
     <template id="login-modal-template">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div class="p-5 border-b border-slate-100 bg-slate-50">
-                <h3 class="font-bold text-lg text-navy">Área Administrativa</h3>
+            <div class="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                <h3 id="modal-login-title" class="font-bold text-lg text-navy uppercase tracking-tight">Área Administrativa</h3>
+                <button type="button" onclick="window.closeModal()" class="text-slate-400 p-1 hover:text-slate-600"><i data-lucide="x" class="w-6 h-6"></i></button>
             </div>
             <form id="login-form" class="p-6 flex flex-col gap-4">
-                <div>
-                    <label class="text-sm font-bold text-slate-700 mb-1 block">Email</label>
-                    <input type="email" id="login-email" class="w-full p-3 border border-slate-300 rounded-lg" required>
+                <div id="name-field" class="hidden">
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1">Nome Completo</label>
+                    <input type="text" id="login-name" class="w-full p-3 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-navy/10" placeholder="Seu nome">
                 </div>
                 <div>
-                    <label class="text-sm font-bold text-slate-700 mb-1 block">Senha</label>
-                    <input type="password" id="login-password" class="w-full p-3 border border-slate-300 rounded-lg" required>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1">Email</label>
+                    <input type="email" id="login-email" class="w-full p-3 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-navy/10" placeholder="exemplo@email.com" required>
                 </div>
-                <div id="login-error" class="text-red-500 text-sm hidden font-medium"></div>
-                <div class="flex gap-3 pt-2">
-                    <button type="button" onclick="window.closeModal()" class="flex-1 py-3 rounded-lg bg-slate-100 font-bold">Cancelar</button>
-                    <button type="submit" class="flex-1 py-3 rounded-lg bg-navy text-white font-bold">Entrar</button>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1">Senha</label>
+                    <input type="password" id="login-password" class="w-full p-3 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-navy/10" placeholder="••••••••" required>
+                </div>
+                <div id="login-error" class="text-red-500 text-[11px] hidden font-bold bg-red-50 p-2 rounded-lg border border-red-100"></div>
+                <button type="submit" id="login-submit-btn" class="w-full py-4 rounded-xl bg-navy text-white font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Entrar</button>
+                <div class="text-center pt-2">
+                    <button type="button" id="toggle-auth-mode" class="text-[11px] font-bold text-slate-500 hover:text-navy uppercase tracking-tight underline">Não tem conta? Cadastre-se</button>
                 </div>
             </form>
         </div>
@@ -180,12 +185,14 @@
         const INITIAL_STATE = {
             user: null, 
             isAdmin: false, 
+            isAuthorized: false,
             currentScreen: 'home',
             events: [], 
             types: [], 
             locations: [], 
             attendants: [],
             feriados: [],
+            perfis: [],
             externalHolidays: [], 
             fetchedYears: new Set(), 
             isMenuOpen: false, 
@@ -241,7 +248,6 @@
                 }
 
                 if (property === 'currentScreen' && value === 'home') {
-                    // Limpar highlight ao voltar para home se não for via locateDuplicate
                     if (!state.highlightedItemId) state.highlightedItemId = null;
                 }
 
@@ -319,6 +325,7 @@
                 case 'locations': renderGenericManager('Cidades / Localidades', 'locations'); break; 
                 case 'attendants': renderGenericManager('Atendentes', 'attendants'); break; 
                 case 'feriados': renderGenericManager('Feriados', 'feriados'); break;
+                case 'users': renderGenericManager('Gestão de Usuários', 'perfis'); break;
                 case 'about': renderAbout(); break;
             }
             renderIcons();
@@ -328,6 +335,59 @@
             const app = document.getElementById('app');
             if (!app) return;
 
+            // CASO 1: Usuário não logado
+            if (!state.user) {
+                app.innerHTML = `
+                    <div class="flex flex-col h-full bg-slate-100">
+                        <div class="bg-navy text-white p-4 sticky top-0 z-10 shadow-lg flex justify-between items-center">
+                            <button onclick="window.openMenu()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="menu" class="w-7 h-7"></i></button>
+                            <h1 class="text-lg font-bold uppercase tracking-wide">Agenda CCB</h1>
+                            <div class="w-7 h-7"></div>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6">
+                            <div class="w-20 h-20 bg-blue-50 text-navy rounded-3xl flex items-center justify-center border border-blue-100 shadow-sm"><i data-lucide="lock" class="w-10 h-10"></i></div>
+                            <div>
+                                <h2 class="text-xl font-black text-navy uppercase">Acesso Restrito</h2>
+                                <p class="text-sm text-slate-500 mt-2">Faça login para visualizar a agenda administrativa.</p>
+                            </div>
+                            <button onclick="window.showLoginModal()" class="bg-navy text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Fazer Login</button>
+                        </div>
+                    </div>
+                    <div id="nav-menu-placeholder">${renderNavMenu()}</div>
+                `;
+                renderIcons();
+                return;
+            }
+
+            // CASO 2: Usuário logado mas NÃO autorizado
+            if (!state.isAuthorized) {
+                app.innerHTML = `
+                    <div class="flex flex-col h-full bg-slate-100">
+                        <div class="bg-navy text-white p-4 sticky top-0 z-10 shadow-lg flex justify-between items-center">
+                            <button onclick="window.openMenu()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="menu" class="w-7 h-7"></i></button>
+                            <h1 class="text-lg font-bold uppercase tracking-wide">Agenda CCB</h1>
+                            <button onclick="window.handleLogout()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="log-out" class="w-6 h-6"></i></button>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6">
+                            <div class="w-20 h-20 bg-orange-50 text-orange-custom rounded-3xl flex items-center justify-center border border-orange-100 shadow-sm animate-pulse"><i data-lucide="clock" class="w-10 h-10"></i></div>
+                            <div>
+                                <h2 class="text-xl font-black text-navy uppercase">Aguardando Autorização</h2>
+                                <p class="text-sm text-slate-500 mt-2">Seu cadastro foi realizado com sucesso. Aguarde até que um administrador aprove seu acesso.</p>
+                            </div>
+                            <div class="p-4 bg-white border border-slate-200 rounded-2xl w-full max-w-xs shadow-sm">
+                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status Atual</span>
+                                <span class="text-xs font-bold text-orange-500 uppercase">Pendente</span>
+                            </div>
+                            <button onclick="window.handleLogout()" class="text-xs font-bold text-navy uppercase tracking-widest flex items-center gap-2 border-b-2 border-navy/20 pb-1 mt-6 active:scale-95 transition-transform"><i data-lucide="log-out" class="w-4 h-4"></i> Sair da conta</button>
+                        </div>
+                    </div>
+                    <div id="nav-menu-placeholder">${renderNavMenu()}</div>
+                `;
+                renderIcons();
+                return;
+            }
+
+            // CASO 3: Usuário Autorizado (Visualização Normal)
             app.innerHTML = `
                 <div id="home-container" class="flex flex-col h-full bg-slate-100 relative">
                     <div id="nav-menu-placeholder">${renderNavMenu()}</div>
@@ -345,7 +405,7 @@
                         </div>
                         <div class="flex gap-2">
                             <div class="relative flex-1">
-                                <input id="homeSearch" type="text" placeholder="Pesquisar evento, local ou atendente..." class="w-full pl-10 pr-3 h-10 border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-navy/20" value="${state.searchTerm || ''}">
+                                <input id="homeSearch" type="text" placeholder="Pesquisar evento, local ou atendente..." class="w-full pl-10 pr-3 h-10 border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-navy/10" value="${state.searchTerm || ''}">
                                 <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
                             </div>
                             <button onclick="window.renderAdvancedFilterModal()" class="w-10 h-10 bg-white border border-slate-300 rounded-lg flex items-center justify-center text-navy shadow-sm active:bg-slate-50 relative">
@@ -364,6 +424,7 @@
         }
 
         function getFilteredEvents() {
+            if (!state.isAuthorized) return [];
             let filtered = [...(state.events || [])];
             
             if (state.selectedDate) {
@@ -425,10 +486,15 @@
         }
 
         function updateHomeList() {
-            const filtered = getFilteredEvents();
             const container = document.getElementById('event-list-container');
             if (!container) return;
 
+            if (!state.isAuthorized) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const filtered = getFilteredEvents();
             container.innerHTML = `
                 <div class="flex justify-between items-start px-1 mb-1 gap-2 min-h-[18px] overflow-visible">
                     <div id="home-filter-label" class="font-bold text-navy uppercase flex-1 min-w-0 leading-tight whitespace-normal break-words overflow-visible transition-all duration-200" style="font-size: 13px;">
@@ -462,7 +528,7 @@
                                                 ${type?.sigla || 'EVT'}
                                             </span>
                                             ${hasStats ? `
-                                                <div class="flex flex-col items-end text-[16.9px] font-semibold text-slate-400 leading-tight">
+                                                <div class="flex flex-col items-end text-[12.15px] font-semibold text-slate-400 leading-tight">
                                                     <div>Irmãs: ${e.irmas || 0}</div>
                                                     <div>Irmãos: ${e.irmaos || 0}</div>
                                                     <div>Total: ${total}</div>
@@ -491,12 +557,10 @@
                 </div>
             `;
             
-            // Lógica de auto-shrink para o rótulo de filtro (garantir caber em no máximo 2 linhas)
             const labelEl = document.getElementById('home-filter-label');
             if (labelEl) {
                 let currentSize = 13;
                 labelEl.style.fontSize = currentSize + 'px';
-                // Threshold para 2 linhas: scrollHeight maior que ~34px indica necessidade de reduzir fonte
                 while (labelEl.scrollHeight > 34 && currentSize > 9) {
                     currentSize -= 0.2;
                     labelEl.style.fontSize = currentSize + 'px';
@@ -537,10 +601,6 @@
                     if (loc) locChain.push(loc.localidade);
                 }
                 if (locChain.length > 0) parts.push(locChain.join(' > '));
-                if (af.attendant.enabled && af.attendant.id) {
-                    const att = state.attendants.find((a) => a.id === af.attendant.id);
-                    if (att) parts.push(att.name);
-                }
                 if (af.period.enabled && af.period.start && af.period.end) {
                     parts.push(`${formatDate(af.period.start)} a ${formatDate(af.period.end)}`);
                 }
@@ -553,14 +613,30 @@
 
         function renderNavMenu() { 
             if (!state.isMenuOpen) return ''; 
-            const menuItems = [
-                { id: 'home', icon: 'home', label: 'Início' },
-                { id: 'types', icon: 'tag', label: 'Tipos de Evento' },
-                { id: 'locations', icon: 'map-pin', label: 'Localidades' },
-                { id: 'attendants', icon: 'users', label: 'Atendentes' },
-                { id: 'feriados', icon: 'sun', label: 'Feriados' },
+            
+            const baseItems = [
+                { id: 'home', icon: 'home', label: 'Início' }
+            ];
+
+            if (state.isAuthorized) {
+                baseItems.push(
+                    { id: 'types', icon: 'tag', label: 'Tipos de Evento' },
+                    { id: 'locations', icon: 'map-pin', label: 'Localidades' },
+                    { id: 'attendants', icon: 'users', label: 'Atendentes' },
+                    { id: 'feriados', icon: 'sun', label: 'Feriados' }
+                );
+            }
+
+            const adminItems = (state.isAdmin && state.isAuthorized) ? [
+                { id: 'users', icon: 'shield-check', label: 'Gestão de Usuários' }
+            ] : [];
+
+            const footerItems = [
                 { id: 'about', icon: 'info', label: 'Sobre' }
             ];
+
+            const menuItems = [...baseItems, ...adminItems, ...footerItems];
+
             return `
                 <div class="fixed inset-0 z-50 flex">
                     <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="window.closeMenu()"></div>
@@ -585,7 +661,14 @@
             `; 
         }
 
+        function renderUsersManager() {
+            const app = document.getElementById('app');
+            if (!app) return;
+            renderGenericManager('Gestão de Usuários', 'perfis');
+        }
+
         function renderEventForm() {
+            if (!state.isAuthorized) { navigateTo('home'); return; }
             const isEditing = !!state.editingEventId;
             const app = document.getElementById('app');
             if (!app) return;
@@ -627,7 +710,7 @@
                             </div>
                             <div class="flex flex-col gap-1">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Evento</label>
-                                <button onclick="window.openSelectPicker('types', 'Tipo', 'formTempType')" class="flex items-center gap-2 border ${errs.includes('type') ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
+                                <button onclick="window.openSelectPicker('types', 'Tipo', 'formTempType')" class="flex items-center gap-2 border ${errs.includes('type') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
                                     <i data-lucide="tag" class="w-4 h-4 opacity-50"></i>
                                     <span>${state.types.find((t)=>t.id===state.formTempType)?.name || 'Selecionar Tipo'}</span>
                                 </button>
@@ -659,17 +742,22 @@
         }
 
         function renderGenericManager(title, collection) {
+            if (!state.isAuthorized) { navigateTo('home'); return; }
             const app = document.getElementById('app');
             if (!app) return;
             let itemIcon = 'tag';
             if (collection === 'locations') itemIcon = 'map-pin';
             if (collection === 'attendants') itemIcon = 'user';
             if (collection === 'feriados') itemIcon = 'sun';
+            if (collection === 'perfis') itemIcon = 'shield-check';
+
             let searchPlaceholder = "Buscar...";
             if (collection === 'locations') searchPlaceholder = "Pesq. por adm, setor, cidade, localidade";
             else if (collection === 'types') searchPlaceholder = "Pesquisar por nome ou sigla...";
             else if (collection === 'attendants') searchPlaceholder = "Pesquisar por nome ou ministério...";
             else if (collection === 'feriados') searchPlaceholder = "Pesquisar por nome ou tipo...";
+            else if (collection === 'perfis') searchPlaceholder = "Pesquisar por nome ou permissão...";
+
             app.innerHTML = `
                 <div class="flex flex-col h-full bg-slate-100">
                     <div class="bg-navy text-white p-4 flex justify-between items-center shadow-lg z-10">
@@ -703,8 +791,8 @@
                 const items = [...(state[coll] || [])];
                 items.sort((a, b) => {
                     if (coll === 'feriados') return (a.data || '').localeCompare(b.data || '');
-                    const nameA = (coll === 'locations' ? a.localidade : (coll === 'feriados' ? a.nome_feriado : a.name)) || '';
-                    const nameB = (coll === 'locations' ? b.localidade : (coll === 'feriados' ? b.nome_feriado : b.name)) || '';
+                    const nameA = (coll === 'locations' ? a.localidade : (coll === 'perfis' ? a.nome : a.name)) || '';
+                    const nameB = (coll === 'locations' ? b.localidade : (coll === 'perfis' ? a.nome : b.name)) || '';
                     return nameA.localeCompare(nameB);
                 });
                 const term = (state.managerSearchTerm || '').toLowerCase();
@@ -713,12 +801,13 @@
                     if (coll === 'locations') return (i.localidade || '').toLowerCase().includes(term) || (i.adm || '').toLowerCase().includes(term) || (i.setor || '').toLowerCase().includes(term) || (i.cidade || '').toLowerCase().includes(term);
                     if (coll === 'attendants') return (i.name || '').toLowerCase().includes(term) || (i.ministerio || '').toLowerCase().includes(term);
                     if (coll === 'feriados') return (i.nome_feriado || '').toLowerCase().includes(term) || (i.tipo_feriado || '').toLowerCase().includes(term) || (i.data || '').toLowerCase().includes(term);
+                    if (coll === 'perfis') return (i.nome || '').toLowerCase().includes(term) || (i.permissao || '').toLowerCase().includes(term);
                     return false;
                 });
                 stats.innerHTML = `<span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${filtered.length} REGISTROS</span>`;
                 container.innerHTML = filtered.length === 0 ? '<div class="p-12 text-center text-slate-300 italic text-sm">Nenhum registro encontrado.</div>' : filtered.map((item) => {
                     let badgesHtml = "";
-                    const mainName = (coll === 'locations' ? item.localidade : (coll === 'feriados' ? item.nome_feriado : item.name)) || '';
+                    const mainName = (coll === 'locations' ? item.localidade : (coll === 'feriados' ? item.nome_feriado : (coll === 'perfis' ? item.nome : item.name))) || '';
                     if (coll === 'locations') {
                         const line2 = [item.adm, item.setor].filter(Boolean).join(' | ');
                         badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${line2}</div><div class="text-[11px] text-slate-400 font-semibold leading-tight mt-0.5 h-3">${item.cidade || ''}</div>`;
@@ -728,6 +817,8 @@
                         badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.ministerio || ''}</div><div class="text-[11px] text-slate-400 leading-tight mt-0.5 h-3"></div>`;
                     } else if (coll === 'feriados') {
                         badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.tipo_feriado || ''}</div><div class="text-[11px] text-slate-400 font-semibold leading-tight mt-0.5 h-3">${formatDateFull(item.data) || ''}</div>`;
+                    } else if (coll === 'perfis') {
+                        badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.permissao || ''}</div><div class="text-[11px] text-slate-400 leading-tight mt-0.5 h-3"></div>`;
                     }
                     const isHighlighted = state.highlightedItemId === item.id;
                     const safeMainName = (mainName || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
@@ -740,7 +831,7 @@
             };
             document.getElementById('managerSearch')?.addEventListener('input', (e) => { state.managerSearchTerm = e.target.value; state.highlightedItemId = null; window.updateManagerListUI(collection); });
             window.updateManagerListUI(collection);
-        }
+       }
 
         function renderAbout() {
             const app = document.getElementById('app');
@@ -836,17 +927,10 @@
             if (af.period.enabled && af.period.start) {
                 const d = new Date(af.period.start + 'T00:00:00');
                 const dEnd = new Date(af.period.end + 'T00:00:00');
-                
                 const isFullMonth = d.getDate() === 1 && dEnd.getDate() === new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() && d.getMonth() === dEnd.getMonth();
                 const isFullYear = d.getDate() === 1 && d.getMonth() === 0 && dEnd.getDate() === 31 && dEnd.getMonth() === 11;
-                
-                if (isFullYear) {
-                    selYearLabel = d.getFullYear().toString();
-                    selMonthLabel = 'Mês';
-                } else if (isFullMonth) {
-                    selMonthLabel = monthNames[d.getMonth()];
-                    selYearLabel = d.getFullYear().toString();
-                }
+                if (isFullYear) { selYearLabel = d.getFullYear().toString(); selMonthLabel = 'Mês'; } 
+                else if (isFullMonth) { selMonthLabel = monthNames[d.getMonth()]; selYearLabel = d.getFullYear().toString(); }
             }
 
             state.searchTerm = '';
@@ -858,7 +942,7 @@
             if (f === 'setor') { if (af.adm.enabled && af.adm.value) locs = locs.filter(l => l.adm === af.adm.value); }
             else if (f === 'cidade') { if (af.adm.enabled && af.adm.value) locs = locs.filter(l => l.adm === af.adm.value); if (af.setor.enabled && af.setor.value) locs = locs.filter(l => l.setor === af.setor.value); }
             const values = [...new Set(locs.map((l) => l[f]).filter((v) => v))].sort();
-            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${f.toUpperCase()}</h3></div><button onclick="window.renderAdvancedFilterModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-6 h-6"></i></button></div><div id="distinctItemsList" class="flex-1 overflow-y-auto px-2 pb-4 pt-2 scrollbar-none">${values.length === 0 ? '<div class="p-8 text-center text-slate-300 italic text-sm">Nenhum dado encontrado.</div>' : values.map(val => `<button onclick="window.handleAdvFilterSelect('${f}', '${val.replace(/'/g, "\\'")}')" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><span class="font-bold text-sm text-navy leading-tight">${val}</span>${af[f].value === val ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0"></i>' : ''}</button>`).join('')}</div></div>`);
+            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${f.toUpperCase()}</h3></div><button onclick="window.renderAdvancedFilterModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div id="distinctItemsList" class="flex-1 overflow-y-auto px-2 pb-4 pt-2 scrollbar-none">${values.length === 0 ? '<div class="p-8 text-center text-slate-300 italic text-sm">Nenhum dado encontrado.</div>' : values.map(val => `<button onclick="window.handleAdvFilterSelect('${f}', '${val.replace(/'/g, "\\'")}')" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><span class="font-bold text-sm text-navy leading-tight">${val}</span>${af[f].value === val ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0"></i>' : ''}</button>`).join('')}</div></div>`);
             renderIcons();
         }
 
@@ -867,10 +951,19 @@
             const safeId = (!id || id === 'undefined') ? '' : id;
             const isE = !!safeId;
             const item = (initVals && Object.keys(initVals).length > 0) ? initVals : (isE ? state[coll].find((i) => i.id === safeId) : {});
-            const ctx = { types: { title: 'Tipo de Evento', name: 'Nome do Evento' }, locations: { title: 'Cidade / Localidade', name: 'Nome da Localidade' }, attendants: { title: 'Atendente', name: 'Nome Completo' }, feriados: { title: 'Feriado', name: 'Nome do Feriado' } }[coll] || { title: 'Registro', name: 'Nome' };
-            const mainV = (coll === 'locations' ? item.localidade : (coll === 'feriados' ? item.nome_feriado : item.name)) || '';
+            const ctx = { 
+                types: { title: 'Tipo de Evento', name: 'Nome do Evento' }, 
+                locations: { title: 'Cidade / Localidade', name: 'Nome da Localidade' }, 
+                attendants: { title: 'Atendente', name: 'Nome Completo' }, 
+                feriados: { title: 'Feriado', name: 'Nome do Feriado' },
+                perfis: { title: 'Usuário', name: 'Nome do Usuário' }
+            }[coll] || { title: 'Registro', name: 'Nome' };
+
+            const mainV = (coll === 'locations' ? item.localidade : (coll === 'feriados' ? item.nome_feriado : (coll === 'perfis' ? item.nome : item.name))) || '';
+            
             if (coll === 'feriados') window.__feriado_modal_cache = { safeId, item };
-            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"><div class="p-4 bg-slate-50 border-b flex justify-between items-center"><h3 class="font-black text-navy text-xs uppercase tracking-widest">${isE ? 'Editar' : 'Novo'} ${ctx.title}</h3><button onclick="window.closeModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${coll === 'locations' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">ADM</label><input id="loc-adm" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.adm || ''}" placeholder="Nome do ADM"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Setor</label><input id="loc-setor" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.setor || ''}" placeholder="Número/Nome do Setor"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Cidade</label><input id="loc-cidade" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.cidade || ''}" placeholder="Ex: Valente"></div>` : ''}${coll === 'feriados' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data do Feriado</label><button id="feriado-btn" onclick="window.openFeriadoDatePicker()" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-slate-50 text-left flex justify-between items-center transition-colors"><span id="feriado-date-display">${item.data ? formatDateFull(item.data) : 'Selecionar Data...'}</span><i data-lucide="calendar" class="w-4 h-4 opacity-40"></i><input type="hidden" id="feriado-date-val" value="${item.data || ''}"></button></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Feriado</label><input id="feriado-tipo" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.tipo_feriado || ''}" placeholder="Ex: Nacional, Municipal..."></div>` : ''}<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10 transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>${coll === 'types' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Sigla (EVT)</label><input id="row-extra" type="text" maxlength="5" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-black text-navy uppercase" value="${item.sigla || ''}"></div>` : ''}${coll === 'attendants' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Ministério</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.ministerio || ''}" placeholder="Ex: Louvor"></div>` : ''}<button onclick="window.saveRow('${coll}', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR REGISTRO</button></div></div>`);
+            
+            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"><div class="p-4 bg-slate-50 border-b flex justify-between items-center"><h3 class="font-black text-navy text-xs uppercase tracking-widest">${isE ? 'Editar' : 'Novo'} ${ctx.title}</h3><button onclick="window.closeModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${coll === 'locations' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">ADM</label><input id="loc-adm" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.adm || ''}" placeholder="Nome do ADM"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Setor</label><input id="loc-setor" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.setor || ''}" placeholder="Número/Nome do Setor"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Cidade</label><input id="loc-cidade" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.cidade || ''}" placeholder="Ex: Valente"></div>` : ''}${coll === 'feriados' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data do Feriado</label><button id="feriado-btn" onclick="window.openFeriadoDatePicker()" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-slate-50 text-left flex justify-between items-center transition-colors"><span id="feriado-date-display">${item.data ? formatDateFull(item.data) : 'Selecionar Data...'}</span><i data-lucide="calendar" class="w-4 h-4 opacity-40"></i><input type="hidden" id="feriado-date-val" value="${item.data || ''}"></button></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Feriado</label><input id="feriado-tipo" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.tipo_feriado || ''}" placeholder="Ex: Nacional, Municipal..."></div>` : ''}<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10 transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>${coll === 'types' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Sigla (EVT)</label><input id="row-extra" type="text" maxlength="5" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-black text-navy uppercase" value="${item.sigla || ''}"></div>` : ''}${coll === 'attendants' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Ministério</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.ministerio || ''}" placeholder="Ex: Louvor"></div>` : ''}${coll === 'perfis' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Permissão</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.permissao || ''}" placeholder="Ex: Administrador"></div>` : ''}<button onclick="window.saveRow('${coll}', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR REGISTRO</button></div></div>`);
         }
 
         async function saveRow(coll, id) {
@@ -883,58 +976,40 @@
             let hasError = false;
             if (!name) { nameEl?.classList.add('input-error'); hasError = true; } else { nameEl?.classList.remove('input-error'); }
             if (coll === 'feriados' && !dateVal) { dateBtn?.classList.add('input-error'); hasError = true; } else { dateBtn?.classList.remove('input-error'); }
-
             if (hasError) return;
 
-            let extraV = ""; if (coll !== 'locations' && coll !== 'feriados') extraV = document.getElementById('row-extra')?.value.trim() || "";
+            let extraV = ""; if (!['locations', 'feriados'].includes(coll)) extraV = document.getElementById('row-extra')?.value.trim() || "";
             const p = {};
             if (coll === 'types') { p.name = name; p.sigla = extraV.toUpperCase(); }
             else if (coll === 'locations') { p.localidade = name; p.adm = document.getElementById('loc-adm')?.value.trim(); p.setor = document.getElementById('loc-setor')?.value.trim(); p.cidade = document.getElementById('loc-cidade')?.value.trim(); }
             else if (coll === 'attendants') { p.name = name; p.ministerio = extraV; }
             else if (coll === 'feriados') { p.nome_feriado = name; p.data = dateVal; p.tipo_feriado = document.getElementById('feriado-tipo')?.value.trim(); }
+            else if (coll === 'perfis') { p.nome = name; p.permissao = extraV || 'Pendente'; } // Garantindo que permissao seja preenchida (Pendente por padrão)
             
-            // BUSCA DE DUPLICADOS MELHORADA
             let ext = null;
             if (coll === 'types') {
-                ext = state.types.find(i => 
-                    i.id !== id && 
-                    ((i.name || '').toLowerCase() === name.toLowerCase() || (i.sigla || '').toUpperCase() === p.sigla)
-                );
+                ext = state.types.find(i => i.id !== id && ((i.name || '').toLowerCase() === name.toLowerCase() || (i.sigla || '').toUpperCase() === p.sigla));
             } else if (coll === 'feriados') {
                 ext = state.feriados.find(i => i.id !== id && i.data === p.data && (i.nome_feriado || '').toLowerCase() === name.toLowerCase());
             } else {
-                const key = coll === 'locations' ? 'localidade' : 'name';
+                const key = coll === 'locations' ? 'localidade' : (coll === 'perfis' ? 'nome' : 'name');
                 ext = state[coll].find(i => i.id !== id && (i[key] || '').toLowerCase() === name.toLowerCase());
             }
 
-            if (ext) { 
-                showDuplicateModal(name, coll, ext.id, id, p); 
-                return; 
-            }
+            if (ext) { showDuplicateModal(name, coll, ext.id, id, p); return; }
 
             const isN = !id || id === 'undefined' || id === '';
             const action = isN ? 'INSERT' : 'UPDATE';
-            
-            // LÓGICA DE SALVAMENTO INTELIGENTE (SUPORTE OFFLINE)
             const result = await window.smartSave(coll, action, p, id);
 
             if (result.success) {
                 if (result.offline) {
                     const cL = [...state[coll]];
-                    if (isN) {
-                        cL.push({ id: 'temp_' + Date.now(), ...p });
-                    } else {
-                        const idx = cL.findIndex(i => i.id === id);
-                        if (idx !== -1) cL[idx] = { ...cL[idx], ...p };
-                    }
+                    if (isN) { cL.push({ id: 'temp_' + Date.now(), ...p }); } 
+                    else { const idx = cL.findIndex(i => i.id === id); if (idx !== -1) cL[idx] = { ...cL[idx], ...p }; }
                     state[coll] = cL;
-                } else {
-                    // Atualização via Supabase disparará leitor em tempo real
-                    await refreshAllData();
-                }
+                } else { await refreshAllData(); }
                 closeModal();
-            } else {
-                console.error("Erro ao salvar:", result.error);
             }
         }
 
@@ -957,74 +1032,35 @@
 
         async function confirmarExclusaoColecao(id, coll) {
             if (!state.isAdmin) return;
-            
-            // LÓGICA DE EXCLUSÃO OFFLINE
             if (!navigator.onLine) {
                 const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                 queue.push({ table: coll, action: 'DELETE', id: id });
                 localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
-                
-                // Atualização otimista
                 state[coll] = state[coll].filter(i => i.id !== id);
-                
                 closeModal();
                 showConnStatus('offline');
                 return;
             }
-
-            try { 
-                const { error } = await supabaseClient.from(coll).delete().eq('id', id); 
-                if (error) { 
-                    console.error(error.message); 
-                } else {
-                    closeModal();
-                }
-            } catch(e) { 
-                console.error("Erro de rede."); 
-            }
+            try { const { error } = await supabaseClient.from(coll).delete().eq('id', id); if (!error) closeModal(); } catch(e) {}
         }
 
         async function confirmarEDeletar(id) {
             if (!id || !state.isAdmin) return;
-
-            // --- LÓGICA PARA MODO OFFLINE ---
             if (!navigator.onLine) {
                 const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                 queue.push({ table: 'agenda', action: 'DELETE', id: id.trim() });
                 localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
-                
-                // Remove da tela imediatamente
                 state.events = state.events.filter((e) => e.id !== id.trim());
-                
                 closeModal();
                 navigateTo('home');
                 showConnStatus('offline');
                 return;
             }
-
-            // --- LÓGICA PARA MODO ONLINE ---
-            try { 
-                const { error } = await supabaseClient.from('agenda').delete().eq('id', id.trim()); 
-                if (error) { 
-                    console.error(`ERRO: ${error.message}`); 
-                } else { 
-                    state.events = state.events.filter((e) => e.id !== id.trim()); 
-                    state.searchTerm = ''; 
-                    state.selectedDate = null; 
-                    state.fastFilter = { active: false }; 
-                    state.advancedFilter.active = false; 
-                    closeModal(); 
-                    navigateTo('home'); 
-                } 
-            } catch(e) { 
-                console.error("Erro inesperado."); 
-            }
+            try { const { error } = await supabaseClient.from('agenda').delete().eq('id', id.trim()); if (!error) { state.events = state.events.filter((e) => e.id !== id.trim()); state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; closeModal(); navigateTo('home'); } } catch(e) {}
         }
 
         function navigateTo(screen, push = true) { 
-            if (push && state.currentScreen !== screen) {
-                window.history.pushState({ screen }, "");
-            }
+            if (push && state.currentScreen !== screen) window.history.pushState({ screen }, "");
             state.currentScreen = screen; 
             state.isMenuOpen = false; 
             state.managerSearchTerm = ''; 
@@ -1036,20 +1072,51 @@
         function closeMenu() { state.isMenuOpen = false; }
         function closeModal() { const m = document.getElementById('modal-container'); if(m){ m.classList.add('hidden'); m.innerHTML=''; } }
         function showModal(html) { const m = document.getElementById('modal-container'); if(m){ m.innerHTML = html; m.classList.remove('hidden'); } renderIcons(); }
-        async function handleLogout() { await supabaseClient.auth.signOut(); }
 
         function showLoginModal() {
             const t = document.getElementById('login-modal-template');
             const m = document.getElementById('modal-container');
             if (m && t) {
                 m.innerHTML = ''; m.appendChild(t.content.cloneNode(true)); m.classList.remove('hidden');
+                let isSignUp = false;
+                const toggleBtn = document.getElementById('toggle-auth-mode');
+                const nameField = document.getElementById('name-field');
+                const submitBtn = document.getElementById('login-submit-btn');
+                const titleEl = document.getElementById('modal-login-title');
+                toggleBtn?.addEventListener('click', () => {
+                    isSignUp = !isSignUp;
+                    if (isSignUp) { titleEl.innerText = "Novo Cadastro"; nameField.classList.remove('hidden'); submitBtn.innerText = "Cadastrar"; toggleBtn.innerText = "Já tem conta? Entre"; } 
+                    else { titleEl.innerText = "Área Administrativa"; nameField.classList.add('hidden'); submitBtn.innerText = "Entrar"; toggleBtn.innerText = "Não tem conta? Cadastre-se"; }
+                });
                 document.getElementById('login-form')?.addEventListener('submit', async (e) => {
                     e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const errD = document.getElementById('login-error');
-                    if (btn) { btn.disabled = true; btn.innerText = 'Entrando...'; }
+                    if (btn) { btn.disabled = true; btn.innerText = isSignUp ? 'Cadastrando...' : 'Entrando...'; }
+                    const name = document.getElementById('login-name').value.trim();
                     const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value;
-                    try { const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error && errD) { errD.innerText = error.message; errD.classList.remove('hidden'); if (btn) { btn.disabled = false; btn.innerText = 'Entrar'; } } } catch (err) { if (btn) { btn.disabled = false; btn.innerText = 'Entrar'; } }
+                    try { 
+                        if (isSignUp) {
+                            if (!name) throw new Error("O nome é obrigatório para cadastro.");
+                            const { data, error } = await supabaseClient.auth.signUp({ email, password });
+                            if (error) throw error;
+                            // Implementação solicitada: Cadastro do nome na tabela perfis com permissão pendente
+                            if (data?.user) {
+                                const { error: profileError } = await supabaseClient.from('perfis').insert({ 
+                                    id: data.user.id, 
+                                    nome: name, 
+                                    permissao: 'Pendente' 
+                                });
+                                if (profileError) console.error("Erro ao criar perfil:", profileError);
+                            }
+                            alert("Cadastro realizado! Aguarde a aprovação de um administrador."); closeModal();
+                        } else {
+                            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                            if (error) throw error;
+                            closeModal();
+                        }
+                    } catch (err) { if (errD) { errD.innerText = err.message; errD.classList.remove('hidden'); } if (btn) { btn.disabled = false; btn.innerText = isSignUp ? 'Cadastrar' : 'Entrar'; } }
                 });
             }
+            renderIcons();
         }
 
         function renderFFRow(l, v, t, c) {
@@ -1062,27 +1129,23 @@
             const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
             const todayT = `${bD.today.toLocaleDateString('pt-BR', { weekday: 'long' }).charAt(0).toUpperCase() + bD.today.toLocaleDateString('pt-BR', { weekday: 'long' }).slice(1)}, dia ${fBR(bD.today)}`;
             const dW1 = new Date(bD.week); dW1.setDate(bD.week.getDate() - bD.week.getDay()); const dW2 = new Date(dW1); dW2.setDate(dW1.getDate() + 6);
-            showModal(`<div class="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md flex flex-col"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-center gap-2 text-navy"><i data-lucide="filter" class="w-5 h-5 text-orange-custom"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtro</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${renderFFRow('Por dia', todayT, 'today', sel)}${renderFFRow('Semana', fBR(dW1) + ' a ' + fBR(dW2), 'week', sel)}<div class="flex gap-3"><div class="flex-1">${renderFFRow('Mês', `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][bD.month.getMonth()]} / ${bD.month.getFullYear()}`, 'month', sel)}</div><div class="flex-1">${renderFFRow('Ano', bD.year.getFullYear().toString(), 'year', sel)}</div></div></div><div class="p-4 bg-white border-t border-slate-50"><button onclick="window.applyNewFastFilter()" class="w-full bg-navy text-white py-4 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
+            showModal(`<div class="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md flex flex-col"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-gap-2 text-navy"><i data-lucide="filter" class="w-5 h-5 text-orange-custom"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtro</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${renderFFRow('Por dia', todayT, 'today', sel)}${renderFFRow('Semana', fBR(dW1) + ' a ' + fBR(dW2), 'week', sel)}<div class="flex gap-3"><div class="flex-1">${renderFFRow('Mês', `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][bD.month.getMonth()]} / ${bD.month.getFullYear()}`, 'month', sel)}</div><div class="flex-1">${renderFFRow('Ano', bD.year.getFullYear().toString(), 'year', sel)}</div></div></div><div class="p-4 bg-white border-t border-slate-50"><button onclick="window.applyNewFastFilter()" class="w-full bg-navy text-white py-4 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
             renderIcons();
         }
 
         function renderPickerItems(items, coll, isA, tar, prop) {
             if (items.length === 0) return '<div class="p-8 text-center text-slate-300 italic text-sm">Nenhum registro.</div>';
-            const sorted = [...items].sort((a, b) => ((coll === 'locations' ? a.localidade : a.name) || '').localeCompare((coll === 'locations' ? b.localidade : b.name) || ''));
+            const sorted = [...items].sort((a, b) => ((coll === 'locations' ? a.localidade : (coll === 'perfis' ? a.nome : a.name)) || '').localeCompare((coll === 'locations' ? b.localidade : (coll === 'perfis' ? b.nome : b.name)) || ''));
             return sorted.map((i) => {
-                const name = (coll === 'locations' ? i.localidade : i.name) || '';
+                const name = (coll === 'locations' ? i.localidade : (coll === 'perfis' ? i.nome : i.name)) || '';
                 const isS = isA ? state.advancedFilter?.[tar]?.id === i.id : state[prop] === i.id;
                 return `<button onclick="${isA ? `window.state.advancedFilter.${tar}.id = '${i.id}'; window.state.advancedFilter.validationErrors = window.state.advancedFilter.validationErrors.filter(e => e !== '${tar}'); window.renderAdvancedFilterModal();` : `window.state.${prop} = '${i.id}'; window.state.formErrors = window.state.formErrors.filter(e => !'${prop}'.includes(e)); window.closeModal();`}" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><div class="flex flex-col min-w-0 flex-1"><span class="group-hover:text-navy transition-colors font-bold text-sm leading-tight">${name}</span></div>${isS ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0 ml-2"></i>' : ''}</button>`;
             }).join('');
         }
 
-        /**
-         * ==========================================
-         * 5. SINCRONIZAÇÃO E REDE
-         * ==========================================
-         */
         async function refreshAllData() {
-            const tables = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'agenda': 'events', 'feriados': 'feriados' };
+            if (!state.isAuthorized) return;
+            const tables = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'agenda': 'events', 'feriados': 'feriados', 'perfis': 'perfis' };
             for (const [table, key] of Object.entries(tables)) {
                 const { data } = await supabaseClient.from(table).select('*');
                 if (data) state[key] = data;
@@ -1093,118 +1156,38 @@
             const el = document.getElementById('conn-status');
             if (!el) return;
             el.className = '';
-            if (status === 'offline') {
-                el.innerHTML = '<i data-lucide="wifi-off" class="w-3.5 h-3.5"></i> Sem internet';
-                el.classList.add('offline');
-            } else if (status === 'online-recovered') {
-                el.innerHTML = '<i data-lucide="wifi" class="w-3.5 h-3.5"></i> Conexão restabelecida.';
-                el.classList.add('online-recovered');
-                setTimeout(() => { el.classList.remove('online-recovered'); }, 3000);
-            }
+            if (status === 'offline') { el.innerHTML = '<i data-lucide="wifi-off" class="w-3.5 h-3.5"></i> Sem internet'; el.classList.add('offline'); } 
+            else if (status === 'online-recovered') { el.innerHTML = '<i data-lucide="wifi" class="w-3.5 h-3.5"></i> Conexão restabelecida.'; el.classList.add('online-recovered'); setTimeout(() => { el.classList.remove('online-recovered'); }, 3000); }
             renderIcons();
         }
 
         Object.assign(window, {
-            renderApp, scheduleRender, navigateTo, openMenu, closeMenu, closeModal, showModal, handleLogout, showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, updateHomeList, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; updateHomeList(); },
+            renderApp, scheduleRender, navigateTo, openMenu, closeMenu, closeModal, showModal,
+            handleLogout: async () => { 
+                try {
+                    await supabaseClient.auth.signOut(); 
+                    localStorage.clear();
+                    // Reset manual do estado para transição imediata para a tela de Acesso Restrito
+                    state.user = null;
+                    state.isAuthorized = false;
+                    state.isAdmin = false;
+                    state.events = [];
+                    state.currentScreen = 'home';
+                } catch (e) {
+                    console.error("Erro no logout:", e);
+                    state.user = null;
+                    state.currentScreen = 'home';
+                }
+            }, 
+            showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, updateHomeList, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; updateHomeList(); },
             startOpenAgenda: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; const t = new Date().toISOString().split('T')[0]; if (!state.selectedDate) state.selectedDate = t; state.viewDate = new Date(state.selectedDate + 'T00:00:00'); renderCalendar('filter'); },
-            changeMonth: (o, m) => { 
-                const d = new Date(state.viewDate); 
-                d.setMonth(d.getMonth() + o); 
-                state.viewDate = d; 
-                if (m === 'filter') {
-                    state.selectedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-                }
-                renderCalendar(m); 
-            },
-            changePickerYear: (o, m) => { 
-                const d = new Date(state.viewDate); 
-                d.setFullYear(d.getFullYear() + o); 
-                state.viewDate = d; 
-                if (m.includes('month') || m === 'adv_period') window.openMonthPicker(m); 
-                else window.openYearPicker(m); 
-            },
-            selectMonth: (i, m) => { 
-                const d = new Date(state.viewDate); 
-                d.setMonth(i); 
-                state.viewDate = d; 
-                if (m === 'adv_period') {
-                    const first = new Date(d.getFullYear(), i, 1);
-                    const last = new Date(d.getFullYear(), i + 1, 0);
-                    state.advancedFilter.period.start = first.toISOString().split('T')[0];
-                    state.advancedFilter.period.end = last.toISOString().split('T')[0];
-                    state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period');
-                    window.renderAdvancedFilterModal();
-                } else {
-                    if (m === 'filter') state.selectedDate = `${d.getFullYear()}-${String(i + 1).padStart(2, '0')}-01`;
-                    renderCalendar(m);
-                }
-            },
-            selectYear: (y, m) => { 
-                const d = new Date(state.viewDate); 
-                d.setFullYear(y); 
-                state.viewDate = d; 
-                if (m === 'adv_period') {
-                    state.advancedFilter.period.start = `${y}-01-01`;
-                    state.advancedFilter.period.end = `${y}-12-31`;
-                    state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period');
-                    window.renderAdvancedFilterModal();
-                } else {
-                    if (m === 'filter') state.selectedDate = `${y}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-                    renderCalendar(m);
-                }
-            },
-            openMonthPicker: (m) => { 
-                const names = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"]; 
-                const year = state.viewDate.getFullYear();
-                showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative">
-                    <button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button>
-                    <div class="flex items-center justify-center gap-3 w-full mb-6">
-                        <button onclick="window.changePickerYear(-1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>
-                        <span class="text-sm font-black text-navy uppercase tracking-widest">${year}</span>
-                        <button onclick="window.changePickerYear(1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-right" class="w-6 h-6"></i></button>
-                    </div>
-                    <div class="grid grid-cols-3 gap-3 w-full">
-                        ${names.map((n, i) => `<button onclick="window.selectMonth(${i}, '${m}')" class="py-4 text-[11px] font-black rounded-xl border transition-all ${state.viewDate.getMonth() === i ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${n.slice(0, 3)}</button>`).join('')}
-                    </div>
-                </div>`); 
-            },
-            openYearPicker: (m) => { 
-                const currentYear = new Date().getFullYear();
-                const selectedYear = (m === 'adv_period' && state.advancedFilter.period.start) ? new Date(state.advancedFilter.period.start + 'T00:00:00').getFullYear() : currentYear;
-                state.viewDate = new Date(selectedYear, 0, 1);
-                const years = []; 
-                for(let i = currentYear - 30; i < currentYear + 30; i++) years.push(i); 
-
-                showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative">
-                    <button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button>
-                    <div class="flex items-center justify-center w-full mb-6">
-                        <span class="text-sm font-black text-navy uppercase tracking-widest">ANO</span>
-                    </div>
-                    <div id="year-scroll-container" class="grid grid-cols-3 gap-3 w-full max-h-[224px] overflow-y-auto scrollbar-none py-2">
-                        ${years.map(y => `<button id="year-btn-${y}" onclick="window.selectYear(${y}, '${m}')" class="py-4 text-xs font-black rounded-xl border transition-all ${y === selectedYear ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${y}</button>`).join('')}
-                    </div>
-                </div>`); 
-
-                setTimeout(() => {
-                    const btn = document.getElementById(`year-btn-${selectedYear}`);
-                    if (btn) btn.scrollIntoView({ block: 'center' });
-                }, 10);
-            },
-            selectCalendarDate: (d, m = 'filter') => { 
-                if (m === 'filter') { state.selectedDate = d; renderCalendar('filter'); } 
-                else if (m === 'picker') { state.formTempDate = d; state.formErrors = state.formErrors.filter(e => e !== 'date'); closeModal(); } 
-                else if (m === 'adv_start') { 
-                    state.advancedFilter.period.start = d; 
-                    state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period');
-                    window.renderAdvancedFilterModal(); 
-                } 
-                else if (m === 'adv_end') { 
-                    state.advancedFilter.period.end = d; 
-                    state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period');
-                    window.renderAdvancedFilterModal(); 
-                } 
-                else if (m === 'feriado_picker') { const c = window.__feriado_modal_cache; window.openRowModal('feriados', c.safeId, { ...c.item, data: d }); } 
-            },
+            changeMonth: (o, m) => { const d = new Date(state.viewDate); d.setMonth(d.getMonth() + o); state.viewDate = d; if (m === 'filter') state.selectedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; renderCalendar(m); },
+            changePickerYear: (o, m) => { const d = new Date(state.viewDate); d.setFullYear(d.getFullYear() + o); state.viewDate = d; if (m.includes('month') || m === 'adv_period') window.openMonthPicker(m); else window.openYearPicker(m); },
+            selectMonth: (i, m) => { const d = new Date(state.viewDate); d.setMonth(i); state.viewDate = d; if (m === 'adv_period') { const first = new Date(d.getFullYear(), i, 1); const last = new Date(d.getFullYear(), i + 1, 0); state.advancedFilter.period.start = first.toISOString().split('T')[0]; state.advancedFilter.period.end = last.toISOString().split('T')[0]; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); } else { if (m === 'filter') state.selectedDate = `${d.getFullYear()}-${String(i + 1).padStart(2, '0')}-01`; renderCalendar(m); } },
+            selectYear: (y, m) => { const d = new Date(state.viewDate); d.setFullYear(y); state.viewDate = d; if (m === 'adv_period') { state.advancedFilter.period.start = `${y}-01-01`; state.advancedFilter.period.end = `${y}-12-31`; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); } else { if (m === 'filter') state.selectedDate = `${y}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; renderCalendar(m); } },
+            openMonthPicker: (m) => { const names = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"]; const year = state.viewDate.getFullYear(); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button><div class="flex items-center justify-center gap-3 w-full mb-6"><button onclick="window.changePickerYear(-1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-left" class="w-6 h-6"></i></button><span class="text-sm font-black text-navy uppercase tracking-widest">${year}</span><button onclick="window.changePickerYear(1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-right" class="w-6 h-6"></i></button></div><div class="grid grid-cols-3 gap-3 w-full">${names.map((n, i) => `<button onclick="window.selectMonth(${i}, '${m}')" class="py-4 text-[11px] font-black rounded-xl border transition-all ${state.viewDate.getMonth() === i ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${n.slice(0, 3)}</button>`).join('')}</div></div>`); },
+            openYearPicker: (m) => { const currentYear = new Date().getFullYear(); const selectedYear = (m === 'adv_period' && state.advancedFilter.period.start) ? new Date(state.advancedFilter.period.start + 'T00:00:00').getFullYear() : currentYear; state.viewDate = new Date(selectedYear, 0, 1); const years = []; for(let i = currentYear - 30; i < currentYear + 30; i++) years.push(i); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button><div class="flex items-center justify-center w-full mb-6"><span class="text-sm font-black text-navy uppercase tracking-widest">ANO</span></div><div id="year-scroll-container" class="grid grid-cols-3 gap-3 w-full max-h-[224px] overflow-y-auto scrollbar-none py-2">${years.map(y => `<button id="year-btn-${y}" onclick="window.selectYear(${y}, '${m}')" class="py-4 text-xs font-black rounded-xl border transition-all ${y === selectedYear ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${y}</button>`).join('')}</div></div>`); setTimeout(() => { const btn = document.getElementById(`year-btn-${selectedYear}`); if (btn) btn.scrollIntoView({ block: 'center' }); }, 10); },
+            selectCalendarDate: (d, m = 'filter') => { if (m === 'filter') { state.selectedDate = d; renderCalendar('filter'); } else if (m === 'picker') { state.formTempDate = d; state.formErrors = state.formErrors.filter(e => e !== 'date'); closeModal(); } else if (m === 'adv_start' || m === 'adv_end') { state.advancedFilter.period[m === 'adv_start' ? 'start' : 'end'] = d; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); } else if (m === 'feriado_picker') { const c = window.__feriado_modal_cache; window.openRowModal('feriados', c.safeId, { ...c.item, data: d }); } },
             applyCalendarAndClose: () => { state.fastFilter = { active: false }; state.advancedFilter.active = false; updateHomeList(); closeModal(); },
             openFormDate: () => { state.viewDate = new Date((state.formTempDate || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar('picker'); },
             openFeriadoDatePicker: () => { state.viewDate = new Date((document.getElementById('feriado-date-val')?.value || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar('feriado_picker'); },
@@ -1212,254 +1195,89 @@
             renderFastFilterUI,
             openFastFilterModal: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; state.ffTemp.baseDates = { today: new Date(), week: new Date(), month: new Date(), year: new Date() }; renderFastFilterUI(); },
             shiftFF: (t, o) => { const d = new Date(state.ffTemp.baseDates[t]); if (t === 'today') d.setDate(d.getDate() + o); else if (t === 'week') d.setDate(d.getDate() + (o * 7)); else if (t === 'month') d.setMonth(d.getMonth() + o); else if (t === 'year') d.setFullYear(d.getFullYear() + o); state.ffTemp.baseDates[t] = d; state.ffTemp.selected = t; renderFastFilterUI(); },
-            applyNewFastFilter: () => {
-                const b = new Date(state.ffTemp.baseDates[state.ffTemp.selected]); let st = '', en = '', la = '';
-                const f = (d) => d.toISOString().split('T')[0]; const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-                if (state.ffTemp.selected === 'today') { st = en = f(b); let w = b.toLocaleDateString('pt-BR', { weekday: 'long' }); la = `${w.charAt(0).toUpperCase() + w.slice(1)}, dia ${fBR(b)}`; }
-                else if (state.ffTemp.selected === 'week') { const d1 = new Date(b); d1.setDate(b.getDate() - b.getDay()); const d2 = new Date(d1); d2.setDate(d1.getDate() + 6); st = f(d1); en = f(d2); la = `Semana ${fBR(d1)} a ${fBR(d2)}`; }
-                else if (state.ffTemp.selected === 'month') { const d1 = new Date(b.getFullYear(), b.getMonth(), 1); const d2 = new Date(b.getFullYear(), b.getMonth() + 1, 0); st = f(d1); en = f(d2); la = `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][b.getMonth()]} / ${b.getFullYear()}`; }
-                else if (state.ffTemp.selected === 'year') { st = `${b.getFullYear()}-01-01`; en = `${b.getFullYear()}-12-31`; la = `Ano de ${b.getFullYear()}`; }
-                state.selectedDate = null; state.advancedFilter.active = false; state.fastFilter = { active: true, dateStart: st, dateEnd: en, label: la }; closeModal(); updateHomeList();
-            },
-            toggleAdvFilterSection: (sec) => { 
-                const af = state.advancedFilter; 
-                af[sec].enabled = !af[sec].enabled; 
-                af.validationErrors = af.validationErrors.filter(e => e !== sec); 
-                if (sec === 'adm' && !af.adm.enabled) { af.adm.value = ''; af.setor.enabled = false; af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } 
-                else if (sec === 'setor' && !af.setor.enabled) { af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } 
-                else if (sec === 'cidade' && !af.cidade.enabled) { af.cidade.value = ''; af.location.id = ''; } 
-                window.renderAdvancedFilterModal(); 
-            },
-            handleAdvFilterSelect: (f, v) => { 
-                const af = state.advancedFilter; 
-                af[f].value = v; 
-                af.validationErrors = af.validationErrors.filter(e => e !== f); 
-                if (f === 'adm') { af.setor.value = ''; af.cidade.value = ''; af.location.id = ''; } 
-                else if (f === 'setor') { af.cidade.value = ''; af.location.id = ''; } 
-                else if (f === 'cidade') af.location.id = ''; 
-                window.renderAdvancedFilterModal(); 
-            },
+            applyNewFastFilter: () => { const b = new Date(state.ffTemp.baseDates[state.ffTemp.selected]); let st = '', en = '', la = ''; const f = (d) => d.toISOString().split('T')[0]; const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; if (state.ffTemp.selected === 'today') { st = en = f(b); let w = b.toLocaleDateString('pt-BR', { weekday: 'long' }); la = `${w.charAt(0).toUpperCase() + w.slice(1)}, dia ${fBR(b)}`; } else if (state.ffTemp.selected === 'week') { const d1 = new Date(b); d1.setDate(b.getDate() - b.getDay()); const d2 = new Date(d1); d2.setDate(d1.getDate() + 6); st = f(d1); en = f(d2); la = `Semana ${fBR(d1)} a ${fBR(d2)}`; } else if (state.ffTemp.selected === 'month') { const d1 = new Date(b.getFullYear(), b.getMonth(), 1); const d2 = new Date(b.getFullYear(), b.getMonth() + 1, 0); st = f(d1); en = f(d2); la = `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][b.getMonth()]} / ${b.getFullYear()}`; } else if (state.ffTemp.selected === 'year') { st = `${b.getFullYear()}-01-01`; en = `${b.getFullYear()}-12-31`; la = `Ano de ${b.getFullYear()}`; } state.selectedDate = null; state.advancedFilter.active = false; state.fastFilter = { active: true, dateStart: st, dateEnd: en, label: la }; closeModal(); updateHomeList(); },
+            toggleAdvFilterSection: (sec) => { const af = state.advancedFilter; af[sec].enabled = !af[sec].enabled; af.validationErrors = af.validationErrors.filter(e => e !== sec); if (sec === 'adm' && !af.adm.enabled) { af.adm.value = ''; af.setor.enabled = false; af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'setor' && !af.setor.enabled) { af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'cidade' && !af.cidade.enabled) { af.cidade.value = ''; af.location.id = ''; } window.renderAdvancedFilterModal(); },
+            handleAdvFilterSelect: (f, v) => { const af = state.advancedFilter; af[f].value = v; af.validationErrors = af.validationErrors.filter(e => e !== f); if (f === 'adm') { af.setor.value = ''; af.cidade.value = ''; af.location.id = ''; } else if (f === 'setor') { af.cidade.value = ''; af.location.id = ''; } else if (f === 'cidade') af.location.id = ''; window.renderAdvancedFilterModal(); },
             setAdvFilterStatus: (s) => { state.advancedFilter.eventos.status = s; },
             clearAdvancedFilters: () => { state.advancedFilter = { active: false, eventos: { enabled: false, status: 'ativos' }, type: { enabled: false, id: '' }, location: { enabled: false, id: '' }, attendant: { enabled: false, id: '' }, adm: { enabled: false, value: '' }, setor: { enabled: false, value: '' }, cidade: { enabled: false, value: '' }, period: { enabled: false, start: '', end: '' }, validationErrors: [] }; updateHomeList(); window.renderAdvancedFilterModal(); },
-            applyAdvancedFilters: () => { 
-                const af = state.advancedFilter; 
-                const errs = []; 
-                if (af.type.enabled && !af.type.id) errs.push('type'); 
-                if (af.location.enabled && !af.location.id) errs.push('location'); 
-                if (af.attendant.enabled && !af.attendant.id) errs.push('attendant'); 
-                if (af.adm.enabled && !af.adm.value) errs.push('adm'); 
-                if (af.setor.enabled && !af.setor.value) errs.push('setor'); 
-                if (af.cidade.enabled && !af.cidade.value) errs.push('cidade'); 
-                if (af.period.enabled && (!af.period.start || !af.period.end)) errs.push('period'); 
-                
-                if (errs.length > 0) { 
-                    state.advancedFilter.validationErrors = errs; 
-                    window.renderAdvancedFilterModal(); 
-                    return; 
-                } 
-                state.selectedDate = null; 
-                state.fastFilter.active = false; 
-                state.advancedFilter.active = true; 
-                state.advancedFilter.validationErrors = []; 
-                closeModal(); 
-                updateHomeList(); 
-            },
-            openDateRangePicker: (t) => { 
-                state.viewDate = new Date((state.advancedFilter.period[t] || new Date().toISOString().split('T')[0]) + 'T00:00:00'); 
-                renderCalendar(t === 'start' ? 'adv_start' : 'adv_end'); 
-            },
+            applyAdvancedFilters: () => { const af = state.advancedFilter; const errs = []; if (af.type.enabled && !af.type.id) errs.push('type'); if (af.location.enabled && !af.location.id) errs.push('location'); if (af.attendant.enabled && !af.attendant.id) errs.push('attendant'); if (af.adm.enabled && !af.adm.value) errs.push('adm'); if (af.setor.enabled && !af.setor.value) errs.push('setor'); if (af.cidade.enabled && !af.cidade.value) errs.push('cidade'); if (af.period.enabled && (!af.period.start || !af.period.end)) errs.push('period'); if (errs.length > 0) { state.advancedFilter.validationErrors = errs; window.renderAdvancedFilterModal(); return; } state.selectedDate = null; state.fastFilter.active = false; state.advancedFilter.active = true; state.advancedFilter.validationErrors = []; closeModal(); updateHomeList(); },
+            openDateRangePicker: (t) => { state.viewDate = new Date((state.advancedFilter.period[t] || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar(t === 'start' ? 'adv_start' : 'adv_end'); },
             openPDFPreview: () => alert("Exportação em breve."),
             startCreateEvent: () => { state.editingEventId = null; state.formTempDate = new Date().toISOString().split('T')[0]; state.formTempTime = '08:00'; state.formTempLoc = ''; state.formTempType = ''; state.formTempAtt = ''; state.formTempIrmaos = ''; state.formTempIrmas = ''; state.formErrors = []; navigateTo('event-form'); },
             openEditEvent: (id) => { const ev = state.events.find((e) => e.id === id); if (ev) { state.editingEventId = id; state.formTempDate = ev.date; state.formTempTime = ev.time; state.formTempLoc = ev.location_id; state.formTempType = ev.type_id; state.formTempAtt = ev.attendant_id || ''; state.formTempIrmaos = ev.irmaos || ''; state.formTempIrmas = ev.irmas || ''; state.formErrors = []; navigateTo('event-form'); } },
             openTimePickerModal: () => { const [h, m] = (state.formTempTime || '08:00').split(':'); state.clockTempHour = h; state.clockTempMinute = m; state.clockMode = 'hour'; showModal(''); renderClockUI(); },
             selectClockValue: (v) => { if (state.clockMode === 'hour') { state.clockTempHour = v.padStart(2, '0'); state.clockMode = 'minute'; } else state.clockTempMinute = v.padStart(2, '0'); renderClockUI(); },
             confirmClockTime: () => { state.formTempTime = `${state.clockTempHour}:${state.clockTempMinute}`; closeModal(); },
-            openSelectPicker: (coll, tit, pr) => {
-                let items = [...state[coll]]; if (coll === 'locations' && pr === 'adv_location') { const af = state.advancedFilter; if (af.adm.enabled && af.adm.value) items = items.filter(l => l.adm === af.adm.value); if (af.setor.enabled && af.setor.value) items = items.filter(l => l.setor === af.setor.value); if (af.cidade.enabled && af.cidade.value) items = items.filter(l => l.cidade === af.cidade.value); }
-                const isA = pr.startsWith('adv_'); const target = isA ? pr.replace('adv_', '') : pr;
-                showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${tit}</h3></div><button onclick="${isA ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="text-slate-400 p-1"><i data-lucide="x" class="w-6 h-6"></i></button></div><div class="px-5 py-4"><div class="relative group"><input id="pickerSearch" type="text" placeholder="Filtrar..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium"><i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i></div></div><div id="pickerItemsList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none">${renderPickerItems(items, coll, isA, target, pr)}</div></div>`);
-                document.getElementById('pickerSearch')?.addEventListener('input', (e) => { const term = (e.target.value || '').toLowerCase(); const filtered = items.filter((i) => ((coll === 'locations' ? i.localidade : i.name) || '').toLowerCase().includes(term)); document.getElementById('pickerItemsList').innerHTML = renderPickerItems(filtered, coll, isA, target, pr); renderIcons(); });
-                renderIcons();
-            },
-            saveEvent: async () => {
-                const errs = [];
-                if (!state.formTempDate) errs.push('date');
-                if (!state.formTempLoc) errs.push('loc');
-                if (!state.formTempType) errs.push('type');
-                
-                if (errs.length > 0) {
-                    state.formErrors = errs;
-                    return;
-                }
-
-                const eventData = {
-                    date: state.formTempDate,
-                    time: state.formTempTime,
-                    location_id: state.formTempLoc,
-                    type_id: state.formTempType,
-                    attendant_id: state.formTempAtt || null,
-                    irmaos: parseInt(document.getElementById('event-irmaos')?.value || '0'),
-                    irmas: parseInt(document.getElementById('event-irmas')?.value || '0')
-                };
-
-                const duplicate = state.events.find(e => 
-                    e.date === eventData.date && 
-                    e.time === eventData.time && 
-                    e.location_id === eventData.location_id && 
-                    e.type_id === eventData.type_id &&
-                    e.id !== state.editingEventId
-                );
-
-                if (duplicate) {
-                    showEventDuplicateModal(duplicate);
-                    return;
-                }
-
-                const action = state.editingEventId ? 'UPDATE' : 'INSERT';
-                const result = await window.smartSave('agenda', action, eventData, state.editingEventId);
-
-                if (result.success) {
-                    if (result.offline) {
-                        if (action === 'UPDATE') {
-                            state.events = state.events.map(e => 
-                                e.id === state.editingEventId ? { ...e, ...eventData } : e
-                            );
-                        } else {
-                            state.events = [...state.events, { id: 'temp-' + Date.now(), ...eventData, is_temp: true }];
-                        }
-                    }
-                    window.navigateTo('home');
-                    state.editingEventId = null;
-                } else {
-                    alert("Erro ao salvar: " + result.error);
-                }
-            },
-            requestDeleteEvent: (id) => {
-                const ev = state.events.find((e) => e.id === id); const type = state.types.find((t) => t.id === ev?.type_id); const loc = state.locations.find((l) => l.id === ev?.location_id);
-                showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative border-t-[8px] border-red-500"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5"><i data-lucide="alert-triangle" class="text-red-500 w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3">Excluir?</h3><p class="text-sm text-slate-500 mb-8 px-2">Deseja excluir este evento?<br><strong class="text-slate-700">${type?.name || ''} em ${loc?.localidade || ''}</strong></p><div class="w-full flex gap-3"><button onclick="window.closeModal()" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold uppercase text-sm">Não</button><button onclick="window.confirmarEDeletar('${id}')" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-black uppercase text-sm">Sim</button></div></div></div>`);
-            },
+            openSelectPicker: (coll, tit, pr) => { let items = [...state[coll]]; if (coll === 'locations' && pr === 'adv_location') { const af = state.advancedFilter; if (af.adm.enabled && af.adm.value) items = items.filter(l => l.adm === af.adm.value); if (af.setor.enabled && af.setor.value) items = items.filter(l => l.setor === af.setor.value); if (af.cidade.enabled && af.cidade.value) items = items.filter(l => l.cidade === af.cidade.value); } const isA = pr.startsWith('adv_'); const target = isA ? pr.replace('adv_', '') : pr; showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${tit}</h3></div><button onclick="${isA ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="px-5 py-4"><div class="relative group"><input id="pickerSearch" type="text" placeholder="Filtrar..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium"><i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i></div></div><div id="pickerItemsList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none"></div></div>`); const listEl = document.getElementById('pickerItemsList'); if (listEl) listEl.innerHTML = renderPickerItems(items, coll, isA, target, pr); document.getElementById('pickerSearch')?.addEventListener('input', (e) => { const term = (e.target.value || '').toLowerCase(); const filtered = items.filter((i) => ((coll === 'locations' ? i.localidade : (coll === 'perfis' ? i.nome : i.name)) || '').toLowerCase().includes(term)); document.getElementById('pickerItemsList').innerHTML = renderPickerItems(filtered, coll, isA, target, pr); renderIcons(); }); renderIcons(); },
+            saveEvent: async () => { const errs = []; if (!state.formTempDate) errs.push('date'); if (!state.formTempLoc) errs.push('loc'); if (!state.formTempType) errs.push('type'); if (errs.length > 0) { state.formErrors = errs; return; } const eventData = { date: state.formTempDate, time: state.formTempTime, location_id: state.formTempLoc, type_id: state.formTempType, attendant_id: state.formTempAtt || null, irmaos: parseInt(document.getElementById('event-irmaos')?.value || '0'), irmas: parseInt(document.getElementById('event-irmas')?.value || '0') }; const duplicate = state.events.find(e => e.date === eventData.date && e.time === eventData.time && e.location_id === eventData.location_id && e.type_id === eventData.type_id && e.id !== state.editingEventId); if (duplicate) { showEventDuplicateModal(duplicate); return; } const action = state.editingEventId ? 'UPDATE' : 'INSERT'; const result = await window.smartSave('agenda', action, eventData, state.editingEventId); if (result.success) { if (result.offline) { if (action === 'UPDATE') state.events = state.events.map(e => e.id === state.editingEventId ? { ...e, ...eventData } : e); else state.events = [...state.events, { id: 'temp-' + Date.now(), ...eventData, is_temp: true }]; } window.navigateTo('home'); state.editingEventId = null; } else alert("Erro ao salvar: " + result.error); },
+            requestDeleteEvent: (id) => { const ev = state.events.find((e) => e.id === id); const type = state.types.find((t) => t.id === ev?.type_id); const loc = state.locations.find((l) => l.id === ev?.location_id); showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative border-t-[8px] border-red-500"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5"><i data-lucide="alert-triangle" class="text-red-500 w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3">Excluir?</h3><p class="text-sm text-slate-500 mb-8 px-2">Deseja excluir este evento?<br><strong class="text-slate-700">${type?.name || ''} em ${loc?.localidade || ''}</strong></p><div class="w-full flex gap-3"><button onclick="window.closeModal()" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold uppercase text-sm">Não</button><button onclick="window.confirmarEDeletar('${id}')" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-black uppercase text-sm">Sim</button></div></div></div>`); },
             confirmarEDeletar,
-            locateDuplicate: (id, coll) => { 
-                const targetScreen = coll === 'agenda' ? 'home' : coll;
-                closeModal();
-                navigateTo(targetScreen); 
-                state.managerSearchTerm = ''; 
-                state.searchTerm = ''; 
-                state.selectedDate = null; 
-                state.fastFilter = { active: false }; 
-                state.advancedFilter.active = false; 
-                state.highlightedItemId = id; 
-                if (targetScreen === 'home') {
-                    updateHomeList();
-                } else {
-                    if (window.updateManagerListUI) window.updateManagerListUI(coll);
-                }
-            },
-            showExitConfirmation: () => {
-                showModal(`
-                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border-t-4 border-navy">
-                        <div class="p-6 flex flex-col items-center text-center">
-                            <div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-navy">
-                                <i data-lucide="log-out"></i>
-                            </div>
-                            <h3 class="text-lg font-black text-navy uppercase tracking-tight mb-2">Sair do App?</h3>
-                            <p class="text-xs font-medium text-slate-500 mb-6">Deseja realmente encerrar a aplicação?</p>
-                            <div class="w-full flex gap-2">
-                                <button onclick="window.closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all">Não</button>
-                                <button onclick="window.closeApp()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Sim, Sair</button>
-                            </div>
-                        </div>
-                    </div>
-                `);
-            },
-            closeApp: () => {
-                window.close();
-                setTimeout(() => {
-                    alert("Para sair, use o gerenciador de tarefas do seu celular ou feche a aba do navegador.");
-                    closeModal();
-                }, 300);
-            }
+            locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
+            showExitConfirmation: () => showModal(`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border-t-4 border-navy"><div class="p-6 flex flex-col items-center text-center"><div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-navy"><i data-lucide="log-out"></i></div><h3 class="text-lg font-black text-navy uppercase tracking-tight mb-2">Sair do App?</h3><p class="text-xs font-medium text-slate-500 mb-6">Deseja realmente encerrar a aplicação?</p><div class="w-full flex gap-2"><button onclick="window.closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all">Não</button><button onclick="window.closeApp()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Sim, Sair</button></div></div></div>`),
+            closeApp: () => { window.close(); setTimeout(() => { alert("Para sair, use o gerenciador de tarefas do seu celular ou feche a aba do navegador."); closeModal(); }, 300); }
         });
 
        async function init() {
-    // --- NOVO: CARREGAMENTO DE CACHE OFFLINE ---
-    const tablesToCache = ['types', 'locations', 'attendants', 'agenda', 'feriados'];
-    tablesToCache.forEach(table => {
-        const cachedData = localStorage.getItem(`cache_${table}`);
-        if (cachedData) {
-            const key = table === 'agenda' ? 'events' : table;
-            state[key] = JSON.parse(cachedData);
-        }
-    });
-    if (state.events && state.events.length > 0) state.isLoading = false;
+            const tablesToCache = ['types', 'locations', 'attendants', 'agenda', 'feriados', 'perfis'];
+            tablesToCache.forEach(table => { const cachedData = localStorage.getItem(`cache_${table}`); if (cachedData) { const key = table === 'agenda' ? 'events' : table; state[key] = JSON.parse(cachedData); } });
+            if (state.events && state.events.length > 0) state.isLoading = false;
 
-    // Inicia com um estado na pilha para capturar o voltar no "null"
-    window.history.pushState({ screen: 'home' }, "");
-    
-    window.addEventListener('popstate', (event) => {
-        if (state.isMenuOpen) { state.isMenuOpen = false; return; }
-        const modal = document.getElementById('modal-container');
-        if (modal && !modal.classList.contains('hidden')) { closeModal(); return; }
+            window.history.pushState({ screen: 'home' }, "");
+            window.addEventListener('popstate', (event) => {
+                if (state.isMenuOpen) { state.isMenuOpen = false; return; }
+                const modal = document.getElementById('modal-container');
+                if (modal && !modal.classList.contains('hidden')) { closeModal(); return; }
+                if (event.state && event.state.screen) navigateTo(event.state.screen, false); 
+                else if (state.currentScreen === 'home') { window.showExitConfirmation(); window.history.pushState({ screen: 'home' }, ""); } 
+                else navigateTo('home', false); 
+            });
 
-        if (event.state && event.state.screen) { 
-            navigateTo(event.state.screen, false); 
-        } else { 
-            // Alcançou a entrada nula (botão voltar na tela inicial original)
-            if (state.currentScreen === 'home') {
-                window.showExitConfirmation();
-                // Re-empilha o home para que o próximo "voltar" bata no null de novo
-                window.history.pushState({ screen: 'home' }, "");
-            } else {
-                navigateTo('home', false); 
-            }
-        }
-    });
+            window.addEventListener('offline', () => { showConnStatus('offline'); });
+            window.addEventListener('online', async () => { showConnStatus('online-recovered'); await refreshAllData(); scheduleRender(); });
 
-    window.addEventListener('offline', () => { showConnStatus('offline'); });
-    
-    window.addEventListener('online', async () => { 
-        showConnStatus('online-recovered'); 
-        await refreshAllData();
-        scheduleRender();
-    });
-
-    supabaseClient.auth.onAuthStateChange((event, session) => { 
-        state.user = session?.user || null; 
-        state.isAdmin = session?.user?.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase(); 
-        if (event === 'SIGNED_IN') { navigateTo('home'); closeModal(); } 
-        scheduleRender(); 
-    });
-
-    const setupListener = (table, key) => {
-        supabaseClient.from(table).select('*').then(({ data }) => { 
-            if (data) {
-                state[key] = data; 
-                localStorage.setItem(`cache_${table}`, JSON.stringify(data));
-            }
-            if (state.types && state.types.length >= 0) state.isLoading = false; 
-            scheduleRender();
-        });
-
-        supabaseClient.channel(`public:${table}`).on('postgres_changes', { event: '*', schema: 'public', table }, () => { 
-            supabaseClient.from(table).select('*').then(({ data }) => { 
-                if (data) {
-                    state[key] = data;
-                    localStorage.setItem(`cache_${table}`, JSON.stringify(data));
+            supabaseClient.auth.onAuthStateChange(async (event, session) => { 
+                if (event === 'SIGNED_OUT') {
+                    state.user = null;
+                    state.isAuthorized = false;
+                    state.isAdmin = false;
+                    state.currentScreen = 'home';
                     scheduleRender();
+                    return;
                 }
-            }); 
-        }).subscribe();
-    };
 
-    setupListener('types', 'types'); 
-    setupListener('locations', 'locations'); 
-    setupListener('attendants', 'attendants'); 
-    setupListener('agenda', 'events'); 
-    setupListener('feriados', 'feriados');
+                state.user = session?.user || null; 
+                state.isAdmin = session?.user?.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase(); 
+                
+                if (session?.user) {
+                    const { data: profile } = await supabaseClient.from('perfis').select('permissao').eq('id', session.user.id).single();
+                    const isMasterAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+                    // Normalização para evitar erros de autorização por causa de maiúsculas/minúsculas
+                    const permissaoNormalizada = (profile?.permissao || '').toLowerCase();
+                    state.isAuthorized = isMasterAdmin || (profile && permissaoNormalizada !== 'pendente');
+                    if (state.isAuthorized) await refreshAllData();
+                } else {
+                    state.isAuthorized = false;
+                    state.isAdmin = false;
+                }
+                if (event === 'SIGNED_IN') closeModal(); 
+                scheduleRender(); 
+            });
 
-    loadExternalHolidays(new Date().getFullYear());
-}
-init();
+            const setupListener = (table, key) => {
+                supabaseClient.from(table).select('*').then(({ data }) => { 
+                    if (data) { state[key] = data; localStorage.setItem(`cache_${table}`, JSON.stringify(data)); }
+                    if (state.types && state.types.length >= 0) state.isLoading = false; 
+                    scheduleRender();
+                });
+                supabaseClient.channel(`public:${table}`).on('postgres_changes', { event: '*', schema: 'public', table }, () => { 
+                    supabaseClient.from(table).select('*').then(({ data }) => { if (data) { state[key] = data; localStorage.setItem(`cache_${table}`, JSON.stringify(data)); scheduleRender(); } }); 
+                }).subscribe();
+            };
+
+            setupListener('types', 'types'); setupListener('locations', 'locations'); setupListener('attendants', 'attendants'); setupListener('agenda', 'events'); setupListener('feriados', 'feriados'); setupListener('perfis', 'perfis');
+            loadExternalHolidays(new Date().getFullYear());
+        }
+        init();
     </script>
 </body>
 </html>
