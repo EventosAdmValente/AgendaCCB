@@ -1250,8 +1250,21 @@
             confirmarEDeletar,
             locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
             showExitConfirmation: () => {
-                if (!state.user) return;
-                showModal(`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border-t-4 border-navy"><div class="p-6 flex flex-col items-center text-center"><div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-navy"><i data-lucide="home"></i></div><h3 class="text-lg font-black text-navy uppercase tracking-tight mb-2">Início</h3><p class="text-xs font-medium text-slate-500 mb-6">Você já está na tela principal.</p><div class="w-full flex gap-2"><button onclick="window.closeModal()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Entendido</button></div></div></div>`);
+                showModal(`
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border-t-4 border-slate-300">
+                        <div class="p-8 flex flex-col items-center text-center">
+                            <div class="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-400">
+                                <i data-lucide="log-out"></i>
+                            </div>
+                            <h3 class="text-lg font-black text-navy uppercase tracking-tight mb-2">Encerrar Sessão?</h3>
+                            <p class="text-xs font-medium text-slate-500 mb-8 leading-relaxed">Deseja realmente sair da sua conta e fechar o aplicativo?</p>
+                            <div class="w-full flex gap-3">
+                                <button onclick="window.closeModal()" class="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-[11px] uppercase tracking-widest active:scale-95 transition-all">Não</button>
+                                <button onclick="window.handleLogout()" class="flex-1 py-3.5 bg-navy text-white rounded-xl font-black text-[11px] uppercase tracking-widest shadow-lg active:scale-95 transition-all">Sim, Sair</button>
+                            </div>
+                        </div>
+                    </div>
+                `);
             },
             closeApp: () => { window.close(); setTimeout(() => { alert("Para sair, use o gerenciador de tarefas do seu celular ou feche a aba do navegador."); closeModal(); }, 300); }
         });
@@ -1286,14 +1299,27 @@
             // Uma vez verificado o login, paramos o loading principal
             state.isLoading = false;
 
-            window.history.pushState({ screen: 'home' }, "");
+            // Gerenciamento de Histórico (Botão Voltar)
+            window.history.replaceState({ screen: 'home' }, "");
             window.addEventListener('popstate', (event) => {
+                // Prioridade 1: Fechar Menu
                 if (state.isMenuOpen) { state.isMenuOpen = false; return; }
+                
+                // Prioridade 2: Fechar Modais
                 const modal = document.getElementById('modal-container');
                 if (modal && !modal.classList.contains('hidden')) { closeModal(); return; }
-                if (event.state && event.state.screen) navigateTo(event.state.screen, false); 
-                else if (state.currentScreen === 'home') { window.showExitConfirmation(); window.history.pushState({ screen: 'home' }, ""); } 
-                else navigateTo('home', false); 
+                
+                // Prioridade 3: Navegar para tela anterior do histórico
+                if (event.state && event.state.screen) {
+                    navigateTo(event.state.screen, false); 
+                } else if (state.currentScreen === 'home') {
+                    // Se estiver na Home e apertar voltar, pergunta se quer sair
+                    window.showExitConfirmation();
+                    // Reinserir a home no histórico para que a próxima tentativa caia aqui de novo
+                    window.history.pushState({ screen: 'home' }, "");
+                } else {
+                    navigateTo('home', false); 
+                }
             });
 
             window.addEventListener('offline', () => { showConnStatus('offline'); });
@@ -1327,17 +1353,46 @@
                 scheduleRender(); 
             });
 
-            const setupListener = (table, key) => {
+            const setupListener = (table, stateKey) => {
+                // Initial Fetch
                 supabaseClient.from(table).select('*').then(({ data }) => { 
-                    if (data) { state[key] = data; localStorage.setItem(`cache_${table}`, JSON.stringify(data)); }
+                    if (data) { 
+                        state[stateKey] = data; 
+                        localStorage.setItem(`cache_${table}`, JSON.stringify(data)); 
+                    }
                     scheduleRender();
                 });
-                supabaseClient.channel(`public:${table}`).on('postgres_changes', { event: '*', schema: 'public', table }, () => { 
-                    supabaseClient.from(table).select('*').then(({ data }) => { if (data) { state[key] = data; localStorage.setItem(`cache_${table}`, JSON.stringify(data)); scheduleRender(); } }); 
-                }).subscribe();
+
+                // Real-time Incremental Sync (Mais rápido que select*)
+                supabaseClient.channel(`public:${table}`)
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, (payload) => {
+                        const current = [...(state[stateKey] || [])];
+                        // Evita duplicatas se o fetch inicial chegar ao mesmo tempo que o real-time
+                        if (!current.find(item => item.id === payload.new.id)) {
+                            state[stateKey] = [...current, payload.new];
+                            localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
+                        }
+                    })
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, (payload) => {
+                        const current = [...(state[stateKey] || [])];
+                        state[stateKey] = current.map(item => item.id === payload.new.id ? payload.new : item);
+                        localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
+                    })
+                    .on('postgres_changes', { event: 'DELETE', schema: 'public', table }, (payload) => {
+                        const current = [...(state[stateKey] || [])];
+                        state[stateKey] = current.filter(item => item.id !== payload.old.id);
+                        localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
+                    })
+                    .subscribe();
             };
 
-            setupListener('types', 'types'); setupListener('locations', 'locations'); setupListener('attendants', 'attendants'); setupListener('agenda', 'events'); setupListener('feriados', 'feriados'); setupListener('perfis', 'perfis');
+            setupListener('types', 'types'); 
+            setupListener('locations', 'locations'); 
+            setupListener('attendants', 'attendants'); 
+            setupListener('agenda', 'events'); 
+            setupListener('feriados', 'feriados'); 
+            setupListener('perfis', 'perfis');
+            
             loadExternalHolidays(new Date().getFullYear());
         }
         init();
