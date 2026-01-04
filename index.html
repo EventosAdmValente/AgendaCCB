@@ -86,7 +86,7 @@
     <template id="login-modal-template">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
             <div class="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                <h3 id="modal-login-title" class="font-bold text-lg text-navy uppercase tracking-tight">Área Administrativa</h3>
+                <h3 id="modal-login-title" class="font-bold text-lg text-navy uppercase tracking-tight">Faça Login ou Cadastro</h3>
                 <button type="button" onclick="window.closeModal()" class="text-slate-400 p-1 hover:text-slate-600"><i data-lucide="x" class="w-6 h-6"></i></button>
             </div>
             <form id="login-form" class="p-6 flex flex-col gap-4">
@@ -344,7 +344,7 @@
             if (!app) return;
 
             if (state.isLoading) {
-                app.innerHTML = `<div class="loading-container"><div class="loading-spinner"></div><span class="loading-text">Conectando ao Supabase...</span></div>`;
+                app.innerHTML = `<div class="loading-container"><div class="loading-spinner"></div><span class="loading-text">Conectando...</span></div>`;
                 return;
             }
 
@@ -378,7 +378,7 @@
                             <div class="w-20 h-20 bg-blue-50 text-navy rounded-3xl flex items-center justify-center border border-blue-100 shadow-sm"><i data-lucide="lock" class="w-10 h-10"></i></div>
                             <div>
                                 <h2 class="text-xl font-black text-navy uppercase">Acesso Restrito</h2>
-                                <p class="text-sm text-slate-500 mt-2">Faça login para visualizar a agenda administrativa.</p>
+                                <p class="text-sm text-slate-500 mt-2">Faça login para visualizar a agenda de eventos.</p>
                             </div>
                             <button onclick="window.showLoginModal()" class="bg-navy text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Fazer Login</button>
                         </div>
@@ -408,7 +408,7 @@
                                 <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status Atual</span>
                                 <span class="text-xs font-bold text-orange-500 uppercase">Pendente</span>
                             </div>
-                            <button onclick="window.handleLogout()" class="mt-8 px-8 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="log-out" class="w-4 h-4 text-white"></i> Sair da conta</button>
+                            <button onclick="window.handleLogout()" class="mt-8 px-8 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="log-out" class="w-4 h-4 text-white"></i> Logout</button>
                         </div>
                     </div>
                     <div id="nav-menu-placeholder">${renderNavMenu()}</div>
@@ -670,6 +670,8 @@
 
             const menuItems = [...baseItems, ...adminItems, ...footerItems];
 
+            const userName = state.user?.user_metadata?.full_name || state.user?.email || 'Usuário';
+
             return `
                 <div class="fixed inset-0 z-50 flex">
                     <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="window.closeMenu()"></div>
@@ -687,7 +689,15 @@
                             `).join('')}
                         </nav>
                         <div class="p-4 border-t border-white/10 bg-[#002244]">
-                            ${state.user ? `<button onclick="window.handleLogout()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600/20 text-red-200 rounded-lg font-bold border border-red-500/30 active:scale-95 transition-transform"><i data-lucide="log-out" class="w-4 h-4"></i> Sair da Conta</button>` : `<button onclick="window.showLoginModal()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white/10 text-white rounded-lg font-bold hover:bg-white/20 border border-white/10"><i data-lucide="lock" class="w-4 h-4"></i> Login Admin</button>`}
+                            ${state.user ? `
+                                <div class="mb-4 px-2">
+                                    ${state.isAdmin ? `<div class="text-[9px] font-black text-orange-custom uppercase tracking-widest mb-0.5">Administrador</div>` : ''}
+                                    <div class="text-sm font-bold text-white truncate max-w-full">${userName}</div>
+                                </div>
+                                <button onclick="window.handleLogout()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600/20 text-red-200 rounded-lg font-bold border border-red-500/30 active:scale-95 transition-transform"><i data-lucide="log-out" class="w-4 h-4"></i> Logout</button>
+                            ` : `
+                                <button onclick="window.showLoginModal()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white/10 text-white rounded-lg font-bold hover:bg-white/20 border border-white/10"><i data-lucide="lock" class="w-4 h-4"></i> Login </button>
+                            `}
                         </div>
                     </div>
                 </div>
@@ -825,8 +835,8 @@
                 items.sort((a, b) => {
                     if (coll === 'feriados') return (a.data || '').localeCompare(b.data || '');
                     const nameA = (coll === 'locations' ? a.localidade : (coll === 'perfis' ? a.nome : a.name)) || '';
-                    const nameB = (coll === 'locations' ? b.localidade : (coll === 'perfis' ? a.nome : b.name)) || '';
-                    return nameA.localeCompare(nameB);
+                    const nameB = (coll === 'locations' ? b.localidade : (coll === 'perfis' ? b.nome : b.name)) || '';
+                    return nameA.localeCompare(nameB, 'pt-BR', { sensitivity: 'base' });
                 });
                 const term = (state.managerSearchTerm || '').toLowerCase();
                 const filtered = items.filter((i) => {
@@ -1182,7 +1192,7 @@
                 toggleBtn?.addEventListener('click', () => {
                     isSignUp = !isSignUp;
                     if (isSignUp) { titleEl.innerText = "Novo Cadastro"; nameField.classList.remove('hidden'); submitBtn.innerText = "Cadastrar"; toggleBtn.innerText = "Já tem conta? Entre"; } 
-                    else { titleEl.innerText = "Área Administrativa"; nameField.classList.add('hidden'); submitBtn.innerText = "Entrar"; toggleBtn.innerText = "Não tem conta? Cadastre-se"; }
+                    else { titleEl.innerText = "Faça Login ou Cadastro"; nameField.classList.add('hidden'); submitBtn.innerText = "Entrar"; toggleBtn.innerText = "Não tem conta? Cadastre-se"; }
                 });
                 document.getElementById('login-form')?.addEventListener('submit', async (e) => {
                     e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const errD = document.getElementById('login-error');
@@ -1225,7 +1235,7 @@
 
         function renderFFRow(l, v, t, c) {
             const isS = c === t;
-            return `<div class="flex flex-col gap-1.5 p-3 rounded-2xl border-2 transition-all h-full ${isS ? 'border-orange-custom bg-orange-50/30' : 'border-slate-100 bg-slate-50/50'}" onclick="window.state.ffTemp.selected = '${t}'; window.renderFastFilterUI();"><div class="flex justify-between items-center px-1"><span class="text-[9px] font-black uppercase tracking-tight ${isS ? 'text-orange-custom' : 'text-slate-400'}">${l}</span><div class="flex gap-2"><button Pete.stopPropagation(); window.shiftFF('${t}', -1)" class="p-1 hover:bg-white rounded-full text-navy shadow-sm border border-slate-200 bg-white"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button><button Pete.stopPropagation(); window.shiftFF('${t}', 1)" class="p-1 hover:bg-white rounded-full text-navy shadow-sm border border-slate-200 bg-white"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button></div></div><div class="text-[11px] font-bold text-navy px-1 leading-tight">${v}</div></div>`;
+            return `<div class="flex flex-col gap-1.5 p-3 rounded-2xl border-2 transition-all h-full ${isS ? 'border-orange-custom bg-orange-50/30' : 'border-slate-100 bg-slate-50/50'}" onclick="window.state.ffTemp.selected = '${t}'; window.renderFastFilterUI();"><div class="flex justify-between items-center px-1"><span class="text-[9px] font-black uppercase tracking-tight ${isS ? 'text-orange-custom' : 'text-slate-400'}">${l}</span><div class="flex gap-2"><button onclick="event.stopPropagation(); window.shiftFF('${t}', -1)" class="p-1 hover:bg-white rounded-full text-navy shadow-sm border border-slate-200 bg-white"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button><button onclick="event.stopPropagation(); window.shiftFF('${t}', 1)" class="p-1 hover:bg-white rounded-full text-navy shadow-sm border border-slate-200 bg-white"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button></div></div><div class="text-[11px] font-bold text-navy px-1 leading-tight">${v}</div></div>`;
         }
 
         function renderFastFilterUI() {
@@ -1310,7 +1320,7 @@
             selectClockValue: (v) => { if (state.clockMode === 'hour') { state.clockTempHour = v.padStart(2, '0'); state.clockMode = 'minute'; } else state.clockTempMinute = v.padStart(2, '0'); renderClockUI(); },
             confirmClockTime: () => { state.formTempTime = `${state.clockTempHour}:${state.clockTempMinute}`; closeModal(); },
             openSelectPicker: (coll, tit, pr) => { let items = [...state[coll]]; if (coll === 'locations' && pr === 'adv_location') { const af = state.advancedFilter; if (af.adm.enabled && af.adm.value) items = items.filter(l => l.adm === af.adm.value); if (af.setor.enabled && af.setor.value) items = items.filter(l => l.setor === af.setor.value); if (af.cidade.enabled && af.cidade.value) items = items.filter(l => l.cidade === af.cidade.value); } const isA = pr.startsWith('adv_'); const target = isA ? pr.replace('adv_', '') : pr; showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${tit}</h3></div><button onclick="${isA ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="px-5 py-4"><div class="relative group"><input id="pickerSearch" type="text" placeholder="Filtrar..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium"><i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i></div></div><div id="pickerItemsList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none"></div></div>`); const listEl = document.getElementById('pickerItemsList'); if (listEl) listEl.innerHTML = renderPickerItems(items, coll, isA, target, pr); document.getElementById('pickerSearch')?.addEventListener('input', (e) => { const term = (e.target.value || '').toLowerCase(); const filtered = items.filter((i) => ((coll === 'locations' ? i.localidade : (coll === 'perfis' ? i.nome : i.name)) || '').toLowerCase().includes(term)); document.getElementById('pickerItemsList').innerHTML = renderPickerItems(filtered, coll, isA, target, pr); renderIcons(); }); renderIcons(); },
-            saveEvent: async () => { const errs = []; if (!state.formTempDate) errs.push('date'); if (!state.formTempLoc) errs.push('loc'); if (!state.formTempType) errs.push('type'); if (errs.length > 0) { state.formErrors = errs; return; } const eventData = { date: state.formTempDate, time: state.formTempTime, location_id: state.formTempLoc, type_id: state.formTempType, attendant_id: state.formTempAtt || null, irmaos: PeteInt(document.getElementById('event-irmaos')?.value || '0'), irmas: PeteInt(document.getElementById('event-irmas')?.value || '0') }; const duplicate = state.events.find(e => e.date === eventData.date && e.time === eventData.time && e.location_id === eventData.location_id && e.type_id === eventData.type_id && e.id !== state.editingEventId); if (duplicate) { showEventDuplicateModal(duplicate); return; } const action = state.editingEventId ? 'UPDATE' : 'INSERT'; const result = await window.smartSave('agenda', action, eventData, state.editingEventId); if (result.success) { if (result.offline) { if (action === 'UPDATE') state.events = state.events.map(e => e.id === state.editingEventId ? { ...e, ...eventData } : e); else state.events = [...state.events, { id: 'temp-' + Date.now(), ...eventData, is_temp: true }]; } window.navigateTo('home'); state.editingEventId = null; } else alert("Erro ao salvar: " + result.error); },
+            saveEvent: async () => { const errs = []; if (!state.formTempDate) errs.push('date'); if (!state.formTempLoc) errs.push('loc'); if (!state.formTempType) errs.push('type'); if (errs.length > 0) { state.formErrors = errs; return; } const eventData = { date: state.formTempDate, time: state.formTempTime, location_id: state.formTempLoc, type_id: state.formTempType, attendant_id: state.formTempAtt || null, irmaos: parseInt(document.getElementById('event-irmaos')?.value || '0'), irmas: parseInt(document.getElementById('event-irmas')?.value || '0') }; const duplicate = state.events.find(e => e.date === eventData.date && e.time === eventData.time && e.location_id === eventData.location_id && e.type_id === eventData.type_id && e.id !== state.editingEventId); if (duplicate) { showEventDuplicateModal(duplicate); return; } const action = state.editingEventId ? 'UPDATE' : 'INSERT'; const result = await window.smartSave('agenda', action, eventData, state.editingEventId); if (result.success) { if (result.offline) { if (action === 'UPDATE') state.events = state.events.map(e => e.id === state.editingEventId ? { ...e, ...eventData } : e); else state.events = [...state.events, { id: 'temp-' + Date.now(), ...eventData, is_temp: true }]; } window.navigateTo('home'); state.editingEventId = null; } else alert("Erro ao salvar: " + result.error); },
             requestDeleteEvent: (id) => { const ev = state.events.find((e) => e.id === id); const type = state.types.find((t) => t.id === ev?.type_id); const loc = state.locations.find((l) => l.id === ev?.location_id); showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative border-t-[8px] border-red-500"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5"><i data-lucide="alert-triangle" class="text-red-500 w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3">Excluir?</h3><p class="text-sm text-slate-500 mb-8 px-2">Deseja excluir este evento?<br><strong class="text-slate-700">${type?.name || ''} em ${loc?.localidade || ''}</strong></p><div class="w-full flex gap-3"><button onclick="window.closeModal()" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold uppercase text-sm">Não</button><button onclick="window.confirmarEDeletar('${id}')" class="flex-1 bg-red-600 py-3 rounded-xl font-black uppercase text-sm">Sim</button></div></div></div>`); },
             confirmarEDeletar,
             locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
