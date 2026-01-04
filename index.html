@@ -410,7 +410,11 @@
                 if (target[property] === value) return true;
                 target[property] = value;
                 
-                const silent = ['searchTerm', 'managerSearchTerm', 'clockMode', 'clockTempHour', 'clockTempMinute', 'ffTemp', 'fetchedYears', 'formErrors'];
+                const silent = [
+                    'searchTerm', 'managerSearchTerm', 'clockMode', 'clockTempHour', 'clockTempMinute', 
+                    'ffTemp', 'fetchedYears', 'formErrors',
+                    'events', 'types', 'locations', 'attendants', 'feriados', 'perfis'
+                ];
                 if (!silent.includes(property)) {
                     scheduleRender();
                 }
@@ -503,161 +507,10 @@
             renderIcons();
         }
 
-        function renderHome() {
-            const app = document.getElementById('app');
-            if (!app) return;
-
-            // CASO 1: Usuário não logado
-            if (!state.user) {
-                app.innerHTML = `
-                    <div class="flex flex-col h-full bg-slate-100">
-                        <div class="bg-navy text-white p-4 sticky top-0 z-10 shadow-lg flex justify-between items-center">
-                            <button onclick="window.openMenu()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="menu" class="w-7 h-7"></i></button>
-                            <h1 class="text-lg font-bold uppercase tracking-wide">Agenda CCB</h1>
-                            <div class="w-7 h-7"></div>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6">
-                            <div class="w-20 h-20 bg-blue-50 text-navy rounded-3xl flex items-center justify-center border border-blue-100 shadow-sm"><i data-lucide="lock" class="w-10 h-10"></i></div>
-                            <div>
-                                <h2 class="text-xl font-black text-navy uppercase">Acesso Restrito</h2>
-                                <p class="text-sm text-slate-500 mt-2">Faça login para visualizar a agenda de eventos.</p>
-                            </div>
-                            <button onclick="window.showLoginModal()" class="bg-navy text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Fazer Login</button>
-                        </div>
-                    </div>
-                    <div id="nav-menu-placeholder">${renderNavMenu()}</div>
-                `;
-                renderIcons();
-                return;
-            }
-
-            // CASO 2: Usuário logado mas NÃO autorizado
-            if (!state.isAuthorized) {
-                app.innerHTML = `
-                    <div class="flex flex-col h-full bg-slate-100">
-                        <div class="bg-navy text-white p-4 sticky top-0 z-10 shadow-lg flex justify-between items-center">
-                            <button onclick="window.openMenu()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="menu" class="w-7 h-7"></i></button>
-                            <h1 class="text-lg font-bold uppercase tracking-wide">Agenda CCB</h1>
-                            <button onclick="window.handleLogout()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="log-out" class="w-6 h-6"></i></button>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6">
-                            <div class="w-20 h-20 bg-orange-50 text-orange-custom rounded-3xl flex items-center justify-center border border-orange-100 shadow-sm animate-pulse"><i data-lucide="clock" class="w-10 h-10"></i></div>
-                            <div>
-                                <h2 class="text-xl font-black text-navy uppercase">Aguardando Autorização</h2>
-                                <p class="text-sm text-slate-500 mt-2">Seu cadastro foi realizado com sucesso. Aguarde até que um administrador aprove seu acesso.</p>
-                            </div>
-                            <div class="p-4 bg-white border border-slate-200 rounded-2xl w-full max-w-xs shadow-sm">
-                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status Atual</span>
-                                <span class="text-xs font-bold text-orange-500 uppercase">Pendente</span>
-                            </div>
-                            <button onclick="window.handleLogout()" class="mt-8 px-8 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="log-out" class="w-4 h-4 text-white"></i> Logout</button>
-                        </div>
-                    </div>
-                    <div id="nav-menu-placeholder">${renderNavMenu()}</div>
-                `;
-                renderIcons();
-                return;
-            }
-
-            // CASO 3: Usuário Autorizado (Visualização Normal)
-            app.innerHTML = `
-                <div id="home-container" class="flex flex-col h-full bg-slate-100 relative">
-                    <div id="nav-menu-placeholder">${renderNavMenu()}</div>
-                    <div class="bg-navy text-white p-4 sticky top-0 z-10 shadow-lg flex justify-between items-center">
-                        <button onclick="window.openMenu()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="menu" class="w-7 h-7"></i></button>
-                        <h1 class="text-lg font-bold uppercase tracking-wide">Agenda CCB</h1>
-                        <button onclick="window.resetAllFilters()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="home" class="w-7 h-7"></i></button>
-                    </div>
-                    <div class="flex flex-col flex-1 overflow-hidden p-4 gap-4 max-w-xl mx-auto w-full overflow-y-auto scrollbar-none">
-                        <div class="flex gap-2">
-                            <button onclick="window.startOpenAgenda()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> AGENDA</button>
-                            <button onclick="window.resetAllFilters()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="list" class="w-3.5 h-3.5"></i> TODOS</button>
-                            <button onclick="window.openFastFilterModal()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="filter" class="w-3.5 h-3.5"></i> FILTRO</button>
-                            <button onclick="window.openPDFPreview()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> EXPORTAR</button>
-                        </div>
-                        <div class="flex gap-2">
-                            <div class="relative flex-1">
-                                <input id="homeSearch" type="text" placeholder="Pesquisar evento, local ou atendente..." class="w-full pl-10 pr-3 h-10 border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-navy/10" value="${state.searchTerm || ''}">
-                                <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
-                            </div>
-                            <button onclick="window.renderAdvancedFilterModal()" class="w-10 h-10 bg-white border border-slate-300 rounded-lg flex items-center justify-center text-navy shadow-sm active:bg-slate-50 relative">
-                                <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
-                                ${state.advancedFilter.active ? '<span class="absolute -top-1 -right-1 w-3 h-3 bg-orange-custom rounded-full border-2 border-white"></span>' : ''}
-                            </button>
-                        </div>
-                        <div id="event-list-container" class="flex flex-col gap-2 flex-1 min-h-0"></div>
-                    </div>
-                    ${state.isAdmin ? `<button onclick="window.startCreateEvent()" class="fixed bottom-6 right-6 w-14 h-14 bg-orange-custom text-white rounded-full shadow-xl flex items-center justify-center z-50 border-2 border-white/20"><i data-lucide="plus" class="w-8 h-8"></i></button>` : ''}
-                </div>
-            `;
-            
-            document.getElementById('homeSearch')?.addEventListener('input', (e) => { state.searchTerm = e.target.value; });
-            updateHomeList();
-        }
-
-        function getFilteredEvents() {
-            if (!state.isAuthorized) return [];
-            let filtered = [...(state.events || [])];
-            
-            if (state.selectedDate) {
-                filtered = filtered.filter((e) => e.date === state.selectedDate);
-            } else if (state.fastFilter?.active) {
-                if (state.fastFilter.dateStart) filtered = filtered.filter((e) => e.date >= state.fastFilter.dateStart);
-                if (state.fastFilter.dateEnd) filtered = filtered.filter((e) => e.date <= state.fastFilter.dateEnd);
-            }
-            
-            if (state.advancedFilter.active) {
-                const af = state.advancedFilter;
-                if (af.eventos.enabled) {
-                    filtered = filtered.filter((e) => {
-                        const isPast = isEventPast(e.date, e.time);
-                        return af.eventos.status === 'ativos' ? !isPast : isPast;
-                    });
-                }
-                if (af.type.enabled && af.type.id) {
-                    filtered = filtered.filter((e) => e.type_id === af.type.id);
-                }
-                if (af.attendant.enabled && af.attendant.id) {
-                    filtered = filtered.filter((e) => e.attendant_id === af.attendant.id);
-                }
-                if (af.adm.enabled && af.adm.value) {
-                    const validLocs = state.locations.filter((l) => l.adm === af.adm.value).map((l) => l.id);
-                    filtered = filtered.filter((e) => validLocs.includes(e.location_id));
-                }
-                if (af.setor.enabled && af.setor.value) {
-                    const validLocs = state.locations.filter((l) => l.setor === af.setor.value).map((l) => l.id);
-                    filtered = filtered.filter((e) => validLocs.includes(e.location_id));
-                }
-                if (af.cidade.enabled && af.cidade.value) {
-                    const validLocs = state.locations.filter((l) => l.cidade === af.cidade.value).map((l) => l.id);
-                    filtered = filtered.filter((e) => validLocs.includes(e.location_id));
-                }
-                if (af.location.enabled && af.location.id) {
-                    filtered = filtered.filter((e) => e.location_id === af.location.id);
-                }
-                if (af.period.enabled) {
-                    if (af.period.start) filtered = filtered.filter((e) => e.date >= af.period.start);
-                    if (af.period.end) filtered = filtered.filter((e) => e.date <= af.period.end);
-                }
-            }
-
-            if (state.searchTerm) {
-                const term = (state.searchTerm || '').toLowerCase();
-                filtered = filtered.filter((e) => {
-                    const typeObj = state.types.find((t) => t.id === e.type_id);
-                    const typeName = (typeObj?.name || '').toLowerCase();
-                    const typeSigla = (typeObj?.sigla || '').toLowerCase();
-                    const locObj = state.locations.find((l) => l.id === e.location_id);
-                    const loc = (locObj?.localidade || '').toLowerCase();
-                    const termAtt = state.attendants.find((a) => a.id === e.attendant_id)?.name?.toLowerCase() || '';
-                    return typeName.includes(term) || typeSigla.includes(term) || loc.includes(term) || termAtt.includes(term);
-                });
-            }
-            
-            return filtered.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
-        }
-
-        function updateHomeList() {
+        /**
+         * Funções Globais de Atualização de UI (Realtime)
+         */
+        window.updateHomeList = () => {
             const container = document.getElementById('event-list-container');
             if (!container) return;
 
@@ -749,6 +602,238 @@
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }, 100);
             }
+        };
+
+        window.updateManagerListUI = (coll) => {
+            const container = document.getElementById('manager-items-container');
+            const stats = document.getElementById('manager-list-stats');
+            if (!container || !stats) return;
+
+            let itemIcon = 'tag';
+            if (coll === 'locations') itemIcon = 'map-pin';
+            if (coll === 'attendants') itemIcon = 'user';
+            if (coll === 'feriados') itemIcon = 'sun';
+            if (coll === 'perfis') itemIcon = 'shield-check';
+
+            const items = [...(state[coll] || [])];
+            items.sort((a, b) => {
+                if (coll === 'feriados') return (a.data || '').localeCompare(b.data || '');
+                const nameA = (coll === 'locations' ? a.localidade : (coll === 'perfis' ? a.nome : a.name)) || '';
+                const nameB = (coll === 'locations' ? b.localidade : (coll === 'perfis' ? b.nome : b.name)) || '';
+                return nameA.localeCompare(nameB, 'pt-BR', { sensitivity: 'base' });
+            });
+            const term = (state.managerSearchTerm || '').toLowerCase();
+            const filtered = items.filter((i) => {
+                if (coll === 'types') return (i.name || '').toLowerCase().includes(term) || (i.sigla || '').toLowerCase().includes(term);
+                if (coll === 'locations') return (i.localidade || '').toLowerCase().includes(term) || (i.adm || '').toLowerCase().includes(term) || (i.setor || '').toLowerCase().includes(term) || (i.cidade || '').toLowerCase().includes(term);
+                if (coll === 'attendants') return (i.name || '').toLowerCase().includes(term) || (i.ministerio || '').toLowerCase().includes(term);
+                if (coll === 'feriados') return (i.nome_feriado || '').toLowerCase().includes(term) || (i.tipo_feriado || '').toLowerCase().includes(term) || (i.data || '').toLowerCase().includes(term);
+                if (coll === 'perfis') return (i.nome || '').toLowerCase().includes(term) || (i.permissao || '').toLowerCase().includes(term);
+                return false;
+            });
+
+            stats.innerHTML = `<span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${filtered.length} REGISTROS</span>`;
+            container.innerHTML = filtered.length === 0 ? '<div class="p-12 text-center text-slate-300 italic text-sm">Nenhum registro encontrado.</div>' : filtered.map((item) => {
+                let badgesHtml = "";
+                const mainName = (coll === 'locations' ? item.localidade : (coll === 'feriados' ? item.nome_feriado : (coll === 'perfis' ? item.nome : item.name))) || '';
+                if (coll === 'locations') {
+                    const line2 = [item.adm, item.setor].filter(Boolean).join(' | ');
+                    badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${line2}</div><div class="text-[11px] text-slate-400 font-semibold leading-tight mt-0.5 h-3">${item.cidade || ''}</div>`;
+                } else if (coll === 'types') {
+                    badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.sigla || ''}</div><div class="text-[11px] text-slate-400 leading-tight mt-0.5 h-3"></div>`;
+                } else if (coll === 'attendants') {
+                    badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.ministerio || ''}</div><div class="text-[11px] text-slate-400 leading-tight mt-0.5 h-3"></div>`;
+                } else if (coll === 'feriados') {
+                    badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.tipo_feriado || ''}</div><div class="text-[11px] text-slate-400 font-semibold leading-tight mt-0.5 h-3">${formatDateFull(item.data) || ''}</div>`;
+                } else if (coll === 'perfis') {
+                    const isAuth = item.autorizado === true;
+                    const role = item.permissao === 'admin' ? 'Administrador' : 'Leitura';
+                    badgesHtml = `<div class="text-[11px] font-bold leading-tight mt-1 ${isAuth ? 'text-green-600' : 'text-orange-500'}">${isAuth ? 'AUTORIZADO' : 'PENDENTE'}</div><div class="text-[10px] text-slate-400 font-semibold uppercase tracking-tighter mt-0.5">${role}</div>`;
+                }
+                const isHighlighted = state.highlightedItemId === item.id;
+                const isTemp = String(item.id).startsWith('temp_');
+                const safeMainName = (mainName || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
+                
+                return `
+                    <div id="item-${item.id}" class="p-4 flex items-center justify-between hover:bg-slate-50 transition-all ${isHighlighted ? 'bg-yellow-50 highlight-item ring-2 ring-yellow-400 ring-inset' : ''}">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100 relative">
+                                <i data-lucide="${itemIcon}" class="w-5 h-5 text-navy"></i>
+                                ${isTemp ? `<div class="absolute -top-1 -right-1 bg-orange-500 text-white rounded-full p-0.5"><i data-lucide="cloud-off" class="w-2 h-2"></i></div>` : ''}
+                            </div>
+                            <div class="min-w-0 flex flex-col justify-center">
+                                <div class="font-bold text-navy text-sm leading-tight flex items-center gap-2">
+                                    ${mainName}
+                                </div>
+                                ${badgesHtml}
+                            </div>
+                        </div>
+                        <div class="flex gap-1 ml-4 shrink-0">
+                            ${state.isAdmin ? `
+                                <button onclick="window.openRowModal('${coll}', '${item.id}')" class="p-2.5 text-blue-500 hover:bg-blue-100 rounded-lg transition-colors"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                                <button onclick="window.requestDeleteRow('${item.id}', '${coll}', '${safeMainName}')" class="p-2.5 text-red-400 hover:bg-red-100 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            ` : ''}
+                        </div>
+                    </div>`;
+            }).join('');
+            renderIcons();
+            if (state.highlightedItemId) {
+                setTimeout(() => { const el = document.getElementById(`item-${state.highlightedItemId}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100);
+            }
+        };
+
+        function renderHome() {
+            const app = document.getElementById('app');
+            if (!app) return;
+
+            // CASO 1: Usuário não logado
+            if (!state.user) {
+                app.innerHTML = `
+                    <div class="flex flex-col h-full bg-slate-100">
+                        <div class="bg-navy text-white p-4 sticky top-0 z-10 shadow-lg flex justify-between items-center">
+                            <button onclick="window.openMenu()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="menu" class="w-7 h-7"></i></button>
+                            <h1 class="text-lg font-bold uppercase tracking-wide">Agenda CCB</h1>
+                            <div class="w-7 h-7"></div>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6">
+                            <div class="w-20 h-20 bg-blue-50 text-navy rounded-3xl flex items-center justify-center border border-blue-100 shadow-sm"><i data-lucide="lock" class="w-10 h-10"></i></div>
+                            <div>
+                                <h2 class="text-xl font-black text-navy uppercase">Acesso Restrito</h2>
+                                <p class="text-sm text-slate-500 mt-2">Faça login para visualizar a agenda de eventos.</p>
+                            </div>
+                            <button onclick="window.showLoginModal()" class="bg-navy text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Fazer Login</button>
+                        </div>
+                    </div>
+                    <div id="nav-menu-placeholder">${renderNavMenu()}</div>
+                `;
+                renderIcons();
+                return;
+            }
+
+            // CASO 2: Usuário logado mas NÃO autorizado
+            if (!state.isAuthorized) {
+                app.innerHTML = `
+                    <div class="flex flex-col h-full bg-slate-100">
+                        <div class="bg-navy text-white p-4 sticky top-0 z-10 shadow-lg flex justify-between items-center">
+                            <button onclick="window.openMenu()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="menu" class="w-7 h-7"></i></button>
+                            <h1 class="text-lg font-bold uppercase tracking-wide">Agenda CCB</h1>
+                            <button onclick="window.handleLogout()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="log-out" class="w-6 h-6"></i></button>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6">
+                            <div class="w-20 h-20 bg-orange-50 text-orange-custom rounded-3xl flex items-center justify-center border border-orange-100 shadow-sm animate-pulse"><i data-lucide="clock" class="w-10 h-10"></i></div>
+                            <div>
+                                <h2 class="text-xl font-black text-navy uppercase">Aguardando Autorização</h2>
+                                <p class="text-sm text-slate-500 mt-2">Seu cadastro foi realizado com sucesso. Aguarde até que um administrador aprove seu acesso.</p>
+                            </div>
+                            <div class="p-4 bg-white border border-slate-200 rounded-2xl w-full max-w-xs shadow-sm">
+                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status Atual</span>
+                                <span class="text-xs font-bold text-orange-500 uppercase">Pendente</span>
+                            </div>
+                            <button onclick="window.handleLogout()" class="mt-8 px-8 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="log-out" class="w-4 h-4 text-white"></i> Logout</button>
+                        </div>
+                    </div>
+                    <div id="nav-menu-placeholder">${renderNavMenu()}</div>
+                `;
+                renderIcons();
+                return;
+            }
+
+            // CASO 3: Usuário Autorizado (Visualização Normal)
+            app.innerHTML = `
+                <div id="home-container" class="flex flex-col h-full bg-slate-100 relative">
+                    <div id="nav-menu-placeholder">${renderNavMenu()}</div>
+                    <div class="bg-navy text-white p-4 sticky top-0 z-10 shadow-lg flex justify-between items-center">
+                        <button onclick="window.openMenu()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="menu" class="w-7 h-7"></i></button>
+                        <h1 class="text-lg font-bold uppercase tracking-wide">Agenda CCB</h1>
+                        <button onclick="window.resetAllFilters()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="home" class="w-7 h-7"></i></button>
+                    </div>
+                    <div class="flex flex-col flex-1 overflow-hidden p-4 gap-4 max-w-xl mx-auto w-full overflow-y-auto scrollbar-none">
+                        <div class="flex gap-2">
+                            <button onclick="window.startOpenAgenda()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> AGENDA</button>
+                            <button onclick="window.resetAllFilters()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="list" class="w-3.5 h-3.5"></i> TODOS</button>
+                            <button onclick="window.openFastFilterModal()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="filter" class="w-3.5 h-3.5"></i> FILTRO</button>
+                            <button onclick="window.openPDFPreview()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> EXPORTAR</button>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="relative flex-1">
+                                <input id="homeSearch" type="text" placeholder="Pesquisar evento, local ou atendente..." class="w-full pl-10 pr-3 h-10 border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-navy/10" value="${state.searchTerm || ''}">
+                                <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
+                            </div>
+                            <button onclick="window.renderAdvancedFilterModal()" class="w-10 h-10 bg-white border border-slate-300 rounded-lg flex items-center justify-center text-navy shadow-sm active:bg-slate-50 relative">
+                                <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
+                                ${state.advancedFilter.active ? '<span class="absolute -top-1 -right-1 w-3 h-3 bg-orange-custom rounded-full border-2 border-white"></span>' : ''}
+                            </button>
+                        </div>
+                        <div id="event-list-container" class="flex flex-col gap-2 flex-1 min-h-0"></div>
+                    </div>
+                    ${state.isAdmin ? `<button onclick="window.startCreateEvent()" class="fixed bottom-6 right-6 w-14 h-14 bg-orange-custom text-white rounded-full shadow-xl flex items-center justify-center z-50 border-2 border-white/20"><i data-lucide="plus" class="w-8 h-8"></i></button>` : ''}
+                </div>
+            `;
+            
+            document.getElementById('homeSearch')?.addEventListener('input', (e) => { state.searchTerm = e.target.value; });
+            window.updateHomeList();
+        }
+
+        function getFilteredEvents() {
+            if (!state.isAuthorized) return [];
+            let filtered = [...(state.events || [])];
+            
+            if (state.selectedDate) {
+                filtered = filtered.filter((e) => e.date === state.selectedDate);
+            } else if (state.fastFilter?.active) {
+                if (state.fastFilter.dateStart) filtered = filtered.filter((e) => e.date >= state.fastFilter.dateStart);
+                if (state.fastFilter.dateEnd) filtered = filtered.filter((e) => e.date <= state.fastFilter.dateEnd);
+            }
+            
+            if (state.advancedFilter.active) {
+                const af = state.advancedFilter;
+                if (af.eventos.enabled) {
+                    filtered = filtered.filter((e) => {
+                        const isPast = isEventPast(e.date, e.time);
+                        return af.eventos.status === 'ativos' ? !isPast : isPast;
+                    });
+                }
+                if (af.type.enabled && af.type.id) {
+                    filtered = filtered.filter((e) => e.type_id === af.type.id);
+                }
+                if (af.attendant.enabled && af.attendant.id) {
+                    filtered = filtered.filter((e) => e.attendant_id === af.attendant.id);
+                }
+                if (af.adm.enabled && af.adm.value) {
+                    const validLocs = state.locations.filter((l) => l.adm === af.adm.value).map((l) => l.id);
+                    filtered = filtered.filter((e) => validLocs.includes(e.location_id));
+                }
+                if (af.setor.enabled && af.setor.value) {
+                    const validLocs = state.locations.filter((l) => l.setor === af.setor.value).map((l) => l.id);
+                    filtered = filtered.filter((e) => validLocs.includes(e.location_id));
+                }
+                if (af.cidade.enabled && af.cidade.value) {
+                    const validLocs = state.locations.filter((l) => l.cidade === af.cidade.value).map((l) => l.id);
+                    filtered = filtered.filter((e) => validLocs.includes(e.location_id));
+                }
+                if (af.location.enabled && af.location.id) {
+                    filtered = filtered.filter((e) => e.location_id === af.location.id);
+                }
+                if (af.period.enabled) {
+                    if (af.period.start) filtered = filtered.filter((e) => e.date >= af.period.start);
+                    if (af.period.end) filtered = filtered.filter((e) => e.date <= af.period.end);
+                }
+            }
+
+            if (state.searchTerm) {
+                const term = (state.searchTerm || '').toLowerCase();
+                filtered = filtered.filter((e) => {
+                    const typeObj = state.types.find((t) => t.id === e.type_id);
+                    const typeName = (typeObj?.name || '').toLowerCase();
+                    const typeSigla = (typeObj?.sigla || '').toLowerCase();
+                    const locObj = state.locations.find((l) => l.id === e.location_id);
+                    const loc = (locObj?.localidade || '').toLowerCase();
+                    const termAtt = state.attendants.find((a) => a.id === e.attendant_id)?.name?.toLowerCase() || '';
+                    return typeName.includes(term) || typeSigla.includes(term) || loc.includes(term) || termAtt.includes(term);
+                });
+            }
+            
+            return filtered.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
         }
 
         function getFilterDescription() {
@@ -845,12 +930,6 @@
             `; 
         }
 
-        function renderUsersManager() {
-            const app = document.getElementById('app');
-            if (!app) return;
-            renderGenericManager('Gestão de Usuários', 'perfis');
-        }
-
         function renderEventForm() {
             if (!state.isAuthorized) { navigateTo('home'); return; }
             const isEditing = !!state.editingEventId;
@@ -929,12 +1008,7 @@
             if (!state.isAuthorized) { navigateTo('home'); return; }
             const app = document.getElementById('app');
             if (!app) return;
-            let itemIcon = 'tag';
-            if (collection === 'locations') itemIcon = 'map-pin';
-            if (collection === 'attendants') itemIcon = 'user';
-            if (collection === 'feriados') itemIcon = 'sun';
-            if (collection === 'perfis') itemIcon = 'shield-check';
-
+            
             let searchPlaceholder = "Buscar...";
             if (collection === 'locations') searchPlaceholder = "Pesq. por adm, setor, cidade, localidade";
             else if (collection === 'types') searchPlaceholder = "Pesquisar por nome ou sigla...";
@@ -968,76 +1042,12 @@
                     </div>
                 </div>
             `;
-            window.updateManagerListUI = (coll) => {
-                const container = document.getElementById('manager-items-container');
-                const stats = document.getElementById('manager-list-stats');
-                if (!container || !stats) return;
-                const items = [...(state[coll] || [])];
-                items.sort((a, b) => {
-                    if (coll === 'feriados') return (a.data || '').localeCompare(b.data || '');
-                    const nameA = (coll === 'locations' ? a.localidade : (coll === 'perfis' ? a.nome : a.name)) || '';
-                    const nameB = (coll === 'locations' ? b.localidade : (coll === 'perfis' ? b.nome : b.name)) || '';
-                    return nameA.localeCompare(nameB, 'pt-BR', { sensitivity: 'base' });
-                });
-                const term = (state.managerSearchTerm || '').toLowerCase();
-                const filtered = items.filter((i) => {
-                    if (coll === 'types') return (i.name || '').toLowerCase().includes(term) || (i.sigla || '').toLowerCase().includes(term);
-                    if (coll === 'locations') return (i.localidade || '').toLowerCase().includes(term) || (i.adm || '').toLowerCase().includes(term) || (i.setor || '').toLowerCase().includes(term) || (i.cidade || '').toLowerCase().includes(term);
-                    if (coll === 'attendants') return (i.name || '').toLowerCase().includes(term) || (i.ministerio || '').toLowerCase().includes(term);
-                    if (coll === 'feriados') return (i.nome_feriado || '').toLowerCase().includes(term) || (i.tipo_feriado || '').toLowerCase().includes(term) || (i.data || '').toLowerCase().includes(term);
-                    if (coll === 'perfis') return (i.nome || '').toLowerCase().includes(term) || (i.permissao || '').toLowerCase().includes(term);
-                    return false;
-                });
-                stats.innerHTML = `<span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${filtered.length} REGISTROS</span>`;
-                container.innerHTML = filtered.length === 0 ? '<div class="p-12 text-center text-slate-300 italic text-sm">Nenhum registro encontrado.</div>' : filtered.map((item) => {
-                    let badgesHtml = "";
-                    const mainName = (coll === 'locations' ? item.localidade : (coll === 'feriados' ? item.nome_feriado : (coll === 'perfis' ? item.nome : item.name))) || '';
-                    if (coll === 'locations') {
-                        const line2 = [item.adm, item.setor].filter(Boolean).join(' | ');
-                        badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${line2}</div><div class="text-[11px] text-slate-400 font-semibold leading-tight mt-0.5 h-3">${item.cidade || ''}</div>`;
-                    } else if (coll === 'types') {
-                        badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.sigla || ''}</div><div class="text-[11px] text-slate-400 leading-tight mt-0.5 h-3"></div>`;
-                    } else if (coll === 'attendants') {
-                        badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.ministerio || ''}</div><div class="text-[11px] text-slate-400 leading-tight mt-0.5 h-3"></div>`;
-                    } else if (coll === 'feriados') {
-                        badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.tipo_feriado || ''}</div><div class="text-[11px] text-slate-400 font-semibold leading-tight mt-0.5 h-3">${formatDateFull(item.data) || ''}</div>`;
-                    } else if (coll === 'perfis') {
-                        const isAuth = item.autorizado === true;
-                        const role = item.permissao === 'admin' ? 'Administrador' : 'Leitura';
-                        badgesHtml = `<div class="text-[11px] font-bold leading-tight mt-1 ${isAuth ? 'text-green-600' : 'text-orange-500'}">${isAuth ? 'AUTORIZADO' : 'PENDENTE'}</div><div class="text-[10px] text-slate-400 font-semibold uppercase tracking-tighter mt-0.5">${role}</div>`;
-                    }
-                    const isHighlighted = state.highlightedItemId === item.id;
-                    const isTemp = String(item.id).startsWith('temp_');
-                    const safeMainName = (mainName || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
-                    
-                    return `
-                        <div id="item-${item.id}" class="p-4 flex items-center justify-between hover:bg-slate-50 transition-all ${isHighlighted ? 'bg-yellow-50 highlight-item ring-2 ring-yellow-400 ring-inset' : ''}">
-                            <div class="flex items-center gap-4 min-w-0">
-                                <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100 relative">
-                                    <i data-lucide="${itemIcon}" class="w-5 h-5 text-navy"></i>
-                                    ${isTemp ? `<div class="absolute -top-1 -right-1 bg-orange-500 text-white rounded-full p-0.5"><i data-lucide="cloud-off" class="w-2 h-2"></i></div>` : ''}
-                                </div>
-                                <div class="min-w-0 flex flex-col justify-center">
-                                    <div class="font-bold text-navy text-sm leading-tight flex items-center gap-2">
-                                        ${mainName}
-                                    </div>
-                                    ${badgesHtml}
-                                </div>
-                            </div>
-                            <div class="flex gap-1 ml-4 shrink-0">
-                                ${state.isAdmin ? `
-                                    <button onclick="window.openRowModal('${coll}', '${item.id}')" class="p-2.5 text-blue-500 hover:bg-blue-100 rounded-lg transition-colors"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                                    <button onclick="window.requestDeleteRow('${item.id}', '${coll}', '${safeMainName}')" class="p-2.5 text-red-400 hover:bg-red-100 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                                ` : ''}
-                            </div>
-                        </div>`;
-                }).join('');
-                renderIcons();
-                if (state.highlightedItemId) {
-                    setTimeout(() => { const el = document.getElementById(`item-${state.highlightedItemId}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100);
-                }
-            };
-            document.getElementById('managerSearch')?.addEventListener('input', (e) => { state.managerSearchTerm = e.target.value; state.highlightedItemId = null; window.updateManagerListUI(collection); });
+            
+            document.getElementById('managerSearch')?.addEventListener('input', (e) => { 
+                state.managerSearchTerm = e.target.value; 
+                state.highlightedItemId = null; 
+                window.updateManagerListUI(collection); 
+            });
             window.updateManagerListUI(collection);
        }
 
@@ -1433,7 +1443,7 @@
                     window.location.href = window.location.origin + window.location.pathname;
                 });
             }, 
-            showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, updateHomeList, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; updateHomeList(); },
+            showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; window.updateHomeList(); },
             startOpenAgenda: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; const t = new Date().toISOString().split('T')[0]; if (!state.selectedDate) state.selectedDate = t; state.viewDate = new Date(state.selectedDate + 'T00:00:00'); renderCalendar('filter'); },
             changeMonth: (o, m) => { const d = new Date(state.viewDate); d.setMonth(d.getMonth() + o); state.viewDate = d; if (m === 'filter') state.selectedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; renderCalendar(m); },
             changePickerYear: (o, m) => { const d = new Date(state.viewDate); d.setFullYear(d.getFullYear() + o); state.viewDate = d; if (m.includes('month') || m === 'adv_period') window.openMonthPicker(m); else window.openYearPicker(m); },
@@ -1442,19 +1452,19 @@
             openMonthPicker: (m) => { const names = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"]; const year = state.viewDate.getFullYear(); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button><div class="flex items-center justify-center gap-3 w-full mb-6"><button onclick="window.changePickerYear(-1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-left" class="w-6 h-6"></i></button><span class="text-sm font-black text-navy uppercase tracking-widest">${year}</span><button onclick="window.changePickerYear(1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-right" class="w-6 h-6"></i></button></div><div class="grid grid-cols-3 gap-3 w-full">${names.map((n, i) => `<button onclick="window.selectMonth(${i}, '${m}')" class="py-4 text-[11px] font-black rounded-xl border transition-all ${state.viewDate.getMonth() === i ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${n.slice(0, 3)}</button>`).join('')}</div></div>`); },
             openYearPicker: (m) => { const currentYear = new Date().getFullYear(); const selectedYear = (m === 'adv_period' && state.advancedFilter.period.start) ? new Date(state.advancedFilter.period.start + 'T00:00:00').getFullYear() : currentYear; state.viewDate = new Date(selectedYear, 0, 1); const years = []; for(let i = currentYear - 30; i < currentYear + 30; i++) years.push(i); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button><div class="flex items-center justify-center w-full mb-6"><span class="text-sm font-black text-navy uppercase tracking-widest">ANO</span></div><div id="year-scroll-container" class="grid grid-cols-3 gap-3 w-full max-h-[224px] overflow-y-auto scrollbar-none py-2">${years.map(y => `<button id="year-btn-${y}" onclick="window.selectYear(${y}, '${m}')" class="py-4 text-xs font-black rounded-xl border transition-all ${y === selectedYear ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${y}</button>`).join('')}</div></div>`); setTimeout(() => { const btn = document.getElementById(`year-btn-${selectedYear}`); if (btn) btn.scrollIntoView({ block: 'center' }); }, 10); },
             selectCalendarDate: (d, m = 'filter') => { if (m === 'filter') { state.selectedDate = d; renderCalendar('filter'); } else if (m === 'picker') { state.formTempDate = d; state.formErrors = state.formErrors.filter(e => e !== 'date'); closeModal(); } else if (m === 'adv_start' || m === 'adv_end') { state.advancedFilter.period[m === 'adv_start' ? 'start' : 'end'] = d; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); } else if (m === 'feriado_picker') { const c = window.__feriado_modal_cache; window.openRowModal('feriados', c.safeId, { ...c.item, data: d }); } },
-            applyCalendarAndClose: () => { state.fastFilter = { active: false }; state.advancedFilter.active = false; updateHomeList(); closeModal(); },
+            applyCalendarAndClose: () => { state.fastFilter = { active: false }; state.advancedFilter.active = false; window.updateHomeList(); closeModal(); },
             openFormDate: () => { state.viewDate = new Date((state.formTempDate || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar('picker'); },
             openFeriadoDatePicker: () => { state.viewDate = new Date((document.getElementById('feriado-date-val')?.value || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar('feriado_picker'); },
             returnToFeriadoModal: () => { const c = window.__feriado_modal_cache; window.openRowModal('feriados', c.safeId, c.item); },
             renderFastFilterUI,
             openFastFilterModal: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; state.ffTemp.baseDates = { today: new Date(), week: new Date(), month: new Date(), year: new Date() }; renderFastFilterUI(); },
             shiftFF: (t, o) => { const d = new Date(state.ffTemp.baseDates[t]); if (t === 'today') d.setDate(d.getDate() + o); else if (t === 'week') d.setDate(d.getDate() + (o * 7)); else if (t === 'month') d.setMonth(d.getMonth() + o); else if (t === 'year') d.setFullYear(d.getFullYear() + o); state.ffTemp.baseDates[t] = d; state.ffTemp.selected = t; renderFastFilterUI(); },
-            applyNewFastFilter: () => { const b = new Date(state.ffTemp.baseDates[state.ffTemp.selected]); let st = '', en = '', la = ''; const f = (d) => d.toISOString().split('T')[0]; const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; if (state.ffTemp.selected === 'today') { st = en = f(b); let w = b.toLocaleDateString('pt-BR', { weekday: 'long' }); la = `${w.charAt(0).toUpperCase() + w.slice(1)}, dia ${fBR(b)}`; } else if (state.ffTemp.selected === 'week') { const d1 = new Date(b); d1.setDate(b.getDate() - b.getDay()); const d2 = new Date(d1); d2.setDate(d1.getDate() + 6); st = f(d1); en = f(d2); la = `Semana ${fBR(d1)} a ${fBR(d2)}`; } else if (state.ffTemp.selected === 'month') { const d1 = new Date(b.getFullYear(), b.getMonth(), 1); const d2 = new Date(b.getFullYear(), b.getMonth() + 1, 0); st = f(d1); en = f(d2); la = `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][b.getMonth()]} / ${b.getFullYear()}`; } else if (state.ffTemp.selected === 'year') { st = `${b.getFullYear()}-01-01`; en = `${b.getFullYear()}-12-31`; la = `Ano de ${b.getFullYear()}`; } state.selectedDate = null; state.advancedFilter.active = false; state.fastFilter = { active: true, dateStart: st, dateEnd: en, label: la }; closeModal(); updateHomeList(); },
+            applyNewFastFilter: () => { const b = new Date(state.ffTemp.baseDates[state.ffTemp.selected]); let st = '', en = '', la = ''; const f = (d) => d.toISOString().split('T')[0]; const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; if (state.ffTemp.selected === 'today') { st = en = f(b); let w = b.toLocaleDateString('pt-BR', { weekday: 'long' }); la = `${w.charAt(0).toUpperCase() + w.slice(1)}, dia ${fBR(b)}`; } else if (state.ffTemp.selected === 'week') { const d1 = new Date(b); d1.setDate(b.getDate() - b.getDay()); const d2 = new Date(d1); d2.setDate(d1.getDate() + 6); st = f(d1); en = f(d2); la = `Semana ${fBR(d1)} a ${fBR(d2)}`; } else if (state.ffTemp.selected === 'month') { const d1 = new Date(b.getFullYear(), b.getMonth(), 1); const d2 = new Date(b.getFullYear(), b.getMonth() + 1, 0); st = f(d1); en = f(d2); la = `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][b.getMonth()]} / ${b.getFullYear()}`; } else if (state.ffTemp.selected === 'year') { st = `${b.getFullYear()}-01-01`; en = `${b.getFullYear()}-12-31`; la = `Ano de ${b.getFullYear()}`; } state.selectedDate = null; state.advancedFilter.active = false; state.fastFilter = { active: true, dateStart: st, dateEnd: en, label: la }; closeModal(); window.updateHomeList(); },
             toggleAdvFilterSection: (sec) => { const af = state.advancedFilter; af[sec].enabled = !af[sec].enabled; af.validationErrors = af.validationErrors.filter(e => e !== sec); if (sec === 'adm' && !af.adm.enabled) { af.adm.value = ''; af.setor.enabled = false; af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'setor' && !af.setor.enabled) { af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'cidade' && !af.cidade.enabled) { af.cidade.value = ''; af.location.id = ''; } window.renderAdvancedFilterModal(); },
             handleAdvFilterSelect: (f, v) => { const af = state.advancedFilter; af[f].value = v; af.validationErrors = af.validationErrors.filter(e => e !== f); if (f === 'adm') { af.setor.value = ''; af.cidade.value = ''; af.location.id = ''; } else if (f === 'setor') { af.cidade.value = ''; af.location.id = ''; } else if (f === 'cidade') af.location.id = ''; window.renderAdvancedFilterModal(); },
             setAdvFilterStatus: (s) => { state.advancedFilter.eventos.status = s; },
-            clearAdvancedFilters: () => { state.advancedFilter = { active: false, eventos: { enabled: false, status: 'ativos' }, type: { enabled: false, id: '' }, location: { enabled: false, id: '' }, attendant: { enabled: false, id: '' }, adm: { enabled: false, value: '' }, setor: { enabled: false, value: '' }, cidade: { enabled: false, value: '' }, period: { enabled: false, start: '', end: '' }, validationErrors: [] }; updateHomeList(); window.renderAdvancedFilterModal(); },
-            applyAdvancedFilters: () => { const af = state.advancedFilter; const errs = []; if (af.type.enabled && !af.type.id) errs.push('type'); if (af.location.enabled && !af.location.id) errs.push('location'); if (af.attendant.enabled && !af.attendant.id) errs.push('attendant'); if (af.adm.enabled && !af.adm.value) errs.push('adm'); if (af.setor.enabled && !af.setor.value) errs.push('setor'); if (af.cidade.enabled && !af.cidade.value) errs.push('cidade'); if (af.period.enabled && (!af.period.start || !af.period.end)) errs.push('period'); if (errs.length > 0) { state.advancedFilter.validationErrors = errs; window.renderAdvancedFilterModal(); return; } state.selectedDate = null; state.fastFilter.active = false; state.advancedFilter.active = true; state.advancedFilter.validationErrors = []; closeModal(); updateHomeList(); },
+            clearAdvancedFilters: () => { state.advancedFilter = { active: false, eventos: { enabled: false, status: 'ativos' }, type: { enabled: false, id: '' }, location: { enabled: false, id: '' }, attendant: { enabled: false, id: '' }, adm: { enabled: false, value: '' }, setor: { enabled: false, value: '' }, cidade: { enabled: false, value: '' }, period: { enabled: false, start: '', end: '' }, validationErrors: [] }; window.updateHomeList(); window.renderAdvancedFilterModal(); },
+            applyAdvancedFilters: () => { const af = state.advancedFilter; const errs = []; if (af.type.enabled && !af.type.id) errs.push('type'); if (af.location.enabled && !af.location.id) errs.push('location'); if (af.attendant.enabled && !af.attendant.id) errs.push('attendant'); if (af.adm.enabled && !af.adm.value) errs.push('adm'); if (af.setor.enabled && !af.setor.value) errs.push('setor'); if (af.cidade.enabled && !af.cidade.value) errs.push('cidade'); if (af.period.enabled && (!af.period.start || !af.period.end)) errs.push('period'); if (errs.length > 0) { state.advancedFilter.validationErrors = errs; window.renderAdvancedFilterModal(); return; } state.selectedDate = null; state.fastFilter.active = false; state.advancedFilter.active = true; state.advancedFilter.validationErrors = []; closeModal(); window.updateHomeList(); },
             openDateRangePicker: (t) => { state.viewDate = new Date((state.advancedFilter.period[t] || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar(t === 'start' ? 'adv_start' : 'adv_end'); },
             openPDFPreview: () => alert("Exportação em breve."),
             startCreateEvent: () => { state.editingEventId = null; state.formTempDate = new Date().toISOString().split('T')[0]; state.formTempTime = '08:00'; state.formTempLoc = ''; state.formTempType = ''; state.formTempAtt = ''; state.formTempIrmaos = ''; state.formTempIrmas = ''; state.formErrors = []; navigateTo('event-form'); },
@@ -1466,7 +1476,7 @@
             saveEvent: async () => { const errs = []; if (!state.formTempDate) errs.push('date'); if (!state.formTempLoc) errs.push('loc'); if (!state.formTempType) errs.push('type'); if (errs.length > 0) { state.formErrors = errs; return; } const eventData = { date: state.formTempDate, time: state.formTempTime, location_id: state.formTempLoc, type_id: state.formTempType, attendant_id: state.formTempAtt || null, irmaos: parseInt(document.getElementById('event-irmaos')?.value || '0'), irmas: parseInt(document.getElementById('event-irmas')?.value || '0') }; const duplicate = state.events.find(e => e.date === eventData.date && e.time === eventData.time && e.location_id === eventData.location_id && e.type_id === eventData.type_id && String(e.id) !== String(state.editingEventId)); if (duplicate) { showEventDuplicateModal(duplicate); return; } const action = state.editingEventId ? 'UPDATE' : 'INSERT'; const result = await window.smartSave('agenda', action, eventData, state.editingEventId); if (result.success) { if (!result.pendingConflict) window.navigateTo('home'); state.editingEventId = null; } else alert("Erro ao salvar: " + result.error); },
             requestDeleteEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); const type = state.types.find((t) => t.id === ev?.type_id); const loc = state.locations.find((l) => l.id === ev?.location_id); showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative border-t-[8px] border-red-500"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5"><i data-lucide="alert-triangle" class="text-red-500 w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3">Excluir?</h3><p class="text-sm text-slate-500 mb-8 px-2">Deseja excluir este evento?<br><strong class="text-slate-700">${type?.name || ''} em ${loc?.localidade || ''}</strong></p><div class="w-full flex gap-3"><button onclick="window.closeModal()" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold uppercase text-sm">Não</button><button onclick="window.confirmarEDeletar('${id}')" class="flex-1 bg-red-600 py-3 rounded-xl font-black uppercase text-sm">Sim</button></div></div></div>`); },
             confirmarEDeletar,
-            locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
+            locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') window.updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
             showExitConfirmation: () => {
                 showModal(`
                     <div class="bg-white rounded-3xl shadow-2xl w-full max-w-[320px] overflow-hidden border-t-8 border-navy/10">
@@ -1650,6 +1660,11 @@
                         if (!current.find(item => String(item.id) === String(payload.new.id))) {
                             state[stateKey] = [...current, payload.new];
                             localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
+                            
+                            // Gatilho UI em Tempo Real
+                            if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                            const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'users' };
+                            if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
                         }
                     })
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, async (payload) => {
@@ -1657,6 +1672,11 @@
                         state[stateKey] = current.map(item => String(item.id) === String(payload.new.id) ? payload.new : item);
                         localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
                         
+                        // Gatilho UI em Tempo Real
+                        if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                        const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'users' };
+                        if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
+
                         // Reação Imediata a Mudanças de Autorização e Permissão (Requisitos 5 e 6)
                         if (table === 'perfis' && state.user && payload.new.id === state.user.id) {
                             const isMasterAdmin = (state.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase());
@@ -1678,6 +1698,11 @@
                         const current = [...(state[stateKey] || [])];
                         state[stateKey] = current.filter(item => String(item.id) !== String(payload.old.id));
                         localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
+                        
+                        // Gatilho UI em Tempo Real
+                        if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                        const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'users' };
+                        if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
                     })
                     .subscribe();
             };
