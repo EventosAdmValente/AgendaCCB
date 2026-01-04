@@ -466,6 +466,9 @@
                 if (af.type.enabled && af.type.id) {
                     filtered = filtered.filter((e) => e.type_id === af.type.id);
                 }
+                if (af.type.enabled && af.type.id) {
+                    filtered = filtered.filter((e) => e.type_id === af.type.id);
+                }
                 if (af.attendant.enabled && af.attendant.id) {
                     filtered = filtered.filter((e) => e.attendant_id === af.attendant.id);
                 }
@@ -795,7 +798,7 @@
                         </div>
                         <div id="manager-list-stats" class="flex justify-end pr-1 -mt-2"></div>
                         <div id="manager-items-container" class="flex-1 overflow-y-auto mb-1 bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100 scrollbar-none"></div>
-                        ${state.isAdmin ? `
+                        ${(state.isAdmin && collection !== 'perfis') ? `
                             <div class="flex justify-center pb-2">
                                 <button onclick="window.openRowModal('${collection}')" class="bg-navy text-white px-8 py-2.5 rounded-xl font-black shadow-lg flex items-center justify-center gap-3 active:scale-[0.98] transition-all border-2 border-white/10 w-full text-xs uppercase tracking-widest">
                                     <i data-lucide="plus" class="w-4 h-4"></i> ADICIONAR
@@ -839,7 +842,9 @@
                     } else if (coll === 'feriados') {
                         badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.tipo_feriado || ''}</div><div class="text-[11px] text-slate-400 font-semibold leading-tight mt-0.5 h-3">${formatDateFull(item.data) || ''}</div>`;
                     } else if (coll === 'perfis') {
-                        badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.permissao || ''}</div><div class="text-[11px] text-slate-400 leading-tight mt-0.5 h-3"></div>`;
+                        const isAuth = item.autorizado === true;
+                        const role = item.permissao === 'admin' ? 'Administrador' : 'Leitura';
+                        badgesHtml = `<div class="text-[11px] font-bold leading-tight mt-1 ${isAuth ? 'text-green-600' : 'text-orange-500'}">${isAuth ? 'AUTORIZADO' : 'PENDENTE'}</div><div class="text-[10px] text-slate-400 font-semibold uppercase tracking-tighter mt-0.5">${role}</div>`;
                     }
                     const isHighlighted = state.highlightedItemId === item.id;
                     const safeMainName = (mainName || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
@@ -847,7 +852,7 @@
                 }).join('');
                 renderIcons();
                 if (state.highlightedItemId) {
-                    setTimeout(() => { const el = document.getElementById(`item-${item.id}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100);
+                    setTimeout(() => { const el = document.getElementById(`item-${state.highlightedItemId}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100);
                 }
             };
             document.getElementById('managerSearch')?.addEventListener('input', (e) => { state.managerSearchTerm = e.target.value; state.highlightedItemId = null; window.updateManagerListUI(collection); });
@@ -984,7 +989,48 @@
             
             if (coll === 'feriados') window.__feriado_modal_cache = { safeId, item };
             
-            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"><div class="p-4 bg-slate-50 border-b flex justify-between items-center"><h3 class="font-black text-navy text-xs uppercase tracking-widest">${isE ? 'Editar' : 'Novo'} ${ctx.title}</h3><button onclick="window.closeModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${coll === 'locations' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">ADM</label><input id="loc-adm" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.adm || ''}" placeholder="Nome do ADM"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Setor</label><input id="loc-setor" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.setor || ''}" placeholder="Número/Nome do Setor"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Cidade</label><input id="loc-cidade" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.cidade || ''}" placeholder="Ex: Valente"></div>` : ''}${coll === 'feriados' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data do Feriado</label><button id="feriado-btn" onclick="window.openFeriadoDatePicker()" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-slate-50 text-left flex justify-between items-center transition-colors"><span id="feriado-date-display">${item.data ? formatDateFull(item.data) : 'Selecionar Data...'}</span><i data-lucide="calendar" class="w-4 h-4 opacity-40"></i><input type="hidden" id="feriado-date-val" value="${item.data || ''}"></button></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Feriado</label><input id="feriado-tipo" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.tipo_feriado || ''}" placeholder="Ex: Nacional, Municipal..."></div>` : ''}<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10 transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>${coll === 'types' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Sigla (EVT)</label><input id="row-extra" type="text" maxlength="5" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-black text-navy uppercase" value="${item.sigla || ''}"></div>` : ''}${coll === 'attendants' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Ministério</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.ministerio || ''}" placeholder="Ex: Louvor"></div>` : ''}${coll === 'perfis' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Permissão</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.permissao || ''}" placeholder="Ex: Administrador"></div>` : ''}<button onclick="window.saveRow('${coll}', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR REGISTRO</button></div></div>`);
+            // Layout especializado para PERFIS (Gestão de Usuários)
+            if (coll === 'perfis') {
+                showModal(`
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
+                            <h3 class="font-black text-navy text-xs uppercase tracking-widest">Gerenciar Usuário</h3>
+                            <button onclick="window.closeModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        </div>
+                        <div class="p-6 flex flex-col gap-5">
+                            <div class="flex flex-col gap-1">
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Nome Completo</label>
+                                <input type="text" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-400 cursor-not-allowed" value="${mainV}" disabled>
+                            </div>
+                            
+                            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-navy uppercase">Autorizado</span>
+                                    <span class="text-[10px] text-slate-400 font-medium">Permitir acesso à agenda</span>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="user-authorized" class="sr-only peer" ${item.autorizado ? 'checked' : ''}>
+                                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-custom"></div>
+                                </label>
+                            </div>
+
+                            <div class="flex flex-col gap-1">
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Nível de Permissão</label>
+                                <select id="user-permission" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10 appearance-none bg-white">
+                                    <option value="leitura" ${item.permissao === 'leitura' ? 'selected' : ''}>Somente Leitura</option>
+                                    <option value="admin" ${item.permissao === 'admin' ? 'selected' : ''}>Administrador</option>
+                                </select>
+                            </div>
+
+                            <button onclick="window.saveRow('perfis', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR ALTERAÇÕES</button>
+                        </div>
+                    </div>
+                `);
+                renderIcons();
+                return;
+            }
+
+            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"><div class="p-4 bg-slate-50 border-b flex justify-between items-center"><h3 class="font-black text-navy text-xs uppercase tracking-widest">${isE ? 'Editar' : 'Novo'} ${ctx.title}</h3><button onclick="window.closeModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${coll === 'locations' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">ADM</label><input id="loc-adm" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.adm || ''}" placeholder="Nome do ADM"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Setor</label><input id="loc-setor" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.setor || ''}" placeholder="Número/Nome do Setor"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Cidade</label><input id="loc-cidade" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.cidade || ''}" placeholder="Ex: Valente"></div>` : ''}${coll === 'feriados' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data do Feriado</label><button id="feriado-btn" onclick="window.openFeriadoDatePicker()" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-slate-50 text-left flex justify-between items-center transition-colors"><span id="feriado-date-display">${item.data ? formatDateFull(item.data) : 'Selecionar Data...'}</span><i data-lucide="calendar" class="w-4 h-4 opacity-40"></i><input type="hidden" id="feriado-date-val" value="${item.data || ''}"></button></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Feriado</label><input id="feriado-tipo" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.tipo_feriado || ''}" placeholder="Ex: Nacional, Municipal..."></div>` : ''}<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10 transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>${coll === 'types' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Sigla (EVT)</label><input id="row-extra" type="text" maxlength="5" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-black text-navy uppercase" value="${item.sigla || ''}"></div>` : ''}${coll === 'attendants' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Ministério</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.ministerio || ''}" placeholder="Ex: Louvor"></div>` : ''}<button onclick="window.saveRow('${coll}', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR REGISTRO</button></div></div>`);
         }
 
         async function saveRow(coll, id) {
@@ -995,29 +1041,35 @@
             const dateBtn = document.getElementById('feriado-btn');
 
             let hasError = false;
-            if (!name) { nameEl?.classList.add('input-error'); hasError = true; } else { nameEl?.classList.remove('input-error'); }
+            if (coll !== 'perfis') { // Perfis não permite mudar nome no modal edit
+                if (!name) { nameEl?.classList.add('input-error'); hasError = true; } else { nameEl?.classList.remove('input-error'); }
+            }
             if (coll === 'feriados' && !dateVal) { dateBtn?.classList.add('input-error'); hasError = true; } else { dateBtn?.classList.remove('input-error'); }
             if (hasError) return;
 
-            let extraV = ""; if (!['locations', 'feriados'].includes(coll)) extraV = document.getElementById('row-extra')?.value.trim() || "";
             const p = {};
-            if (coll === 'types') { p.name = name; p.sigla = extraV.toUpperCase(); }
+            if (coll === 'types') { const sigla = document.getElementById('row-extra')?.value.trim() || ""; p.name = name; p.sigla = sigla.toUpperCase(); }
             else if (coll === 'locations') { p.localidade = name; p.adm = document.getElementById('loc-adm')?.value.trim(); p.setor = document.getElementById('loc-setor')?.value.trim(); p.cidade = document.getElementById('loc-cidade')?.value.trim(); }
-            else if (coll === 'attendants') { p.name = name; p.ministerio = extraV; }
+            else if (coll === 'attendants') { const min = document.getElementById('row-extra')?.value.trim() || ""; p.name = name; p.ministerio = min; }
             else if (coll === 'feriados') { p.nome_feriado = name; p.data = dateVal; p.tipo_feriado = document.getElementById('feriado-tipo')?.value.trim(); }
-            else if (coll === 'perfis') { p.nome = name; p.permissao = extraV || 'pendente'; } // Garantindo que permissao seja preenchida (Pendente por padrão)
-            
-            let ext = null;
-            if (coll === 'types') {
-                ext = state.types.find(i => i.id !== id && ((i.name || '').toLowerCase() === name.toLowerCase() || (i.sigla || '').toUpperCase() === p.sigla));
-            } else if (coll === 'feriados') {
-                ext = state.feriados.find(i => i.id !== id && i.data === p.data && (i.nome_feriado || '').toLowerCase() === name.toLowerCase());
-            } else {
-                const key = coll === 'locations' ? 'localidade' : (coll === 'perfis' ? 'nome' : 'name');
-                ext = state[coll].find(i => i.id !== id && (i[key] || '').toLowerCase() === name.toLowerCase());
+            else if (coll === 'perfis') { 
+                p.autorizado = document.getElementById('user-authorized')?.checked; 
+                p.permissao = document.getElementById('user-permission')?.value; 
             }
-
-            if (ext) { showDuplicateModal(name, coll, ext.id, id, p); return; }
+            
+            // Verificação de duplicados (apenas para novas inserções ou mudança de nome em tabelas comuns)
+            if (coll !== 'perfis' && coll !== 'agenda') {
+                let ext = null;
+                if (coll === 'types') {
+                    ext = state.types.find(i => i.id !== id && ((i.name || '').toLowerCase() === name.toLowerCase() || (i.sigla || '').toUpperCase() === p.sigla));
+                } else if (coll === 'feriados') {
+                    ext = state.feriados.find(i => i.id !== id && i.data === p.data && (i.nome_feriado || '').toLowerCase() === name.toLowerCase());
+                } else {
+                    const key = coll === 'locations' ? 'localidade' : 'name';
+                    ext = state[coll].find(i => i.id !== id && (i[key] || '').toLowerCase() === name.toLowerCase());
+                }
+                if (ext) { showDuplicateModal(name, coll, ext.id, id, p); return; }
+            }
 
             const isN = !id || id === 'undefined' || id === '';
             const action = isN ? 'INSERT' : 'UPDATE';
@@ -1131,17 +1183,16 @@
                     try { 
                         if (isSignUp) {
                             if (!name) throw new Error("O nome é obrigatório para cadastro.");
-                            const { data, error } = await supabaseClient.auth.signUp({ email, password });
+                            const { data, error } = await supabaseClient.auth.signUp({ 
+                                email, 
+                                password,
+                                options: {
+                                    data: {
+                                        full_name: name
+                                    }
+                                }
+                            });
                             if (error) throw error;
-                            // Cadastro do nome na tabela perfis com permissão pendente
-                            if (data?.user) {
-                                const { error: profileError } = await supabaseClient.from('perfis').insert({ 
-                                    id: data.user.id, 
-                                    nome: name, 
-                                    permissao: 'pendente' 
-                                });
-                                if (profileError) console.error("Erro ao criar perfil:", profileError);
-                            }
                             alert("Cadastro realizado! Aguarde a aprovação de um administrador."); closeModal();
                         } else {
                             const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
@@ -1251,22 +1302,21 @@
             locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
             showExitConfirmation: () => {
                 showModal(`
-                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border-t-4 border-slate-300">
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-[320px] overflow-hidden border-t-8 border-navy/10">
                         <div class="p-8 flex flex-col items-center text-center">
-                            <div class="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-400">
-                                <i data-lucide="log-out"></i>
+                            <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-navy">
+                                <i data-lucide="log-out" class="w-8 h-8"></i>
                             </div>
-                            <h3 class="text-lg font-black text-navy uppercase tracking-tight mb-2">Encerrar Sessão?</h3>
-                            <p class="text-xs font-medium text-slate-500 mb-8 leading-relaxed">Deseja realmente sair da sua conta e fechar o aplicativo?</p>
-                            <div class="w-full flex gap-3">
-                                <button onclick="window.closeModal()" class="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-[11px] uppercase tracking-widest active:scale-95 transition-all">Não</button>
-                                <button onclick="window.handleLogout()" class="flex-1 py-3.5 bg-navy text-white rounded-xl font-black text-[11px] uppercase tracking-widest shadow-lg active:scale-95 transition-all">Sim, Sair</button>
+                            <h3 class="text-xl font-black text-navy uppercase tracking-tight mb-3">Sair do App?</h3>
+                            <p class="text-sm font-medium text-slate-500 mb-8 leading-relaxed">Você deseja realmente encerrar sua sessão e sair do aplicativo agora?</p>
+                            <div class="w-full flex flex-col gap-3">
+                                <button onclick="window.closeModal()" class="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all">Continuar no App</button>
+                                <button onclick="window.handleLogout()" class="w-full py-4 bg-navy text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all">Sim, Sair</button>
                             </div>
                         </div>
                     </div>
                 `);
-            },
-            closeApp: () => { window.close(); setTimeout(() => { alert("Para sair, use o gerenciador de tarefas do seu celular ou feche a aba do navegador."); closeModal(); }, 300); }
+            }
         });
 
        async function init() {
@@ -1284,12 +1334,16 @@
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
                 state.user = session.user;
-                state.isAdmin = session.user.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase();
+                const isMasterAdmin = session.user.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase();
                 try {
-                    const { data: profile } = await supabaseClient.from('perfis').select('permissao').eq('id', session.user.id).single();
-                    const isMasterAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-                    const permissaoNormalizada = (profile?.permissao || '').toLowerCase();
-                    state.isAuthorized = isMasterAdmin || (profile && permissaoNormalizada !== 'pendente');
+                    const { data: profile } = await supabaseClient.from('perfis').select('permissao, autorizado').eq('id', session.user.id).single();
+                    if (profile) {
+                        state.isAdmin = isMasterAdmin || (profile.permissao === 'admin');
+                        state.isAuthorized = isMasterAdmin || (profile.autorizado === true);
+                    } else {
+                        state.isAdmin = isMasterAdmin;
+                        state.isAuthorized = isMasterAdmin;
+                    }
                     if (state.isAuthorized) await refreshAllData();
                 } catch (e) {
                     console.error("Erro ao validar perfil inicial:", e);
@@ -1299,26 +1353,25 @@
             // Uma vez verificado o login, paramos o loading principal
             state.isLoading = false;
 
-            // Gerenciamento de Histórico (Botão Voltar)
+            // 3. Gestão de Histórico (Botão Voltar do Sistema)
             window.history.replaceState({ screen: 'home' }, "");
             window.addEventListener('popstate', (event) => {
-                // Prioridade 1: Fechar Menu
                 if (state.isMenuOpen) { state.isMenuOpen = false; return; }
-                
-                // Prioridade 2: Fechar Modais
                 const modal = document.getElementById('modal-container');
-                if (modal && !modal.classList.contains('hidden')) { closeModal(); return; }
-                
-                // Prioridade 3: Navegar para tela anterior do histórico
+                if (modal && !modal.classList.contains('hidden')) { 
+                    closeModal(); 
+                    if (state.currentScreen === 'home') window.history.pushState({ screen: 'home' }, "");
+                    return; 
+                }
                 if (event.state && event.state.screen) {
                     navigateTo(event.state.screen, false); 
-                } else if (state.currentScreen === 'home') {
-                    // Se estiver na Home e apertar voltar, pergunta se quer sair
-                    window.showExitConfirmation();
-                    // Reinserir a home no histórico para que a próxima tentativa caia aqui de novo
-                    window.history.pushState({ screen: 'home' }, "");
                 } else {
-                    navigateTo('home', false); 
+                    if (state.currentScreen === 'home') {
+                        window.showExitConfirmation();
+                        window.history.pushState({ screen: 'home' }, "");
+                    } else {
+                        navigateTo('home', false); 
+                    }
                 }
             });
 
@@ -1336,14 +1389,18 @@
                 }
 
                 state.user = session?.user || null; 
-                state.isAdmin = session?.user?.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase(); 
+                const isMasterAdmin = session.user.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase();
                 
                 if (session?.user) {
                     try {
-                        const { data: profile } = await supabaseClient.from('perfis').select('permissao').eq('id', session.user.id).single();
-                        const isMasterAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-                        const permissaoNormalizada = (profile?.permissao || '').toLowerCase();
-                        state.isAuthorized = isMasterAdmin || (profile && permissaoNormalizada !== 'pendente');
+                        const { data: profile } = await supabaseClient.from('perfis').select('permissao, autorizado').eq('id', session.user.id).single();
+                        if (profile) {
+                            state.isAdmin = isMasterAdmin || (profile.permissao === 'admin');
+                            state.isAuthorized = isMasterAdmin || (profile.autorizado === true);
+                        } else {
+                            state.isAdmin = isMasterAdmin;
+                            state.isAuthorized = isMasterAdmin;
+                        }
                         if (state.isAuthorized) await refreshAllData();
                     } catch (e) {
                         console.error("Erro ao validar sessão:", e);
@@ -1354,7 +1411,6 @@
             });
 
             const setupListener = (table, stateKey) => {
-                // Initial Fetch
                 supabaseClient.from(table).select('*').then(({ data }) => { 
                     if (data) { 
                         state[stateKey] = data; 
@@ -1363,20 +1419,26 @@
                     scheduleRender();
                 });
 
-                // Real-time Incremental Sync (Mais rápido que select*)
                 supabaseClient.channel(`public:${table}`)
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, (payload) => {
                         const current = [...(state[stateKey] || [])];
-                        // Evita duplicatas se o fetch inicial chegar ao mesmo tempo que o real-time
                         if (!current.find(item => item.id === payload.new.id)) {
                             state[stateKey] = [...current, payload.new];
                             localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
                         }
                     })
-                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, (payload) => {
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, async (payload) => {
                         const current = [...(state[stateKey] || [])];
                         state[stateKey] = current.map(item => item.id === payload.new.id ? payload.new : item);
                         localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
+                        
+                        // Sincronização em tempo real das permissões do usuário logado
+                        if (table === 'perfis' && state.user && payload.new.id === state.user.id) {
+                            const isMasterAdmin = state.user.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase();
+                            state.isAdmin = isMasterAdmin || (payload.new.permissao === 'admin');
+                            state.isAuthorized = isMasterAdmin || (payload.new.autorizado === true);
+                            if (state.isAuthorized) await refreshAllData();
+                        }
                     })
                     .on('postgres_changes', { event: 'DELETE', schema: 'public', table }, (payload) => {
                         const current = [...(state[stateKey] || [])];
