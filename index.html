@@ -1340,6 +1340,42 @@
                         </div>
                     </div>
                 `);
+            },
+            showInstallPromptModal: () => {
+                showModal(`
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-[320px] overflow-hidden border-t-8 border-orange-custom">
+                        <div class="p-8 flex flex-col items-center text-center">
+                            <div class="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mb-6 text-orange-custom">
+                                <i data-lucide="download-cloud" class="w-8 h-8"></i>
+                            </div>
+                            <h3 class="text-xl font-black text-navy uppercase tracking-tight mb-3">Instalar App?</h3>
+                            <p class="text-sm font-medium text-slate-500 mb-8 leading-relaxed">Deseja instalar o aplicativo para acesso rápido e offline?</p>
+                            <div class="w-full flex flex-col gap-3">
+                                <button onclick="window.confirmInstall()" class="w-full py-4 bg-navy text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all">Sim, instalar</button>
+                                <button onclick="window.rejectInstall()" class="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all">Não</button>
+                            </div>
+                        </div>
+                    </div>
+                `);
+            },
+            confirmInstall: async () => {
+                if (window.deferredPrompt) {
+                    await window.deferredPrompt.prompt();
+                    const { outcome } = await window.deferredPrompt.userChoice;
+                    console.debug(`User response to the install prompt: ${outcome}`);
+                    window.deferredPrompt = null;
+                }
+                closeModal();
+            },
+            rejectInstall: () => {
+                closeModal();
+                // Tentativa de fechar a aba
+                window.close();
+                // Fallback para interromper a experiência do usuário caso window.close() seja bloqueado
+                setTimeout(() => {
+                    document.body.innerHTML = "";
+                    window.location.href = "about:blank";
+                }, 100);
             }
         });
 
@@ -1478,6 +1514,18 @@
             setupListener('types', 'types'); setupListener('locations', 'locations'); setupListener('attendants', 'attendants'); setupListener('agenda', 'events'); setupListener('feriados', 'feriados'); setupListener('perfis', 'perfis');
             loadExternalHolidays(new Date().getFullYear());
         }
+        
+        // Listener para PWA Install Prompt
+        window.deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            window.deferredPrompt = e;
+            // Só mostra o modal se não estiver rodando como standalone (instalado)
+            if (!window.matchMedia('(display-mode: standalone)').matches) {
+                window.showInstallPromptModal();
+            }
+        });
+
         init();
     </script>
 </body>
