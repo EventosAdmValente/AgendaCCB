@@ -150,6 +150,7 @@
          * ==========================================
          */
             const SYNC_QUEUE_KEY = 'adm_valente_sync_queue';
+            const USER_PROFILE_CACHE_KEY = 'cache_user_profile';
 
             async function processOfflineQueue() {
                 if (!navigator.onLine) return;
@@ -1302,7 +1303,7 @@
             locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
             showExitConfirmation: () => {
                 showModal(`
-                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-[320px] overflow-hidden border-t-8 border-navy/10">
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-[320px] overflow-hidden border-t-8 border-navy/10">
                         <div class="p-8 flex flex-col items-center text-center">
                             <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-navy">
                                 <i data-lucide="log-out" class="w-8 h-8"></i>
@@ -1335,19 +1336,39 @@
             if (session) {
                 state.user = session.user;
                 const isMasterAdmin = session.user.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase();
-                try {
-                    const { data: profile } = await supabaseClient.from('perfis').select('permissao, autorizado').eq('id', session.user.id).single();
-                    if (profile) {
-                        state.isAdmin = isMasterAdmin || (profile.permissao === 'admin');
-                        state.isAuthorized = isMasterAdmin || (profile.autorizado === true);
-                    } else {
-                        state.isAdmin = isMasterAdmin;
-                        state.isAuthorized = isMasterAdmin;
-                    }
-                    if (state.isAuthorized) await refreshAllData();
-                } catch (e) {
-                    console.error("Erro ao validar perfil inicial:", e);
+                
+                // --- LÓGICA DE CACHE DE PERFIL (Para abertura offline) ---
+                const cachedProfile = localStorage.getItem(USER_PROFILE_CACHE_KEY);
+                if (cachedProfile) {
+                    const p = JSON.parse(cachedProfile);
+                    state.isAdmin = p.isAdmin;
+                    state.isAuthorized = p.isAuthorized;
+                } else if (isMasterAdmin) {
+                    state.isAdmin = true;
+                    state.isAuthorized = true;
                 }
+
+                // Tenta atualizar do servidor se houver conexão
+                if (navigator.onLine) {
+                    try {
+                        const { data: profile } = await supabaseClient.from('perfis').select('permissao, autorizado').eq('id', session.user.id).single();
+                        if (profile) {
+                            state.isAdmin = isMasterAdmin || (profile.permissao === 'admin');
+                            state.isAuthorized = isMasterAdmin || (profile.autorizado === true);
+                            
+                            // Atualiza o cache local
+                            localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify({
+                                isAdmin: state.isAdmin,
+                                isAuthorized: state.isAuthorized
+                            }));
+                        }
+                    } catch (e) {
+                        console.error("Erro ao validar perfil inicial:", e);
+                        // Se falhar (ex: timeout), o state permanece com os valores do cache
+                    }
+                }
+                
+                if (state.isAuthorized) await refreshAllData();
             }
             
             // Uma vez verificado o login, paramos o loading principal
@@ -1384,6 +1405,7 @@
                     state.isAuthorized = false;
                     state.isAdmin = false;
                     state.currentScreen = 'home';
+                    localStorage.removeItem(USER_PROFILE_CACHE_KEY); // Limpa cache no logout
                     scheduleRender();
                     return;
                 }
@@ -1397,6 +1419,12 @@
                         if (profile) {
                             state.isAdmin = isMasterAdmin || (profile.permissao === 'admin');
                             state.isAuthorized = isMasterAdmin || (profile.autorizado === true);
+                            
+                            // Atualiza o cache local
+                            localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify({
+                                isAdmin: state.isAdmin,
+                                isAuthorized: state.isAuthorized
+                            }));
                         } else {
                             state.isAdmin = isMasterAdmin;
                             state.isAuthorized = isMasterAdmin;
@@ -1437,6 +1465,13 @@
                             const isMasterAdmin = state.user.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase();
                             state.isAdmin = isMasterAdmin || (payload.new.permissao === 'admin');
                             state.isAuthorized = isMasterAdmin || (payload.new.autorizado === true);
+                            
+                            // ATUALIZA CACHE DO PERFIL NO REALTIME
+                            localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify({
+                                isAdmin: state.isAdmin,
+                                isAuthorized: state.isAuthorized
+                            }));
+
                             if (state.isAuthorized) await refreshAllData();
                         }
                     })
