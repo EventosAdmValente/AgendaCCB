@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -1554,11 +1553,11 @@
         // Listener para conclusão da instalação
         window.addEventListener('appinstalled', (evt) => {
             console.debug('PWA installed successfully');
-            // Give user 1.5 seconds to see the "Instalando..." message
+            // Give user 8 seconds to ensure native browser animations and notifications are finished
             setTimeout(() => {
                 closeModal();
                 showLoginModal(true);
-            }, 1500);
+            }, 8000);
         });
 
         init();
