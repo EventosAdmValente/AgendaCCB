@@ -474,6 +474,7 @@
         };
 
         window.smartSave = async (table, action, data, id = null, attempt = 1) => {
+            console.log(`[smartSave] Iniciando: ${table} | Ação: ${action} | Tentativa: ${attempt}`);
             const isNew = action === 'INSERT';
             const tempId = isNew ? `temp_${Date.now()}` : id;
             const finalId = id || tempId;
@@ -485,6 +486,7 @@
             }
 
             if (!navigator.onLine) {
+                console.warn("[smartSave] Offline detectado pelo navegador.");
                 const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                 queue.push({ table, action, data, id: finalId, timestamp: Date.now(), originalSnapshot });
                 localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
@@ -506,9 +508,16 @@
             }
 
             try {
+                // Adicionando timeout manual para evitar travamentos silenciosos
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout de conexão")), 10000));
+
                 if (action === 'UPDATE' && originalSnapshot) {
-                    const { data: serverRecord, error: fetchError } = await supabaseClient.from(table).select('*').eq('id', id).single();
+                    console.log("[smartSave] Verificando conflitos no servidor...");
+                    const fetchPromise = supabaseClient.from(table).select('*').eq('id', id).single();
+                    const { data: serverRecord, error: fetchError } = await Promise.race([fetchPromise, timeoutPromise]);
+
                     if (fetchError && (fetchError.code === 'PGRST301' || fetchError.message.includes('JWT') || fetchError.status === 401)) {
+                        console.error("[smartSave] Erro de autenticação no check de conflito:", fetchError);
                         if (attempt < 2) {
                             const { error: refreshError } = await supabaseClient.auth.refreshSession();
                             if (!refreshError) return window.smartSave(table, action, data, id, attempt + 1);
@@ -517,17 +526,22 @@
                         return { success: false, error: "Sessão expirada. Faça login novamente." };
                     }
                     if (!serverRecord || JSON.stringify(serverRecord) !== JSON.stringify(originalSnapshot)) {
+                        console.warn("[smartSave] Conflito detectado.");
                         showConflictModal({ table, action, data, id, timestamp: Date.now(), originalSnapshot }, serverRecord);
                         return { success: true, pendingConflict: true };
                     }
                 }
 
-                let res;
-                if (action === 'INSERT') res = await supabaseClient.from(table).insert(data).select().single();
-                if (action === 'UPDATE') res = await supabaseClient.from(table).update(data).eq('id', id).select().single();
-                if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
+                console.log(`[smartSave] Executando requisição Supabase: ${action}`);
+                let opPromise;
+                if (action === 'INSERT') opPromise = supabaseClient.from(table).insert(data).select().single();
+                if (action === 'UPDATE') opPromise = supabaseClient.from(table).update(data).eq('id', id).select().single();
+                if (action === 'DELETE') opPromise = supabaseClient.from(table).delete().eq('id', id);
+
+                const res = await Promise.race([opPromise, timeoutPromise]);
 
                 if (res && res.error) {
+                    console.error("[smartSave] Erro retornado pelo Supabase:", res.error);
                     if (attempt < 2 && (res.error.code === 'PGRST301' || res.error.message.includes('JWT') || res.error.status === 401)) {
                         const { error: refreshError } = await supabaseClient.auth.refreshSession();
                         if (!refreshError) return window.smartSave(table, action, data, id, attempt + 1);
@@ -539,7 +553,7 @@
                     throw res.error;
                 }
 
-                // Optimistic / Immediate Update (Fixes UI freezing on Realtime disconnect)
+                console.log("[smartSave] Sucesso! Atualizando estado local.");
                 const newVal = res.data;
                 let currentList = [...(state[stateKey] || [])];
 
@@ -561,6 +575,7 @@
 
                 return { success: true, offline: false };
             } catch (err) {
+                console.error("[smartSave] Exceção capturada:", err);
                 return { success: false, error: err.message };
             }
         };
@@ -1536,9 +1551,11 @@
         }
 
         async function confirmarEDeletar(id) {
+            console.log("[confirmarEDeletar] Iniciando exclusão do ID:", id);
             if (!id || !state.isAdmin) return;
             const result = await window.smartSave('agenda', 'DELETE', null, id);
             if (result.success) {
+                console.log("[confirmarEDeletar] Exclusão bem-sucedida.");
                 closeModal();
                 navigateTo('home');
             }
@@ -1718,6 +1735,7 @@
             confirmClockTime: () => { state.formTempTime = `${state.clockTempHour}:${state.clockTempMinute}`; closeModal(); },
             openSelectPicker: (coll, tit, pr) => { let items = [...state[coll]]; if (coll === 'locations' && pr === 'adv_location') { const af = state.advancedFilter; if (af.adm.enabled && af.adm.value) items = items.filter(l => l.adm === af.adm.value); if (af.setor.enabled && af.setor.value) items = items.filter(l => l.setor === af.setor.value); if (af.cidade.enabled && af.cidade.value) items = items.filter(l => l.cidade === af.cidade.value); } const isA = pr.startsWith('adv_'); const target = isA ? pr.replace('adv_', '') : pr; showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${tit}</h3></div><button onclick="${isA ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="px-5 py-4"><div class="relative group"><input id="pickerSearch" type="text" placeholder="Filtrar..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium"><i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i></div></div><div id="pickerItemsList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none"></div></div>`); const listEl = document.getElementById('pickerItemsList'); if (listEl) listEl.innerHTML = renderPickerItems(items, coll, isA, target, pr); document.getElementById('pickerSearch')?.addEventListener('input', (e) => { const term = (e.target.value || '').toLowerCase(); const filtered = items.filter((i) => ((coll === 'locations' ? i.localidade : (coll === 'perfis' ? i.nome : i.name)) || '').toLowerCase().includes(term)); document.getElementById('pickerItemsList').innerHTML = renderPickerItems(filtered, coll, isA, target, pr); renderIcons(); }); renderIcons(); },
             saveEvent: async () => {
+                console.log("[saveEvent] Botão Salvar clicado.");
                 const btn = document.querySelector('button[onclick="window.saveEvent()"]');
                 if (btn) { btn.disabled = true; btn.innerText = "Salvando..."; }
                 try {
