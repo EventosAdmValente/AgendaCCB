@@ -519,8 +519,8 @@
                 }
 
                 let res;
-                if (action === 'INSERT') res = await supabaseClient.from(table).insert(data);
-                if (action === 'UPDATE') res = await supabaseClient.from(table).update(data).eq('id', id);
+                if (action === 'INSERT') res = await supabaseClient.from(table).insert(data).select().single();
+                if (action === 'UPDATE') res = await supabaseClient.from(table).update(data).eq('id', id).select().single();
                 if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
 
                 if (res && res.error) {
@@ -533,7 +533,27 @@
                     }
                     throw res.error;
                 }
-                // Passo 1: Não chamamos mais refreshAllData aqui. O Realtime cuida da atualização.
+
+                // Optimistic / Immediate Update (Fixes UI freezing on Realtime disconnect)
+                const newVal = res.data;
+                let currentList = [...(state[stateKey] || [])];
+
+                if (action === 'INSERT' && newVal) {
+                    currentList.push(newVal);
+                } else if (action === 'UPDATE' && newVal) {
+                    const idx = currentList.findIndex(i => String(i.id) === String(newVal.id));
+                    if (idx !== -1) currentList[idx] = newVal;
+                } else if (action === 'DELETE') {
+                    currentList = currentList.filter(i => String(i.id) !== String(id));
+                }
+
+                state[stateKey] = currentList;
+                localStorage.setItem(`cache_${table}`, JSON.stringify(currentList));
+
+                if (window.state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
+                if (window.state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
+
                 return { success: true, offline: false };
             } catch (err) {
                 return { success: false, error: err.message };
