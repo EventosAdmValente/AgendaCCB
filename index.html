@@ -1,6 +1,6 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -13,51 +13,174 @@
     <meta name="mobile-web-app-capable" content="yes">
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap"
+        rel="stylesheet">
+
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-    
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
+
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; color: #334155; overflow: hidden; -webkit-tap-highlight-color: transparent; }
-        ::-webkit-scrollbar { display: none; }
-        html, body, * { -ms-overflow-style: none; scrollbar-width: none; }
-        .bg-navy { background-color: #003366; } .text-navy { color: #003366; } .border-navy { border-color: #003366; }
-        .bg-orange-custom { background-color: #FF8C00; } .text-orange-custom { color: #FF8C00; } .border-orange-custom { border-color: #FF8C00; }
-        input:focus, select:focus, textarea:focus { outline: none; }
-        input:-webkit-autofill { -webkit-box-shadow: 0 0 0 30px white inset !important; }
-        .disabled-area { opacity: 0.5; pointer-events: none; filter: grayscale(1); }
-        .input-error { border-color: #ef4444 !important; background-color: #fef2f2 !important; border-width: 2px !important; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            color: #334155;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        ::-webkit-scrollbar {
+            display: none;
+        }
+
+        html,
+        body,
+        * {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .bg-navy {
+            background-color: #003366;
+        }
+
+        .text-navy {
+            color: #003366;
+        }
+
+        .border-navy {
+            border-color: #003366;
+        }
+
+        .bg-orange-custom {
+            background-color: #FF8C00;
+        }
+
+        .text-orange-custom {
+            color: #FF8C00;
+        }
+
+        .border-orange-custom {
+            border-color: #FF8C00;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+        }
+
+        input:-webkit-autofill {
+            -webkit-box-shadow: 0 0 0 30px white inset !important;
+        }
+
+        .disabled-area {
+            opacity: 0.5;
+            pointer-events: none;
+            filter: grayscale(1);
+        }
+
+        .input-error {
+            border-color: #ef4444 !important;
+            background-color: #fef2f2 !important;
+            border-width: 2px !important;
+        }
 
         .loading-container {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; width: 100vw; background-color: #f1f5f9; position: fixed; top: 0; left: 0; z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100vw;
+            background-color: #f1f5f9;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 50;
         }
-        .loading-spinner {
-            width: 40px; height: 40px; border: 4px solid #003366; border-top-color: transparent;
-            border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px;
-        }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .loading-text { font-size: 0.875rem; font-weight: 600; color: #94a3b8; }
 
-        #report-capture-area { width: 794px; min-height: 1123px; background: white; padding: 50px; box-sizing: border-box; display: flex; flex-direction: column; transform-origin: top center; }
-        .highlight-item { background-color: #fef3c7 !important; border-left: 4px solid #f59e0b !important; }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #003366;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 12px;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-text {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+
+        #report-capture-area {
+            width: 794px;
+            min-height: 1123px;
+            background: white;
+            padding: 50px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            transform-origin: top center;
+        }
+
+        .highlight-item {
+            background-color: #fef3c7 !important;
+            border-left: 4px solid #f59e0b !important;
+        }
 
         #conn-status {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            z-index: 100; transition: all 0.3s ease; pointer-events: none;
-            display: flex; align-items: center; gap: 8px; padding: 8px 16px;
-            border-radius: 99px; font-size: 10px; font-weight: 800; text-transform: uppercase;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); opacity: 0; visibility: hidden;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 99px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            visibility: hidden;
         }
-        #conn-status.offline { background: #ef4444; color: white; opacity: 1; visibility: visible; }
-        #conn-status.online-recovered { background: #10b981; color: white; opacity: 1; visibility: visible; }
-        
+
+        #conn-status.offline {
+            background: #ef4444;
+            color: white;
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #conn-status.online-recovered {
+            background: #10b981;
+            color: white;
+            opacity: 1;
+            visibility: visible;
+        }
+
         .temp-badge {
             background-color: #fff7ed;
             border: 1px solid #ffedd5;
@@ -72,7 +195,9 @@
         }
     </style>
     <link rel="manifest" href="./manifest.json">
+
 </head>
+
 <body class="h-screen w-full flex flex-col bg-slate-100">
 
     <div id="app" class="flex-1 w-full h-full relative overflow-hidden flex flex-col">
@@ -84,31 +209,45 @@
 
     <div id="conn-status"></div>
 
-    <div id="modal-container" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"></div>
+    <div id="modal-container"
+        class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"></div>
 
     <template id="login-modal-template">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
             <div class="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                <h3 id="modal-login-title" class="font-bold text-lg text-navy uppercase tracking-tight">Faça Login ou Cadastro</h3>
-                <button type="button" onclick="window.closeModal()" class="text-slate-400 p-1 hover:text-slate-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+                <h3 id="modal-login-title" class="font-bold text-lg text-navy uppercase tracking-tight">Faça Login ou
+                    Cadastro</h3>
+                <button type="button" onclick="window.closeModal()" class="text-slate-400 p-1 hover:text-slate-600"><i
+                        data-lucide="x" class="w-6 h-6"></i></button>
             </div>
             <form id="login-form" class="p-6 flex flex-col gap-4">
                 <div id="name-field" class="hidden">
                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1">Nome Completo</label>
-                    <input type="text" id="login-name" class="w-full p-3 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-navy/10" placeholder="Seu nome">
+                    <input type="text" id="login-name"
+                        class="w-full p-3 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-navy/10"
+                        placeholder="Seu nome">
                 </div>
                 <div>
                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1">Email</label>
-                    <input type="email" id="login-email" class="w-full p-3 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-navy/10" placeholder="exemplo@email.com" required>
+                    <input type="email" id="login-email"
+                        class="w-full p-3 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-navy/10"
+                        placeholder="exemplo@email.com" required>
                 </div>
                 <div>
                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1">Senha</label>
-                    <input type="password" id="login-password" class="w-full p-3 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-navy/10" placeholder="••••••••" required>
+                    <input type="password" id="login-password"
+                        class="w-full p-3 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-navy/10"
+                        placeholder="••••••••" required>
                 </div>
-                <div id="login-error" class="text-red-500 text-[11px] hidden font-bold bg-red-50 p-2 rounded-lg border border-red-100"></div>
-                <button type="submit" id="login-submit-btn" class="w-full py-4 rounded-xl bg-navy text-white font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Entrar</button>
+                <div id="login-error"
+                    class="text-red-500 text-[11px] hidden font-bold bg-red-50 p-2 rounded-lg border border-red-100">
+                </div>
+                <button type="submit" id="login-submit-btn"
+                    class="w-full py-4 rounded-xl bg-navy text-white font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Entrar</button>
                 <div class="text-center pt-2">
-                    <button type="button" id="toggle-auth-mode" class="text-[11px] font-bold text-slate-500 hover:text-navy uppercase tracking-tight underline">Não tem conta? Cadastre-se</button>
+                    <button type="button" id="toggle-auth-mode"
+                        class="text-[11px] font-bold text-slate-500 hover:text-navy uppercase tracking-tight underline">Não
+                        tem conta? Cadastre-se</button>
                 </div>
             </form>
         </div>
@@ -116,9 +255,9 @@
 
     <script type="module">
 
-        const SUPABASE_URL = "https://gcsvapoqpbrrqubxawkd.supabase.co"; 
+        const SUPABASE_URL = "https://gcsvapoqpbrrqubxawkd.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdjc3ZhcG9xcGJycnF1Ynhhd2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4OTgyMzYsImV4cCI6MjA4MDQ3NDIzNn0.QtIldObznGEYTXyEf0MS4mIgIDgbMKmS0M2FBVInTZQ";
-        const ADMIN_EMAIL = "eventosadmvalente@gmail.com"; 
+        const ADMIN_EMAIL = "eventosadmvalente@gmail.com";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             auth: {
                 persistSession: true,
@@ -137,43 +276,63 @@
 
         const setupListener = (table, stateKey) => {
             const channelName = `public:${table}`;
-            
+
             if (activeChannels.has(channelName)) {
-                supabaseClient.removeChannel(activeChannels.get(channelName));
+                const oldChannel = activeChannels.get(channelName);
+                supabaseClient.removeChannel(oldChannel);
                 activeChannels.delete(channelName);
             }
+
+
+            const cacheSaveTimers = {};
+            const debouncedSave = (table, data) => {
+                if (cacheSaveTimers[table]) clearTimeout(cacheSaveTimers[table]);
+                cacheSaveTimers[table] = setTimeout(() => {
+                    localStorage.setItem(`cache_${table}`, JSON.stringify(data));
+                    delete cacheSaveTimers[table];
+                }, 2000);
+            };
+
+            const uiUpdateTimers = {};
+            const requestUIUpdate = (table) => {
+                if (uiUpdateTimers[table]) cancelAnimationFrame(uiUpdateTimers[table]);
+                uiUpdateTimers[table] = requestAnimationFrame(() => {
+                    if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                    const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'perfis' };
+                    if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
+                    delete uiUpdateTimers[table];
+                });
+            };
 
             const channel = supabaseClient.channel(channelName)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, (payload) => {
                     const current = [...(state[stateKey] || [])];
                     if (!current.find(item => String(item.id) === String(payload.new.id))) {
                         state[stateKey] = [...current, payload.new];
-                        localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
-                        
-                        if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
-                        const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'perfis' };
-                        if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
+                        debouncedSave(table, state[stateKey]);
+
+                        requestUIUpdate(table);
                     }
                 })
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, async (payload) => {
                     const current = [...(state[stateKey] || [])];
                     state[stateKey] = current.map(item => String(item.id) === String(payload.new.id) ? payload.new : item);
-                    localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
-                    
+                    debouncedSave(table, state[stateKey]);
+
                     if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
-                    const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'perfis' };
+                    const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'perfis' };
                     if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
 
                     if (table === 'perfis' && state.user && payload.new.id === state.user.id) {
                         const isMasterAdmin = (state.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase());
                         const wasAuthorized = state.isAuthorized;
-                        
+
                         state.isAdmin = isMasterAdmin || (payload.new.permissao === 'admin');
                         state.isAuthorized = isMasterAdmin || (payload.new.autorizado === true);
-                        
-                        localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify({ 
-                            isAdmin: state.isAdmin, 
-                            isAuthorized: state.isAuthorized 
+
+                        localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify({
+                            isAdmin: state.isAdmin,
+                            isAuthorized: state.isAuthorized
                         }));
 
                         if (state.isAuthorized && !wasAuthorized) await refreshAllData();
@@ -182,14 +341,14 @@
                 .on('postgres_changes', { event: 'DELETE', schema: 'public', table }, (payload) => {
                     const current = [...(state[stateKey] || [])];
                     state[stateKey] = current.filter(item => String(item.id) !== String(payload.old.id));
-                    localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
-                    
+                    debouncedSave(table, state[stateKey]);
+
                     if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
-                    const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'perfis' };
+                    const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'perfis' };
                     if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
                 })
                 .subscribe();
-            
+
             activeChannels.set(channelName, channel);
         };
 
@@ -201,68 +360,68 @@
             if (msg.includes('signup requires a valid email')) return "Por favor, insira um endereço de e-mail válido.";
             if (msg.includes('email not confirmed')) return "E-mail ainda não confirmado. Verifique sua caixa de entrada.";
             if (msg.includes('invalid email or password')) return "E-mail ou senha inválidos.";
-            return message; 
+            return message;
         }
 
-            const SYNC_QUEUE_KEY = 'adm_valente_sync_queue';
-            const USER_PROFILE_CACHE_KEY = 'cache_user_profile';
+        const SYNC_QUEUE_KEY = 'adm_valente_sync_queue';
+        const USER_PROFILE_CACHE_KEY = 'cache_user_profile';
 
-            async function processOfflineQueue() {
-                if (!navigator.onLine) return;
-                
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-                if (queue.length === 0) return;
-                
-                const item = queue[0];
-                const { table, action, data, id, originalSnapshot } = item;
+        async function processOfflineQueue() {
+            if (!navigator.onLine) return;
 
-                if (action === 'UPDATE' && id && originalSnapshot) {
-                    try {
-                        const { data: serverRecord, error } = await supabaseClient.from(table).select('*').eq('id', id).single();
-                        
-                        const serverString = serverRecord ? JSON.stringify(serverRecord) : null;
-                        const snapshotString = JSON.stringify(originalSnapshot);
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-                        if (!serverRecord || serverString !== snapshotString) {
-                            showConflictModal(item, serverRecord);
-                            return; 
-                        }
-                    } catch (err) { }
-                }
+            const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+            if (queue.length === 0) return;
 
-                await executeSync(item);
-            }
+            const item = queue[0];
+            const { table, action, data, id, originalSnapshot } = item;
 
-            async function executeSync(item) {
-                const { table, action, data, id } = item;
-                const cleanData = { ...data };
-                delete cleanData.id;
-
+            if (action === 'UPDATE' && id && originalSnapshot) {
                 try {
-                    let res;
-                    if (action === 'INSERT') res = await supabaseClient.from(table).insert(cleanData);
-                    if (action === 'UPDATE') res = await supabaseClient.from(table).update(cleanData).eq('id', id);
-                    if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
+                    const { data: serverRecord, error } = await supabaseClient.from(table).select('*').eq('id', id).single();
 
-                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-                    const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
-                    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
+                    const serverString = serverRecord ? JSON.stringify(serverRecord) : null;
+                    const snapshotString = JSON.stringify(originalSnapshot);
 
-                    if (newQueue.length > 0) {
-                        processOfflineQueue(); 
-                    } else {
-                        showConnStatus('online-recovered');
+                    if (!serverRecord || serverString !== snapshotString) {
+                        showConflictModal(item, serverRecord);
+                        return;
                     }
                 } catch (err) { }
             }
 
-            function showConflictModal(item, serverRecord) {
-                const { table, data } = item;
-                const isDeleted = !serverRecord;
+            await executeSync(item);
+        }
 
-                showModal(`
+        async function executeSync(item) {
+            const { table, action, data, id } = item;
+            const cleanData = { ...data };
+            delete cleanData.id;
+
+            try {
+                let res;
+                if (action === 'INSERT') res = await supabaseClient.from(table).insert(cleanData);
+                if (action === 'UPDATE') res = await supabaseClient.from(table).update(cleanData).eq('id', id);
+                if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
+
+                const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
+                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
+
+                if (newQueue.length > 0) {
+                    processOfflineQueue();
+                } else {
+                    showConnStatus('online-recovered');
+                }
+            } catch (err) { }
+        }
+
+        function showConflictModal(item, serverRecord) {
+            const { table, data } = item;
+            const isDeleted = !serverRecord;
+
+            showModal(`
                     <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border-t-8 border-orange-custom">
                         <div class="p-8 flex flex-col items-center text-center">
                             <div class="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mb-6 text-orange-custom">
@@ -280,117 +439,117 @@
                         </div>
                     </div>
                 `);
+        }
+
+        window.resolveConflict = async (decision, item, serverRecord) => {
+            const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+            const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
+            localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
+
+            if (decision === 'descartar') {
+                const stateKey = item.table === 'agenda' ? 'events' : item.table;
+                if (serverRecord) {
+                    const currentList = [...state[stateKey]];
+                    const idx = currentList.findIndex(i => String(i.id) === String(serverRecord.id));
+                    if (idx !== -1) currentList[idx] = serverRecord;
+                    state[stateKey] = currentList;
+                    localStorage.setItem(`cache_${item.table}`, JSON.stringify(currentList));
+                } else {
+                    state[stateKey] = state[stateKey].filter(i => String(i.id) !== String(item.id));
+                    localStorage.setItem(`cache_${item.table}`, JSON.stringify(state[stateKey]));
+                }
+                closeModal();
+                if (newQueue.length > 0) processOfflineQueue();
+            } else {
+                closeModal();
+                await executeSync(item);
+            }
+        };
+
+        window.smartSave = async (table, action, data, id = null) => {
+            const isNew = action === 'INSERT';
+            const tempId = isNew ? `temp_${Date.now()}` : id;
+            const finalId = id || tempId;
+            const stateKey = table === 'agenda' ? 'events' : table;
+
+            let originalSnapshot = null;
+            if (action === 'UPDATE' && id) {
+                originalSnapshot = state[stateKey].find(i => String(i.id) === String(id));
             }
 
-            window.resolveConflict = async (decision, item, serverRecord) => {
+            if (!navigator.onLine) {
                 const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-                const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
-                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
+                queue.push({ table, action, data, id: finalId, timestamp: Date.now(), originalSnapshot });
+                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
 
-                if (decision === 'descartar') {
-                    const stateKey = item.table === 'agenda' ? 'events' : item.table;
-                    if (serverRecord) {
-                        const currentList = [...state[stateKey]];
-                        const idx = currentList.findIndex(i => String(i.id) === String(serverRecord.id));
-                        if (idx !== -1) currentList[idx] = serverRecord;
-                        state[stateKey] = currentList;
-                        localStorage.setItem(`cache_${item.table}`, JSON.stringify(currentList));
-                    } else {
-                        state[stateKey] = state[stateKey].filter(i => String(i.id) !== String(item.id));
-                        localStorage.setItem(`cache_${item.table}`, JSON.stringify(state[stateKey]));
+                let list = [...(state[stateKey] || [])];
+                if (action === 'INSERT') {
+                    list.push({ id: tempId, ...data });
+                } else if (action === 'UPDATE') {
+                    const idx = list.findIndex(i => String(i.id) === String(id));
+                    if (idx !== -1) list[idx] = { ...list[idx], ...data };
+                } else if (action === 'DELETE') {
+                    list = list.filter(i => String(i.id) !== String(id));
+                }
+                state[stateKey] = list;
+                localStorage.setItem(`cache_${table}`, JSON.stringify(list));
+
+                showConnStatus('offline');
+                return { success: true, offline: true, tempId };
+            }
+
+            try {
+                if (action === 'UPDATE' && originalSnapshot) {
+                    const { data: serverRecord } = await supabaseClient.from(table).select('*').eq('id', id).single();
+                    if (!serverRecord || JSON.stringify(serverRecord) !== JSON.stringify(originalSnapshot)) {
+                        showConflictModal({ table, action, data, id, timestamp: Date.now(), originalSnapshot }, serverRecord);
+                        return { success: true, pendingConflict: true };
                     }
-                    closeModal();
-                    if (newQueue.length > 0) processOfflineQueue();
-                } else {
-                    closeModal();
-                    await executeSync(item);
-                }
-            };
-
-            window.smartSave = async (table, action, data, id = null) => {
-                const isNew = action === 'INSERT';
-                const tempId = isNew ? `temp_${Date.now()}` : id;
-                const finalId = id || tempId;
-                const stateKey = table === 'agenda' ? 'events' : table;
-                
-                let originalSnapshot = null;
-                if (action === 'UPDATE' && id) {
-                    originalSnapshot = state[stateKey].find(i => String(i.id) === String(id));
                 }
 
-                if (!navigator.onLine) {
-                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-                    queue.push({ table, action, data, id: finalId, timestamp: Date.now(), originalSnapshot });
-                    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+                let res;
+                if (action === 'INSERT') res = await supabaseClient.from(table).insert(data);
+                if (action === 'UPDATE') res = await supabaseClient.from(table).update(data).eq('id', id);
+                if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
 
-                    let list = [...(state[stateKey] || [])];
-                    if (action === 'INSERT') {
-                        list.push({ id: tempId, ...data });
-                    } else if (action === 'UPDATE') {
-                        const idx = list.findIndex(i => String(i.id) === String(id));
-                        if (idx !== -1) list[idx] = { ...list[idx], ...data };
-                    } else if (action === 'DELETE') {
-                        list = list.filter(i => String(i.id) !== String(id));
-                    }
-                    state[stateKey] = list;
-                    localStorage.setItem(`cache_${table}`, JSON.stringify(list));
+                if (res && res.error) throw res.error;
+                // Passo 1: Não chamamos mais refreshAllData aqui. O Realtime cuida da atualização.
+                return { success: true, offline: false };
+            } catch (err) {
+                return { success: false, error: err.message };
+            }
+        };
 
-                    showConnStatus('offline');
-                    return { success: true, offline: true, tempId };
-                }
+        window.addEventListener('online', processOfflineQueue);
 
-                try {
-                    if (action === 'UPDATE' && originalSnapshot) {
-                        const { data: serverRecord } = await supabaseClient.from(table).select('*').eq('id', id).single();
-                        if (!serverRecord || JSON.stringify(serverRecord) !== JSON.stringify(originalSnapshot)) {
-                            showConflictModal({ table, action, data, id, timestamp: Date.now(), originalSnapshot }, serverRecord);
-                            return { success: true, pendingConflict: true };
-                        }
-                    }
-
-                    let res;
-                    if (action === 'INSERT') res = await supabaseClient.from(table).insert(data);
-                    if (action === 'UPDATE') res = await supabaseClient.from(table).update(data).eq('id', id);
-                    if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
-                    
-                    if (res && res.error) throw res.error;
-                    // Passo 1: Não chamamos mais refreshAllData aqui. O Realtime cuida da atualização.
-                    return { success: true, offline: false };
-                } catch (err) {
-                    return { success: false, error: err.message };
-                }
-            };
-
-            window.addEventListener('online', processOfflineQueue);
-        
         const getCachedProfile = () => {
             try {
                 const p = localStorage.getItem(USER_PROFILE_CACHE_KEY);
                 return p ? JSON.parse(p) : { isAdmin: false, isAuthorized: false };
-            } catch(e) { return { isAdmin: false, isAuthorized: false }; }
+            } catch (e) { return { isAdmin: false, isAuthorized: false }; }
         };
         const initialProfile = getCachedProfile();
 
         const INITIAL_STATE = {
-            user: null, 
-            isAdmin: initialProfile.isAdmin || false, 
+            user: null,
+            isAdmin: initialProfile.isAdmin || false,
             isAuthorized: initialProfile.isAuthorized || false,
             currentScreen: 'home',
-            events: [], 
-            types: [], 
-            locations: [], 
+            events: [],
+            types: [],
+            locations: [],
             attendants: [],
             feriados: [],
             perfis: [],
-            externalHolidays: [], 
-            fetchedYears: new Set(), 
-            isMenuOpen: false, 
+            externalHolidays: [],
+            fetchedYears: new Set(),
+            isMenuOpen: false,
             editingEventId: null,
-            searchTerm: '', 
-            managerSearchTerm: '', 
-            highlightedItemId: null, 
+            searchTerm: '',
+            managerSearchTerm: '',
+            highlightedItemId: null,
             fastFilter: { active: false, dateStart: '', dateEnd: '', label: '' },
-            ffTemp: { 
+            ffTemp: {
                 selected: 'today',
                 baseDates: {
                     today: new Date(),
@@ -399,14 +558,14 @@
                     year: new Date()
                 }
             },
-            selectedDate: null, 
+            selectedDate: null,
             viewDate: new Date(),
             formTempDate: '', formTempTime: '08:00', formTempLoc: '', formTempType: '', formTempAtt: '',
             formTempIrmaos: '', formTempIrmas: '',
             isLoading: true,
             advancedFilter: {
                 active: false,
-                eventos: { enabled: false, status: 'ativos' }, 
+                eventos: { enabled: false, status: 'ativos' },
                 type: { enabled: false, id: '' },
                 location: { enabled: false, id: '' },
                 attendant: { enabled: false, id: '' },
@@ -416,8 +575,8 @@
                 period: { enabled: false, start: '', end: '' },
                 validationErrors: []
             },
-            formErrors: [], 
-            clockMode: 'hour', 
+            formErrors: [],
+            clockMode: 'hour',
             clockTempHour: '08',
             clockTempMinute: '00'
         };
@@ -426,16 +585,16 @@
             set(target, property, value) {
                 if (target[property] === value) return true;
                 target[property] = value;
-                
+
                 const silent = [
-                    'searchTerm', 'managerSearchTerm', 'clockMode', 'clockTempHour', 'clockTempMinute', 
+                    'searchTerm', 'managerSearchTerm', 'clockMode', 'clockTempHour', 'clockTempMinute',
                     'ffTemp', 'fetchedYears', 'formErrors',
                     'events', 'types', 'locations', 'attendants', 'feriados', 'perfis'
                 ];
                 if (!silent.includes(property)) {
                     scheduleRender();
                 }
-                
+
                 if (property === 'searchTerm' && window.updateHomeList) {
                     window.updateHomeList();
                 }
@@ -461,7 +620,7 @@
                 const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${year}`);
                 if (!response.ok) throw new Error("Erro API");
                 const holidays = await response.json();
-                
+
                 const dateBA = `${year}-07-02`;
                 if (!holidays.some((h) => h.date === dateBA)) {
                     holidays.push({ date: dateBA, name: "Independência da Bahia", type: "state" });
@@ -498,11 +657,11 @@
             }
 
             switch (state.currentScreen) {
-                case 'home': renderHome(); break; 
-                case 'event-form': renderEventForm(); break; 
-                case 'types': renderGenericManager('Tipos de Eventos', 'types'); break; 
-                case 'locations': renderGenericManager('Cidades / Localidades', 'locations'); break; 
-                case 'attendants': renderGenericManager('Atendentes', 'attendants'); break; 
+                case 'home': renderHome(); break;
+                case 'event-form': renderEventForm(); break;
+                case 'types': renderGenericManager('Tipos de Eventos', 'types'); break;
+                case 'locations': renderGenericManager('Cidades / Localidades', 'locations'); break;
+                case 'attendants': renderGenericManager('Atendentes', 'attendants'); break;
                 case 'feriados': renderGenericManager('Feriados', 'feriados'); break;
                 case 'users': renderGenericManager('Gestão de Usuários', 'perfis'); break;
                 case 'about': renderAbout(); break;
@@ -531,20 +690,20 @@
                     ${filtered.length === 0 ? '<div class="p-12 text-center text-slate-400 flex flex-col items-center gap-4"><i data-lucide="calendar-x" class="w-10 h-10 opacity-20"></i><span>Nenhum evento encontrado.</span></div>' : `
                         <ul class="divide-y divide-slate-100">
                             ${filtered.map((e) => {
-                                const type = state.types.find((t) => t.id === e.type_id);
-                                const loc = state.locations.find((l) => l.id === e.location_id);
-                                const att = state.attendants.find((a) => a.id === e.attendant_id);
-                                const isPast = isEventPast(e.date, e.time);
-                                const isHighlighted = state.highlightedItemId === e.id;
-                                
-                                const typeNameLower = (type?.name || '').toLowerCase();
-                                const isBatismo = typeNameLower.includes('batismo');
-                                const isSantaCeia = typeNameLower.includes('santa ceia');
-                                const hasStats = isBatismo || isSantaCeia;
-                                const total = (e.irmaos || 0) + (e.irmas || 0);
-                                const isTemp = String(e.id).startsWith('temp_');
+                const type = state.types.find((t) => t.id === e.type_id);
+                const loc = state.locations.find((l) => l.id === e.location_id);
+                const att = state.attendants.find((a) => a.id === e.attendant_id);
+                const isPast = isEventPast(e.date, e.time);
+                const isHighlighted = state.highlightedItemId === e.id;
 
-                                return `
+                const typeNameLower = (type?.name || '').toLowerCase();
+                const isBatismo = typeNameLower.includes('batismo');
+                const isSantaCeia = typeNameLower.includes('santa ceia');
+                const hasStats = isBatismo || isSantaCeia;
+                const total = (e.irmaos || 0) + (e.irmas || 0);
+                const isTemp = String(e.id).startsWith('temp_');
+
+                return `
                                     <li id="item-${e.id}" onclick="${state.isAdmin ? `window.openEditEvent('${e.id}')` : ''}" class="relative p-3 transition-all ${isHighlighted ? 'bg-yellow-50 ring-2 ring-yellow-400 ring-inset z-10' : state.isAdmin ? 'active:bg-slate-50' : ''} ${isPast && !isHighlighted ? 'bg-slate-50/50 grayscale-[0.5] opacity-70' : ''}">
                                         
                                         <div class="absolute top-3 right-3 flex flex-col items-end gap-1.5 z-10">
@@ -578,12 +737,12 @@
                                         </div>
                                     </li>
                                 `;
-                            }).join('')}
+            }).join('')}
                         </ul>
                     `}
                 </div>
             `;
-            
+
             const labelEl = document.getElementById('home-filter-label');
             if (labelEl) {
                 let currentSize = 13;
@@ -652,7 +811,7 @@
                 const isHighlighted = state.highlightedItemId === item.id;
                 const isTemp = String(item.id).startsWith('temp_');
                 const safeMainName = (mainName || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
-                
+
                 return `
                     <div id="item-${item.id}" class="p-4 flex items-center justify-between hover:bg-slate-50 transition-all ${isHighlighted ? 'bg-yellow-50 highlight-item ring-2 ring-yellow-400 ring-inset' : ''}">
                         <div class="flex items-center gap-4 min-w-0">
@@ -765,7 +924,7 @@
                     ${state.isAdmin ? `<button onclick="window.startCreateEvent()" class="fixed bottom-6 right-6 w-14 h-14 bg-orange-custom text-white rounded-full shadow-xl flex items-center justify-center z-50 border-2 border-white/20"><i data-lucide="plus" class="w-8 h-8"></i></button>` : ''}
                 </div>
             `;
-            
+
             document.getElementById('homeSearch')?.addEventListener('input', (e) => { state.searchTerm = e.target.value; });
             window.updateHomeList();
         }
@@ -773,14 +932,14 @@
         function getFilteredEvents() {
             if (!state.isAuthorized) return [];
             let filtered = [...(state.events || [])];
-            
+
             if (state.selectedDate) {
                 filtered = filtered.filter((e) => e.date === state.selectedDate);
             } else if (state.fastFilter?.active) {
                 if (state.fastFilter.dateStart) filtered = filtered.filter((e) => e.date >= state.fastFilter.dateStart);
                 if (state.fastFilter.dateEnd) filtered = filtered.filter((e) => e.date <= state.fastFilter.dateEnd);
             }
-            
+
             if (state.advancedFilter.active) {
                 const af = state.advancedFilter;
                 if (af.eventos.enabled) {
@@ -828,14 +987,14 @@
                     return typeName.includes(term) || typeSigla.includes(term) || loc.includes(term) || termAtt.includes(term);
                 });
             }
-            
+
             return filtered.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
         }
 
         function getFilterDescription() {
             if (state.selectedDate) return `Agenda: ${formatDateFull(state.selectedDate)}`;
             if (state.fastFilter?.active) return state.fastFilter.label || 'Filtro Ativo';
-            
+
             if (state.advancedFilter.active) {
                 const af = state.advancedFilter;
                 const parts = [];
@@ -870,9 +1029,9 @@
             return 'Todos os Eventos';
         }
 
-        function renderNavMenu() { 
-            if (!state.isMenuOpen) return ''; 
-            
+        function renderNavMenu() {
+            if (!state.isMenuOpen) return '';
+
             const baseItems = [
                 { id: 'home', icon: 'home', label: 'Início' }
             ];
@@ -927,7 +1086,7 @@
                         </div>
                     </div>
                 </div>
-            `; 
+            `;
         }
 
         function renderEventForm() {
@@ -968,21 +1127,21 @@
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Localidade</label>
                                 <button onclick="window.openSelectPicker('locations', 'Local', 'formTempLoc')" class="flex items-center gap-2 border ${errs.includes('loc') ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
                                     <i data-lucide="map-pin" class="w-4 h-4 opacity-50"></i>
-                                    <span>${state.locations.find((l)=>l.id===state.formTempLoc)?.localidade || 'Selecionar Localidade'}</span>
+                                    <span>${state.locations.find((l) => l.id === state.formTempLoc)?.localidade || 'Selecionar Localidade'}</span>
                                 </button>
                             </div>
                             <div class="flex flex-col gap-1">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Evento</label>
                                 <button onclick="window.openSelectPicker('types', 'Tipo', 'formTempType')" class="flex items-center gap-2 border ${errs.includes('type') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
                                     <i data-lucide="tag" class="w-4 h-4 opacity-50"></i>
-                                    <span>${state.types.find((t)=>t.id===state.formTempType)?.name || 'Selecionar Tipo'}</span>
+                                    <span>${state.types.find((t) => t.id === state.formTempType)?.name || 'Selecionar Tipo'}</span>
                                 </button>
                             </div>
                             <div class="flex flex-col gap-1">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Atendente</label>
                                 <button onclick="window.openSelectPicker('attendants', 'Atendente', 'formTempAtt')" class="flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
                                     <i data-lucide="users" class="w-4 h-4 opacity-50"></i>
-                                    <span>${state.attendants.find((a)=>a.id===state.formTempAtt)?.name || 'Selecionar Atendente'}</span>
+                                    <span>${state.attendants.find((a) => a.id === state.formTempAtt)?.name || 'Selecionar Atendente'}</span>
                                 </button>
                             </div>
                             <div class="${showCounters ? '' : 'hidden'} grid grid-cols-2 gap-3 transition-all duration-300">
@@ -1008,7 +1167,7 @@
             if (!state.isAuthorized) { navigateTo('home'); return; }
             const app = document.getElementById('app');
             if (!app) return;
-            
+
             let searchPlaceholder = "Buscar...";
             if (collection === 'locations') searchPlaceholder = "Pesq. por adm, setor, cidade, localidade";
             else if (collection === 'types') searchPlaceholder = "Pesquisar por nome ou sigla...";
@@ -1042,14 +1201,14 @@
                     </div>
                 </div>
             `;
-            
-            document.getElementById('managerSearch')?.addEventListener('input', (e) => { 
-                state.managerSearchTerm = e.target.value; 
-                state.highlightedItemId = null; 
-                window.updateManagerListUI(collection); 
+
+            document.getElementById('managerSearch')?.addEventListener('input', (e) => {
+                state.managerSearchTerm = e.target.value;
+                state.highlightedItemId = null;
+                window.updateManagerListUI(collection);
             });
             window.updateManagerListUI(collection);
-       }
+        }
 
         function renderAbout() {
             const app = document.getElementById('app');
@@ -1090,33 +1249,33 @@
             else if (mode === 'adv_start') currentSelected = state.advancedFilter.period.start || '';
             else if (mode === 'adv_end') currentSelected = state.advancedFilter.period.end || '';
             else if (mode === 'feriado_picker') currentSelected = document.getElementById('feriado-date-val')?.value || '';
-            
+
             const eventDots = {};
-            state.events.forEach((e) => { 
-                const datePart = e.date.substring(0, 7); 
-                if (datePart === `${year}-${String(month + 1).padStart(2, '0')}`) eventDots[e.date] = (eventDots[e.date] || 0) + 1; 
+            state.events.forEach((e) => {
+                const datePart = e.date.substring(0, 7);
+                if (datePart === `${year}-${String(month + 1).padStart(2, '0')}`) eventDots[e.date] = (eventDots[e.date] || 0) + 1;
             });
 
-            const monthHolidays = [...state.externalHolidays.filter((h) => { 
-                const d = new Date(h.date + 'T00:00:00'); 
-                return d.getMonth() === month && d.getFullYear() === year; 
-            }), ...state.feriados.filter((f) => { 
-                const d = new Date(f.data + 'T00:00:00'); 
-                return d.getMonth() === month && d.getFullYear() === year; 
+            const monthHolidays = [...state.externalHolidays.filter((h) => {
+                const d = new Date(h.date + 'T00:00:00');
+                return d.getMonth() === month && d.getFullYear() === year;
+            }), ...state.feriados.filter((f) => {
+                const d = new Date(f.data + 'T00:00:00');
+                return d.getMonth() === month && d.getFullYear() === year;
             })].sort((a, b) => (a.date || a.data).localeCompare(b.date || b.data));
-            
-            const holidayLegendItems = monthHolidays.map(h => { 
-                const dateStr = h.date || h.data; 
-                const day = parseInt(dateStr.split('-')[2]); 
-                return `<span class="whitespace-nowrap"><span class="font-bold text-red-500">${day}</span> - ${h.name || h.nome_feriado}</span>`; 
+
+            const holidayLegendItems = monthHolidays.map(h => {
+                const dateStr = h.date || h.data;
+                const day = parseInt(dateStr.split('-')[2]);
+                return `<span class="whitespace-nowrap"><span class="font-bold text-red-500">${day}</span> - ${h.name || h.nome_feriado}</span>`;
             }).join(' <span class="text-slate-300 mx-2">|</span> ');
-            
+
             let title = mode === 'filter' ? 'Agenda' : 'Selecionar Data';
             if (mode === 'adv_start') title = 'Data de Início';
             if (mode === 'adv_end') title = 'Data do Fim';
-            
+
             let contentHtml = `<div class="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md flex flex-col max-h-[95vh]"><div class="p-3 flex justify-between items-center border-b border-slate-50 bg-white shrink-0"><div class="flex items-center gap-2 text-navy"><i data-lucide="calendar" class="w-4 h-4"></i><h3 class="text-base font-black tracking-tight uppercase">${title}</h3></div><button onclick="${(mode === 'adv_start' || mode === 'adv_end') ? 'window.renderAdvancedFilterModal()' : mode === 'feriado_picker' ? 'window.returnToFeriadoModal()' : 'window.closeModal()'}" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-3 overflow-y-auto scrollbar-none"><div class="flex justify-between items-center mb-3 px-1"><button onclick="window.changeMonth(-1, '${mode}')" class="p-1.5 text-navy hover:bg-slate-50 rounded-full"><i data-lucide="chevron-left" class="w-5 h-5"></i></button><div class="flex gap-2 font-black text-[14px] uppercase tracking-widest text-navy"><button onclick="window.openMonthPicker('${mode}')" class="hover:text-orange-custom">${monthNames[month]}</button><button onclick="window.openYearPicker('${mode}')" class="hover:text-orange-custom">${year}</button></div><button onclick="window.changeMonth(1, '${mode}')" class="p-1.5 text-navy hover:bg-slate-50 rounded-full"><i data-lucide="chevron-right" class="w-5 h-5"></i></button></div><div class="grid grid-cols-7 text-center text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2"><span class="text-red-500">D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span></div><div class="grid grid-cols-7 gap-y-1.5 text-center items-center justify-items-center">${days.map(d => { if (!d) return '<div></div>'; const fullDate = fmt(d); const isToday = fullDate === new Date().toISOString().split('T')[0]; const isHoliday = state.externalHolidays.some((h) => h.date === fullDate) || state.feriados.some((f) => f.data === fullDate); return `<div class="flex flex-col items-center gap-0.5"><button onclick="window.selectCalendarDate('${fullDate}', '${mode}')" class="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all relative ${fullDate === currentSelected ? 'bg-navy text-white shadow-md' : isToday ? 'text-green-600 border border-green-100' : (new Date(year, month, d).getDay() === 0 || isHoliday) ? 'text-red-500' : 'text-slate-600 hover:bg-slate-50'}">${d}</button><div class="flex gap-0.5 h-1.5 items-center justify-center">${(eventDots[fullDate] || 0) > 0 ? Array(Math.min(eventDots[fullDate], 4)).fill(0).map(() => `<span class="w-1 h-1 rounded-full ${fullDate === currentSelected ? 'bg-orange-custom' : 'bg-navy'}"></span>`).join('') : ''}</div></div>`; }).join('')}</div></div>${holidayLegendItems ? `<div class="px-4 py-2 border-t border-slate-50 bg-slate-50/40 shrink-0"><div class="flex flex-wrap gap-y-1 text-[11px] items-center">${holidayLegendItems}</div></div>` : ''}`;
-            
+
             if (mode === 'filter' && state.selectedDate) {
                 const dayEvents = state.events.filter((e) => e.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
                 contentHtml += `<div class="flex flex-col border-t border-slate-100 shrink-0"><div class="px-4 py-1.5 flex justify-between items-center bg-slate-50/50"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">EVENTOS: ${formatDate(state.selectedDate)}</span></div><div class="flex flex-col divide-y divide-slate-100 max-h-[160px] overflow-y-auto scrollbar-none bg-white">${dayEvents.length === 0 ? '<div class="text-center text-slate-300 py-6 text-[10px] font-medium italic">Nenhum evento programado</div>' : dayEvents.map((e) => {
@@ -1131,7 +1290,7 @@
 
         function renderClockUI() {
             const isH = state.clockMode === 'hour';
-            const values = isH ? ['00','01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20','21','22','23'] : ['00','05','10','15','20','25','30','35','40','45','50','55'];
+            const values = isH ? ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23'] : ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
             showModal(`<div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md overflow-hidden"><div class="flex justify-center items-center gap-4 mb-8"><div class="flex flex-col items-center"><button onclick="window.state.clockMode = 'hour'" class="text-4xl font-black ${isH ? 'text-navy scale-110' : 'text-slate-200'}">${state.clockTempHour || '00'}</button><span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-1">Hora</span></div><span class="text-4xl font-black text-slate-200 mb-5">:</span><div class="flex flex-col items-center"><button onclick="window.state.clockMode = 'minute'" class="text-4xl font-black ${!isH ? 'text-navy scale-110' : 'text-slate-200'}">${state.clockTempMinute || '00'}</button><span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-1">Min</span></div></div><div class="grid grid-cols-4 gap-3">${values.map(v => `<button onclick="window.selectClockValue('${v}')" class="aspect-square flex items-center justify-center rounded-2xl font-bold text-sm transition-all ${(isH ? state.clockTempHour === v : state.clockTempMinute === v) ? 'bg-navy text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}">${v}</button>`).join('')}</div><div class="flex gap-3 mt-8"><button onclick="window.closeModal()" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase tracking-widest">Cancelar</button><button onclick="window.confirmClockTime()" class="flex-2 bg-navy text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg">OK</button></div></div>`);
         }
 
@@ -1139,7 +1298,7 @@
             const af = state.advancedFilter;
             const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
             const errs = af.validationErrors || [];
-            
+
             let selMonthLabel = 'Mês';
             let selYearLabel = 'Ano';
             if (af.period.enabled && af.period.start) {
@@ -1147,12 +1306,12 @@
                 const dEnd = new Date(af.period.end + 'T00:00:00');
                 const isFullMonth = d.getDate() === 1 && dEnd.getDate() === new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() && d.getMonth() === dEnd.getMonth();
                 const isFullYear = d.getDate() === 1 && d.getMonth() === 0 && dEnd.getDate() === 31 && dEnd.getMonth() === 11;
-                if (isFullYear) { selYearLabel = d.getFullYear().toString(); selMonthLabel = 'Mês'; } 
+                if (isFullYear) { selYearLabel = d.getFullYear().toString(); selMonthLabel = 'Mês'; }
                 else if (isFullMonth) { selMonthLabel = monthNames[d.getMonth()]; selYearLabel = d.getFullYear().toString(); }
             }
 
             state.searchTerm = '';
-            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-center gap-2 text-navy"><i data-lucide="sliders-horizontal" class="w-5 h-5"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtros Avançados</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div id="adv-filter-scroll-container" class="p-6 flex flex-col gap-5 overflow-y-auto scrollbar-none"><div id="adv-sec-eventos" class="flex flex-col gap-3"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('eventos')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status dos Eventos</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.eventos.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.eventos.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.eventos.enabled ? `<div class="flex bg-slate-100 p-1 rounded-xl"><button onclick="window.setAdvFilterStatus('ativos'); window.renderAdvancedFilterModal();" class="flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${af.eventos.status === 'ativos' ? 'bg-white text-navy shadow-sm' : 'text-slate-400'}">ATIVOS</button><button onclick="window.setAdvFilterStatus('passados'); window.renderAdvancedFilterModal();" class="flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${af.eventos.status === 'passados' ? 'bg-white text-navy shadow-sm' : 'text-slate-400'}">INATIVOS</button></div>` : ''}</div><div id="adv-sec-type" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('type')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Tipo</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.type.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.type.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.type.enabled ? `<button onclick="window.openSelectPicker('types', 'Tipo', 'adv_type')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('type') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span class="truncate">${state.types.find((t)=>t.id===af.type.id)?.name || 'Selecionar Tipo...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div id="adv-sec-adm" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('adm')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por ADM</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.adm.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.adm.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.adm.enabled ? `<button onclick="window.openDistinctPicker('adm')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('adm') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors mb-2"><span>${af.adm.value || 'Selecionar ADM...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>${af.adm.value ? `<div id="adv-sec-setor" class="flex flex-col gap-2 mt-2 ml-2 border-l-2 border-slate-100 pl-4"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('setor')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Setor</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.setor.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.setor.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.setor.enabled ? `<button onclick="window.openDistinctPicker('setor')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('setor') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${af.setor.value || 'Selecionar Setor...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>${af.setor.value ? `<div id="adv-sec-cidade" class="flex flex-col gap-2 mt-4 ml-2 border-l-2 border-slate-100 pl-4"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('cidade')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Cidade</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.cidade.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.cidade.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.cidade.enabled ? `<button onclick="window.openDistinctPicker('cidade')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('cidade') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${af.cidade.value || 'Selecionar Cidade...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div>` : ''}` : ''}</div>` : ''}` : ''}</div><div id="adv-sec-location" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('location')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Localidade</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.location.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.location.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.location.enabled ? `<button onclick="window.openSelectPicker('locations', 'Local', 'adv_location')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('location') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${state.locations.find((l)=>l.id===af.location.id)?.localidade || 'Selecionar Localidade...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div id="adv-sec-attendant" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('attendant')"><label class="text-[10px] font-black text-slate-400 uppercase ml-1 block uppercase tracking-widest">Filtrar por Atendente</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.attendant.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.attendant.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.attendant.enabled ? `<button onclick="window.openSelectPicker('attendants', 'Atendente', 'adv_attendant')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('attendant') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${state.attendants.find((a)=>a.id===af.attendant.id)?.name || 'Selecionar Atendente...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div id="adv-sec-period" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('period')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Período</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.period.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.period.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.period.enabled ? `<div class="flex flex-col gap-2"><div class="grid grid-cols-2 gap-2"><button onclick="window.openDateRangePicker('start')" class="relative flex items-center justify-center py-2.5 px-4 bg-slate-50 border ${errs.includes('period') && !af.period.start ? 'border-red-500 bg-red-50' : 'border-slate-100'} rounded-2xl text-xs font-bold text-navy transition-colors"><span class="absolute left-3 text-[9px] text-slate-400 uppercase">Início</span><span class="truncate">${af.period.start ? formatDate(af.period.start) : 'Data...'}</span></button><button onclick="window.openDateRangePicker('end')" class="relative flex items-center justify-center py-2.5 px-4 bg-slate-50 border ${errs.includes('period') && !af.period.end ? 'border-red-500 bg-red-50' : 'border-slate-100'} rounded-2xl text-xs font-bold text-navy transition-colors"><span class="absolute left-3 text-[9px] text-slate-400 uppercase">Fim</span><span class="truncate">${af.period.end ? formatDate(af.period.end) : 'Data...'}</span></button></div><div class="grid grid-cols-2 gap-2"><button onclick="state.viewDate = (state.advancedFilter.period.start ? new Date(state.advancedFilter.period.start + 'T00:00:00') : new Date()); window.openMonthPicker('adv_period')" class="w-full flex justify-between items-center py-2.5 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-navy"><span class="text-navy uppercase">${selMonthLabel}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button><button onclick="window.openYearPicker('adv_period')" class="w-full flex justify-between items-center py-2.5 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-navy"><span class="text-navy uppercase">${selYearLabel}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button></div></div>` : ''}</div></div><div class="p-6 border-t border-slate-50 flex gap-3"><button onclick="window.clearAdvancedFilters()" class="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 text-[11px] uppercase tracking-widest active:scale-95 transition-all"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Limpar Filtro</button><button onclick="window.applyAdvancedFilters()" class="flex-1 bg-navy text-white py-2.5 rounded-xl font-black flex items-center justify-center gap-2 shadow-lg shadow-navy/20 text-[11px] uppercase tracking-widest active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
+            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-center gap-2 text-navy"><i data-lucide="sliders-horizontal" class="w-5 h-5"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtros Avançados</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div id="adv-filter-scroll-container" class="p-6 flex flex-col gap-5 overflow-y-auto scrollbar-none"><div id="adv-sec-eventos" class="flex flex-col gap-3"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('eventos')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status dos Eventos</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.eventos.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.eventos.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.eventos.enabled ? `<div class="flex bg-slate-100 p-1 rounded-xl"><button onclick="window.setAdvFilterStatus('ativos'); window.renderAdvancedFilterModal();" class="flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${af.eventos.status === 'ativos' ? 'bg-white text-navy shadow-sm' : 'text-slate-400'}">ATIVOS</button><button onclick="window.setAdvFilterStatus('passados'); window.renderAdvancedFilterModal();" class="flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${af.eventos.status === 'passados' ? 'bg-white text-navy shadow-sm' : 'text-slate-400'}">INATIVOS</button></div>` : ''}</div><div id="adv-sec-type" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('type')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Tipo</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.type.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.type.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.type.enabled ? `<button onclick="window.openSelectPicker('types', 'Tipo', 'adv_type')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('type') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span class="truncate">${state.types.find((t) => t.id === af.type.id)?.name || 'Selecionar Tipo...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div id="adv-sec-adm" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('adm')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por ADM</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.adm.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.adm.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.adm.enabled ? `<button onclick="window.openDistinctPicker('adm')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('adm') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors mb-2"><span>${af.adm.value || 'Selecionar ADM...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>${af.adm.value ? `<div id="adv-sec-setor" class="flex flex-col gap-2 mt-2 ml-2 border-l-2 border-slate-100 pl-4"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('setor')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Setor</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.setor.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.setor.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.setor.enabled ? `<button onclick="window.openDistinctPicker('setor')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('setor') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${af.setor.value || 'Selecionar Setor...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>${af.setor.value ? `<div id="adv-sec-cidade" class="flex flex-col gap-2 mt-4 ml-2 border-l-2 border-slate-100 pl-4"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('cidade')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Cidade</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.cidade.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.cidade.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.cidade.enabled ? `<button onclick="window.openDistinctPicker('cidade')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('cidade') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${af.cidade.value || 'Selecionar Cidade...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div>` : ''}` : ''}</div>` : ''}` : ''}</div><div id="adv-sec-location" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('location')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Localidade</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.location.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.location.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.location.enabled ? `<button onclick="window.openSelectPicker('locations', 'Local', 'adv_location')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('location') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${state.locations.find((l) => l.id === af.location.id)?.localidade || 'Selecionar Localidade...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div id="adv-sec-attendant" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('attendant')"><label class="text-[10px] font-black text-slate-400 uppercase ml-1 block uppercase tracking-widest">Filtrar por Atendente</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.attendant.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.attendant.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.attendant.enabled ? `<button onclick="window.openSelectPicker('attendants', 'Atendente', 'adv_attendant')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('attendant') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${state.attendants.find((a) => a.id === af.attendant.id)?.name || 'Selecionar Atendente...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div id="adv-sec-period" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('period')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Período</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.period.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.period.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.period.enabled ? `<div class="flex flex-col gap-2"><div class="grid grid-cols-2 gap-2"><button onclick="window.openDateRangePicker('start')" class="relative flex items-center justify-center py-2.5 px-4 bg-slate-50 border ${errs.includes('period') && !af.period.start ? 'border-red-500 bg-red-50' : 'border-slate-100'} rounded-2xl text-xs font-bold text-navy transition-colors"><span class="absolute left-3 text-[9px] text-slate-400 uppercase">Início</span><span class="truncate">${af.period.start ? formatDate(af.period.start) : 'Data...'}</span></button><button onclick="window.openDateRangePicker('end')" class="relative flex items-center justify-center py-2.5 px-4 bg-slate-50 border ${errs.includes('period') && !af.period.end ? 'border-red-500 bg-red-50' : 'border-slate-100'} rounded-2xl text-xs font-bold text-navy transition-colors"><span class="absolute left-3 text-[9px] text-slate-400 uppercase">Fim</span><span class="truncate">${af.period.end ? formatDate(af.period.end) : 'Data...'}</span></button></div><div class="grid grid-cols-2 gap-2"><button onclick="state.viewDate = (state.advancedFilter.period.start ? new Date(state.advancedFilter.period.start + 'T00:00:00') : new Date()); window.openMonthPicker('adv_period')" class="w-full flex justify-between items-center py-2.5 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-navy"><span class="text-navy uppercase">${selMonthLabel}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button><button onclick="window.openYearPicker('adv_period')" class="w-full flex justify-between items-center py-2.5 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-navy"><span class="text-navy uppercase">${selYearLabel}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button></div></div>` : ''}</div></div><div class="p-6 border-t border-slate-50 flex gap-3"><button onclick="window.clearAdvancedFilters()" class="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 text-[11px] uppercase tracking-widest active:scale-95 transition-all"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Limpar Filtro</button><button onclick="window.applyAdvancedFilters()" class="flex-1 bg-navy text-white py-2.5 rounded-xl font-black flex items-center justify-center gap-2 shadow-lg shadow-navy/20 text-[11px] uppercase tracking-widest active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
         }
 
         function openDistinctPicker(f) {
@@ -1169,18 +1328,18 @@
             const safeId = (!id || id === 'undefined') ? '' : id;
             const isE = !!safeId;
             const item = (initVals && Object.keys(initVals).length > 0) ? initVals : (isE ? state[coll].find((i) => String(i.id) === String(safeId)) : {});
-            const ctx = { 
-                types: { title: 'Tipo de Evento', name: 'Nome do Evento' }, 
-                locations: { title: 'Cidade / Localidade', name: 'Nome da Localidade' }, 
-                attendants: { title: 'Atendente', name: 'Nome Completo' }, 
+            const ctx = {
+                types: { title: 'Tipo de Evento', name: 'Nome do Evento' },
+                locations: { title: 'Cidade / Localidade', name: 'Nome da Localidade' },
+                attendants: { title: 'Atendente', name: 'Nome Completo' },
                 feriados: { title: 'Feriado', name: 'Nome do Feriado' },
                 perfis: { title: 'Usuário', name: 'Nome do Usuário' }
             }[coll] || { title: 'Registro', name: 'Nome' };
 
             const mainV = (coll === 'locations' ? item.localidade : (coll === 'feriados' ? item.nome_feriado : (coll === 'perfis' ? item.nome : item.name))) || '';
-            
+
             if (coll === 'feriados') window.__feriado_modal_cache = { safeId, item };
-            
+
             if (coll === 'perfis') {
                 showModal(`
                     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -1232,7 +1391,7 @@
             const dateBtn = document.getElementById('feriado-btn');
 
             let hasError = false;
-            if (coll !== 'perfis') { 
+            if (coll !== 'perfis') {
                 if (!name) { nameEl?.classList.add('input-error'); hasError = true; } else { nameEl?.classList.remove('input-error'); }
             }
             if (coll === 'feriados' && !dateVal) { dateBtn?.classList.add('input-error'); hasError = true; } else { dateBtn?.classList.remove('input-error'); }
@@ -1243,11 +1402,11 @@
             else if (coll === 'locations') { p.localidade = name; p.adm = document.getElementById('loc-adm')?.value.trim(); p.setor = document.getElementById('loc-setor')?.value.trim(); p.cidade = document.getElementById('loc-cidade')?.value.trim(); }
             else if (coll === 'attendants') { const min = document.getElementById('row-extra')?.value.trim() || ""; p.name = name; p.ministerio = min; }
             else if (coll === 'feriados') { p.nome_feriado = name; p.data = dateVal; p.tipo_feriado = document.getElementById('feriado-tipo')?.value.trim(); }
-            else if (coll === 'perfis') { 
-                p.autorizado = document.getElementById('user-authorized')?.checked; 
-                p.permissao = document.getElementById('user-permission')?.value; 
+            else if (coll === 'perfis') {
+                p.autorizado = document.getElementById('user-authorized')?.checked;
+                p.permissao = document.getElementById('user-permission')?.value;
             }
-            
+
             if (coll !== 'perfis' && coll !== 'agenda') {
                 let ext = null;
                 if (coll === 'types') {
@@ -1309,19 +1468,19 @@
             }
         }
 
-        function navigateTo(screen, push = true) { 
+        function navigateTo(screen, push = true) {
             if (push && state.currentScreen !== screen) window.history.pushState({ screen }, "");
-            state.currentScreen = screen; 
-            state.isMenuOpen = false; 
-            state.managerSearchTerm = ''; 
-            state.highlightedItemId = null; 
-            state.formErrors = []; 
+            state.currentScreen = screen;
+            state.isMenuOpen = false;
+            state.managerSearchTerm = '';
+            state.highlightedItemId = null;
+            state.formErrors = [];
         }
 
         function openMenu() { state.isMenuOpen = true; }
         function closeMenu() { state.isMenuOpen = false; }
-        function closeModal() { const m = document.getElementById('modal-container'); if(m){ m.classList.add('hidden'); m.innerHTML=''; } }
-        function showModal(html) { const m = document.getElementById('modal-container'); if(m){ m.innerHTML = html; m.classList.remove('hidden'); } renderIcons(); }
+        function closeModal() { const m = document.getElementById('modal-container'); if (m) { m.classList.add('hidden'); m.innerHTML = ''; } }
+        function showModal(html) { const m = document.getElementById('modal-container'); if (m) { m.innerHTML = html; m.classList.remove('hidden'); } renderIcons(); }
 
         function showLoginModal(startWithSignUp = false) {
             const t = document.getElementById('login-modal-template');
@@ -1335,12 +1494,12 @@
                 const titleEl = document.getElementById('modal-login-title');
 
                 const updateUI = () => {
-                    if (isSignUp) { titleEl.innerText = "Novo Cadastro"; nameField.classList.remove('hidden'); submitBtn.innerText = "Cadastrar"; toggleBtn.innerText = "Já tem conta? Entre"; } 
+                    if (isSignUp) { titleEl.innerText = "Novo Cadastro"; nameField.classList.remove('hidden'); submitBtn.innerText = "Cadastrar"; toggleBtn.innerText = "Já tem conta? Entre"; }
                     else { titleEl.innerText = "Faça Login ou Cadastro"; nameField.classList.add('hidden'); submitBtn.innerText = "Entrar"; toggleBtn.innerText = "Não tem conta? Cadastre-se"; }
                 };
-                
+
                 updateUI();
-                
+
                 toggleBtn?.addEventListener('click', () => {
                     isSignUp = !isSignUp;
                     updateUI();
@@ -1350,11 +1509,11 @@
                     if (btn) { btn.disabled = true; btn.innerText = isSignUp ? 'Cadastrando...' : 'Entrando...'; }
                     const name = document.getElementById('login-name').value.trim();
                     const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value;
-                    try { 
+                    try {
                         if (isSignUp) {
                             if (!name) throw new Error("O nome é obrigatório para cadastro.");
-                            const { data, error } = await supabaseClient.auth.signUp({ 
-                                email, 
+                            const { data, error } = await supabaseClient.auth.signUp({
+                                email,
                                 password,
                                 options: {
                                     data: {
@@ -1369,15 +1528,15 @@
                             if (error) throw error;
                             closeModal();
                         }
-                    } catch (err) { 
-                        if (errD) { 
-                            errD.innerText = translateAuthError(err.message); 
-                            errD.classList.remove('hidden'); 
-                        } 
-                        if (btn) { 
-                            btn.disabled = false; 
-                            btn.innerText = isSignUp ? 'Cadastrar' : 'Entrar'; 
-                        } 
+                    } catch (err) {
+                        if (errD) {
+                            errD.innerText = translateAuthError(err.message);
+                            errD.classList.remove('hidden');
+                        }
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerText = isSignUp ? 'Cadastrar' : 'Entrar';
+                        }
                     }
                 });
             }
@@ -1394,7 +1553,7 @@
             const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
             const todayT = `${bD.today.toLocaleDateString('pt-BR', { weekday: 'long' }).charAt(0).toUpperCase() + bD.today.toLocaleDateString('pt-BR', { weekday: 'long' }).slice(1)}, dia ${fBR(bD.today)}`;
             const dW1 = new Date(bD.week); dW1.setDate(bD.week.getDate() - bD.week.getDay()); const dW2 = new Date(dW1); dW2.setDate(dW1.getDate() + 6);
-            showModal(`<div class="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md flex flex-col"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-gap-2 text-navy"><i data-lucide="filter" class="w-5 h-5 text-orange-custom"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtro</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${renderFFRow('Por dia', todayT, 'today', sel)}${renderFFRow('Semana', fBR(dW1) + ' a ' + fBR(dW2), 'week', sel)}<div class="flex gap-3"><div class="flex-1">${renderFFRow('Mês', `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][bD.month.getMonth()]} / ${bD.month.getFullYear()}`, 'month', sel)}</div><div class="flex-1">${renderFFRow('Ano', bD.year.getFullYear().toString(), 'year', sel)}</div></div></div><div class="p-4 bg-white border-t border-slate-50"><button onclick="window.applyNewFastFilter()" class="w-full bg-navy text-white py-4 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
+            showModal(`<div class="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md flex flex-col"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-gap-2 text-navy"><i data-lucide="filter" class="w-5 h-5 text-orange-custom"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtro</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${renderFFRow('Por dia', todayT, 'today', sel)}${renderFFRow('Semana', fBR(dW1) + ' a ' + fBR(dW2), 'week', sel)}<div class="flex gap-3"><div class="flex-1">${renderFFRow('Mês', `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][bD.month.getMonth()]} / ${bD.month.getFullYear()}`, 'month', sel)}</div><div class="flex-1">${renderFFRow('Ano', bD.year.getFullYear().toString(), 'year', sel)}</div></div></div><div class="p-4 bg-white border-t border-slate-50"><button onclick="window.applyNewFastFilter()" class="w-full bg-navy text-white py-4 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
             renderIcons();
         }
 
@@ -1410,15 +1569,15 @@
 
         async function refreshAllData() {
             if (!state.isAuthorized || !navigator.onLine) return;
-            const tables = { 
-                'types': 'types', 
-                'locations': 'locations', 
-                'attendants': 'attendants', 
-                'agenda': 'events', 
-                'feriados': 'feriados', 
-                'perfis': 'perfis' 
+            const tables = {
+                'types': 'types',
+                'locations': 'locations',
+                'attendants': 'attendants',
+                'agenda': 'events',
+                'feriados': 'feriados',
+                'perfis': 'perfis'
             };
-            
+
             // Passo 1: Carregamento paralelo das tabelas
             try {
                 const promises = Object.entries(tables).map(async ([table, key]) => {
@@ -1429,21 +1588,21 @@
                     }
                 });
                 await Promise.all(promises);
-            } catch(e) {}
+            } catch (e) { }
         }
 
         function showConnStatus(status) {
             const el = document.getElementById('conn-status');
             if (!el) return;
             el.className = '';
-            if (status === 'offline') { el.innerHTML = '<i data-lucide="wifi-off" class="w-3.5 h-3.5"></i> Sem internet - Modo Offline'; el.classList.add('offline'); } 
+            if (status === 'offline') { el.innerHTML = '<i data-lucide="wifi-off" class="w-3.5 h-3.5"></i> Sem internet - Modo Offline'; el.classList.add('offline'); }
             else if (status === 'online-recovered') { el.innerHTML = '<i data-lucide="wifi" class="w-3.5 h-3.5"></i> Conexão restabelecida. Sincronizando...'; el.classList.add('online-recovered'); setTimeout(() => { el.classList.remove('online-recovered'); }, 3000); }
             renderIcons();
         }
 
         Object.assign(window, {
             renderApp, scheduleRender, navigateTo, openMenu, closeMenu, closeModal, showModal,
-            handleLogout: () => { 
+            handleLogout: () => {
                 state.isLoading = true;
                 cleanupListeners();
                 localStorage.clear();
@@ -1451,15 +1610,15 @@
                 supabaseClient.auth.signOut().then(() => {
                     window.location.href = window.location.origin + window.location.pathname;
                 });
-            }, 
+            },
             showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; window.updateHomeList(); },
             startOpenAgenda: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; const t = new Date().toISOString().split('T')[0]; if (!state.selectedDate) state.selectedDate = t; state.viewDate = new Date(state.selectedDate + 'T00:00:00'); renderCalendar('filter'); },
             changeMonth: (o, m) => { const d = new Date(state.viewDate); d.setMonth(d.getMonth() + o); state.viewDate = d; if (m === 'filter') state.selectedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; renderCalendar(m); },
             changePickerYear: (o, m) => { const d = new Date(state.viewDate); d.setFullYear(d.getFullYear() + o); state.viewDate = d; if (m.includes('month') || m === 'adv_period') window.openMonthPicker(m); else window.openYearPicker(m); },
             selectMonth: (i, m) => { const d = new Date(state.viewDate); d.setMonth(i); state.viewDate = d; if (m === 'adv_period') { const first = new Date(d.getFullYear(), i, 1); const last = new Date(d.getFullYear(), i + 1, 0); state.advancedFilter.period.start = first.toISOString().split('T')[0]; state.advancedFilter.period.end = last.toISOString().split('T')[0]; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); } else { if (m === 'filter') state.selectedDate = `${d.getFullYear()}-${String(i + 1).padStart(2, '0')}-01`; renderCalendar(m); } },
             selectYear: (y, m) => { const d = new Date(state.viewDate); d.setFullYear(y); state.viewDate = d; if (m === 'adv_period') { state.advancedFilter.period.start = `${y}-01-01`; state.advancedFilter.period.end = `${y}-12-31`; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); } else { if (m === 'filter') state.selectedDate = `${y}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; renderCalendar(m); } },
-            openMonthPicker: (m) => { const names = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"]; const year = state.viewDate.getFullYear(); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button><div class="flex items-center justify-center gap-3 w-full mb-6"><button onclick="window.changePickerYear(-1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-left" class="w-6 h-6"></i></button><span class="text-sm font-black text-navy uppercase tracking-widest">${year}</span><button onclick="window.changePickerYear(1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-right" class="w-6 h-6"></i></button></div><div class="grid grid-cols-3 gap-3 w-full">${names.map((n, i) => `<button onclick="window.selectMonth(${i}, '${m}')" class="py-4 text-[11px] font-black rounded-xl border transition-all ${state.viewDate.getMonth() === i ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${n.slice(0, 3)}</button>`).join('')}</div></div>`); },
-            openYearPicker: (m) => { const currentYear = new Date().getFullYear(); const selectedYear = (m === 'adv_period' && state.advancedFilter.period.start) ? new Date(state.advancedFilter.period.start + 'T00:00:00').getFullYear() : currentYear; state.viewDate = new Date(selectedYear, 0, 1); const years = []; for(let i = currentYear - 30; i < currentYear + 30; i++) years.push(i); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button><div class="flex items-center justify-center w-full mb-6"><span class="text-sm font-black text-navy uppercase tracking-widest">ANO</span></div><div id="year-scroll-container" class="grid grid-cols-3 gap-3 w-full max-h-[224px] overflow-y-auto scrollbar-none py-2">${years.map(y => `<button id="year-btn-${y}" onclick="window.selectYear(${y}, '${m}')" class="py-4 text-xs font-black rounded-xl border transition-all ${y === selectedYear ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${y}</button>`).join('')}</div></div>`); setTimeout(() => { const btn = document.getElementById(`year-btn-${selectedYear}`); if (btn) btn.scrollIntoView({ block: 'center' }); }, 10); },
+            openMonthPicker: (m) => { const names = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]; const year = state.viewDate.getFullYear(); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button><div class="flex items-center justify-center gap-3 w-full mb-6"><button onclick="window.changePickerYear(-1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-left" class="w-6 h-6"></i></button><span class="text-sm font-black text-navy uppercase tracking-widest">${year}</span><button onclick="window.changePickerYear(1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-right" class="w-6 h-6"></i></button></div><div class="grid grid-cols-3 gap-3 w-full">${names.map((n, i) => `<button onclick="window.selectMonth(${i}, '${m}')" class="py-4 text-[11px] font-black rounded-xl border transition-all ${state.viewDate.getMonth() === i ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${n.slice(0, 3)}</button>`).join('')}</div></div>`); },
+            openYearPicker: (m) => { const currentYear = new Date().getFullYear(); const selectedYear = (m === 'adv_period' && state.advancedFilter.period.start) ? new Date(state.advancedFilter.period.start + 'T00:00:00').getFullYear() : currentYear; state.viewDate = new Date(selectedYear, 0, 1); const years = []; for (let i = currentYear - 30; i < currentYear + 30; i++) years.push(i); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button><div class="flex items-center justify-center w-full mb-6"><span class="text-sm font-black text-navy uppercase tracking-widest">ANO</span></div><div id="year-scroll-container" class="grid grid-cols-3 gap-3 w-full max-h-[224px] overflow-y-auto scrollbar-none py-2">${years.map(y => `<button id="year-btn-${y}" onclick="window.selectYear(${y}, '${m}')" class="py-4 text-xs font-black rounded-xl border transition-all ${y === selectedYear ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${y}</button>`).join('')}</div></div>`); setTimeout(() => { const btn = document.getElementById(`year-btn-${selectedYear}`); if (btn) btn.scrollIntoView({ block: 'center' }); }, 10); },
             selectCalendarDate: (d, m = 'filter') => { if (m === 'filter') { state.selectedDate = d; renderCalendar('filter'); } else if (m === 'picker') { state.formTempDate = d; state.formErrors = state.formErrors.filter(e => e !== 'date'); closeModal(); } else if (m === 'adv_start' || m === 'adv_end') { state.advancedFilter.period[m === 'adv_start' ? 'start' : 'end'] = d; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); window.scrollToAdvSection('period'); } else if (m === 'feriado_picker') { const c = window.__feriado_modal_cache; window.openRowModal('feriados', c.safeId, { ...c.item, data: d }); } },
             applyCalendarAndClose: () => { state.fastFilter = { active: false }; state.advancedFilter.active = false; window.updateHomeList(); closeModal(); },
             openFormDate: () => { state.viewDate = new Date((state.formTempDate || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar('picker'); },
@@ -1468,7 +1627,7 @@
             renderFastFilterUI,
             openFastFilterModal: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; state.ffTemp.baseDates = { today: new Date(), week: new Date(), month: new Date(), year: new Date() }; renderFastFilterUI(); },
             shiftFF: (t, o) => { const d = new Date(state.ffTemp.baseDates[t]); if (t === 'today') d.setDate(d.getDate() + o); else if (t === 'week') d.setDate(d.getDate() + (o * 7)); else if (t === 'month') d.setMonth(d.getMonth() + o); else if (t === 'year') d.setFullYear(d.getFullYear() + o); state.ffTemp.baseDates[t] = d; state.ffTemp.selected = t; renderFastFilterUI(); },
-            applyNewFastFilter: () => { const b = new Date(state.ffTemp.baseDates[state.ffTemp.selected]); let st = '', en = '', la = ''; const f = (d) => d.toISOString().split('T')[0]; const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; if (state.ffTemp.selected === 'today') { st = en = f(b); let w = b.toLocaleDateString('pt-BR', { weekday: 'long' }); la = `${w.charAt(0).toUpperCase() + w.slice(1)}, dia ${fBR(b)}`; } else if (state.ffTemp.selected === 'week') { const d1 = new Date(b); d1.setDate(b.getDate() - b.getDay()); const d2 = new Date(d1); d2.setDate(d1.getDate() + 6); st = f(d1); en = f(d2); la = `Semana ${fBR(d1)} a ${fBR(d2)}`; } else if (state.ffTemp.selected === 'month') { const d1 = new Date(b.getFullYear(), b.getMonth(), 1); const d2 = new Date(b.getFullYear(), b.getMonth() + 1, 0); st = f(d1); en = f(d2); la = `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][b.getMonth()]} / ${b.getFullYear()}`; } else if (state.ffTemp.selected === 'year') { st = `${b.getFullYear()}-01-01`; en = `${b.getFullYear()}-12-31`; la = `Ano de ${b.getFullYear()}`; } state.selectedDate = null; state.advancedFilter.active = false; state.fastFilter = { active: true, dateStart: st, dateEnd: en, label: la }; closeModal(); window.updateHomeList(); },
+            applyNewFastFilter: () => { const b = new Date(state.ffTemp.baseDates[state.ffTemp.selected]); let st = '', en = '', la = ''; const f = (d) => d.toISOString().split('T')[0]; const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; if (state.ffTemp.selected === 'today') { st = en = f(b); let w = b.toLocaleDateString('pt-BR', { weekday: 'long' }); la = `${w.charAt(0).toUpperCase() + w.slice(1)}, dia ${fBR(b)}`; } else if (state.ffTemp.selected === 'week') { const d1 = new Date(b); d1.setDate(b.getDate() - b.getDay()); const d2 = new Date(d1); d2.setDate(d1.getDate() + 6); st = f(d1); en = f(d2); la = `Semana ${fBR(d1)} a ${fBR(d2)}`; } else if (state.ffTemp.selected === 'month') { const d1 = new Date(b.getFullYear(), b.getMonth(), 1); const d2 = new Date(b.getFullYear(), b.getMonth() + 1, 0); st = f(d1); en = f(d2); la = `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][b.getMonth()]} / ${b.getFullYear()}`; } else if (state.ffTemp.selected === 'year') { st = `${b.getFullYear()}-01-01`; en = `${b.getFullYear()}-12-31`; la = `Ano de ${b.getFullYear()}`; } state.selectedDate = null; state.advancedFilter.active = false; state.fastFilter = { active: true, dateStart: st, dateEnd: en, label: la }; closeModal(); window.updateHomeList(); },
             toggleAdvFilterSection: (sec) => { const af = state.advancedFilter; af[sec].enabled = !af[sec].enabled; af.validationErrors = af.validationErrors.filter(e => e !== sec); if (sec === 'adm' && !af.adm.enabled) { af.adm.value = ''; af.setor.enabled = false; af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'setor' && !af.setor.enabled) { af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'cidade' && !af.cidade.enabled) { af.cidade.value = ''; af.location.id = ''; } window.renderAdvancedFilterModal(); if (af[sec].enabled) window.scrollToAdvSection(sec); },
             handleAdvFilterSelect: (f, v) => { const af = state.advancedFilter; af[f].value = v; af.validationErrors = af.validationErrors.filter(e => e !== f); if (f === 'adm') { af.setor.value = ''; af.cidade.value = ''; af.location.id = ''; } else if (f === 'setor') { af.cidade.value = ''; af.location.id = ''; } else if (f === 'cidade') af.location.id = ''; window.renderAdvancedFilterModal(); window.scrollToAdvSection(f); },
             setAdvFilterStatus: (s) => { state.advancedFilter.eventos.status = s; },
@@ -1482,7 +1641,28 @@
             selectClockValue: (v) => { if (state.clockMode === 'hour') { state.clockTempHour = v.padStart(2, '0'); state.clockMode = 'minute'; } else state.clockTempMinute = v.padStart(2, '0'); renderClockUI(); },
             confirmClockTime: () => { state.formTempTime = `${state.clockTempHour}:${state.clockTempMinute}`; closeModal(); },
             openSelectPicker: (coll, tit, pr) => { let items = [...state[coll]]; if (coll === 'locations' && pr === 'adv_location') { const af = state.advancedFilter; if (af.adm.enabled && af.adm.value) items = items.filter(l => l.adm === af.adm.value); if (af.setor.enabled && af.setor.value) items = items.filter(l => l.setor === af.setor.value); if (af.cidade.enabled && af.cidade.value) items = items.filter(l => l.cidade === af.cidade.value); } const isA = pr.startsWith('adv_'); const target = isA ? pr.replace('adv_', '') : pr; showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${tit}</h3></div><button onclick="${isA ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="px-5 py-4"><div class="relative group"><input id="pickerSearch" type="text" placeholder="Filtrar..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium"><i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i></div></div><div id="pickerItemsList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none"></div></div>`); const listEl = document.getElementById('pickerItemsList'); if (listEl) listEl.innerHTML = renderPickerItems(items, coll, isA, target, pr); document.getElementById('pickerSearch')?.addEventListener('input', (e) => { const term = (e.target.value || '').toLowerCase(); const filtered = items.filter((i) => ((coll === 'locations' ? i.localidade : (coll === 'perfis' ? i.nome : i.name)) || '').toLowerCase().includes(term)); document.getElementById('pickerItemsList').innerHTML = renderPickerItems(filtered, coll, isA, target, pr); renderIcons(); }); renderIcons(); },
-            saveEvent: async () => { const errs = []; if (!state.formTempDate) errs.push('date'); if (!state.formTempLoc) errs.push('loc'); if (!state.formTempType) errs.push('type'); if (errs.length > 0) { state.formErrors = errs; return; } const eventData = { date: state.formTempDate, time: state.formTempTime, location_id: state.formTempLoc, type_id: state.formTempType, attendant_id: state.formTempAtt || null, irmaos: parseInt(document.getElementById('event-irmaos')?.value || '0'), irmas: parseInt(document.getElementById('event-irmas')?.value || '0') }; const duplicate = state.events.find(e => e.date === eventData.date && e.time === eventData.time && e.location_id === eventData.location_id && e.type_id === eventData.type_id && String(e.id) !== String(state.editingEventId)); if (duplicate) { showEventDuplicateModal(duplicate); return; } const action = state.editingEventId ? 'UPDATE' : 'INSERT'; const result = await window.smartSave('agenda', action, eventData, state.editingEventId); if (result.success) { if (!result.pendingConflict) window.navigateTo('home'); state.editingEventId = null; } else alert("Erro ao salvar: " + result.error); },
+            saveEvent: async () => {
+                const btn = document.querySelector('button[onclick="window.saveEvent()"]');
+                if (btn) { btn.disabled = true; btn.innerText = "Salvando..."; }
+                try {
+                    const errs = [];
+                    if (!state.formTempDate) errs.push('date');
+                    if (!state.formTempLoc) errs.push('loc');
+                    if (!state.formTempType) errs.push('type');
+                    if (errs.length > 0) { state.formErrors = errs; return; }
+                    const eventData = { date: state.formTempDate, time: state.formTempTime, location_id: state.formTempLoc, type_id: state.formTempType, attendant_id: state.formTempAtt || null, irmaos: parseInt(document.getElementById('event-irmaos')?.value || '0'), irmas: parseInt(document.getElementById('event-irmas')?.value || '0') };
+                    const duplicate = state.events.find(e => e.date === eventData.date && e.time === eventData.time && e.location_id === eventData.location_id && e.type_id === eventData.type_id && String(e.id) !== String(state.editingEventId));
+                    if (duplicate) { showEventDuplicateModal(duplicate); return; }
+                    const action = state.editingEventId ? 'UPDATE' : 'INSERT';
+                    const result = await window.smartSave('agenda', action, eventData, state.editingEventId);
+                    if (result.success) { if (!result.pendingConflict) window.navigateTo('home'); state.editingEventId = null; } else alert("Erro ao salvar: " + result.error);
+                } catch (e) {
+                    alert("Erro inesperado: " + e.message);
+                } finally {
+                    if (btn) { btn.disabled = false; btn.innerText = `SALVAR EVENTO ${!navigator.onLine ? '(OFFLINE)' : ''}`; }
+                    if (state.formErrors.length > 0) scheduleRender();
+                }
+            },
             requestDeleteEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); const type = state.types.find((t) => t.id === ev?.type_id); const loc = state.locations.find((l) => l.id === ev?.location_id); showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative border-t-[8px] border-red-500"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5"><i data-lucide="alert-triangle" class="text-red-500 w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3">Excluir?</h3><p class="text-sm text-slate-500 mb-8 px-2">Deseja excluir este evento?<br><strong class="text-slate-700">${type?.name || ''} em ${loc?.localidade || ''}</strong></p><div class="w-full flex gap-3"><button onclick="window.closeModal()" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold uppercase text-sm">Não</button><button onclick="window.confirmarEDeletar('${id}')" class="flex-1 bg-red-600 py-3 rounded-xl font-black uppercase text-sm">Sim</button></div></div></div>`); },
             confirmarEDeletar,
             locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') window.updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
@@ -1536,7 +1716,7 @@
                 if (promptEvent) {
                     await promptEvent.prompt();
                     const { outcome } = await promptEvent.userChoice;
-                    
+
                     if (outcome === 'accepted') {
                         window.showInstallingStatusModal();
                     } else {
@@ -1563,23 +1743,23 @@
             }
         });
 
-       async function init() {
+        async function init() {
             const tablesToCache = ['types', 'locations', 'attendants', 'agenda', 'feriados', 'perfis'];
             let hasInitialData = false;
-            tablesToCache.forEach(table => { 
-                const cachedData = localStorage.getItem(`cache_${table}`); 
-                if (cachedData) { 
-                    const key = table === 'agenda' ? 'events' : table; 
+            tablesToCache.forEach(table => {
+                const cachedData = localStorage.getItem(`cache_${table}`);
+                if (cachedData) {
+                    const key = table === 'agenda' ? 'events' : table;
                     state[key] = JSON.parse(cachedData);
                     hasInitialData = true;
-                } 
+                }
             });
 
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
                 state.user = session.user;
                 const isMasterAdmin = session.user.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase();
-                
+
                 const cachedProfile = getCachedProfile();
                 if (isMasterAdmin || cachedProfile.isAuthorized) {
                     state.isAdmin = isMasterAdmin || cachedProfile.isAdmin;
@@ -1596,7 +1776,7 @@
                         if (!error && profile) {
                             state.isAdmin = isMasterAdmin || (profile.permissao === 'admin');
                             state.isAuthorized = isMasterAdmin || (profile.autorizado === true);
-                            
+
                             localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify({
                                 isAdmin: state.isAdmin,
                                 isAuthorized: state.isAuthorized
@@ -1606,38 +1786,38 @@
                     if (state.isAuthorized) await refreshAllData();
                 }
             }
-            
+
             state.isLoading = false;
 
             window.history.replaceState({ screen: 'home' }, "");
             window.addEventListener('popstate', (event) => {
                 if (state.isMenuOpen) { state.isMenuOpen = false; return; }
                 const modal = document.getElementById('modal-container');
-                if (modal && !modal.classList.contains('hidden')) { 
-                    closeModal(); 
+                if (modal && !modal.classList.contains('hidden')) {
+                    closeModal();
                     if (state.currentScreen === 'home') window.history.pushState({ screen: 'home' }, "");
-                    return; 
+                    return;
                 }
-                if (event.state && event.state.screen) navigateTo(event.state.screen, false); 
+                if (event.state && event.state.screen) navigateTo(event.state.screen, false);
                 else {
                     if (state.currentScreen === 'home') { window.showExitConfirmation(); window.history.pushState({ screen: 'home' }, ""); }
-                    else navigateTo('home', false); 
+                    else navigateTo('home', false);
                 }
             });
 
             window.addEventListener('offline', () => { showConnStatus('offline'); });
             window.addEventListener('online', async () => { showConnStatus('online-recovered'); await refreshAllData(); scheduleRender(); });
 
-            supabaseClient.auth.onAuthStateChange(async (event, session) => { 
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'SIGNED_OUT' || !session) {
                     cleanupListeners();
                     state.user = null; state.isAuthorized = false; state.isAdmin = false; state.currentScreen = 'home';
                     localStorage.removeItem(USER_PROFILE_CACHE_KEY); scheduleRender(); return;
                 }
 
-                state.user = session?.user || null; 
+                state.user = session?.user || null;
                 const isMasterAdmin = session.user.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase();
-                
+
                 if (session?.user && navigator.onLine) {
                     try {
                         const { data: profile } = await supabaseClient.from('perfis').select('permissao, autorizado').eq('id', session.user.id).single();
@@ -1646,35 +1826,35 @@
                             state.isAuthorized = isMasterAdmin || (profile.autorizado === true);
                             localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify({ isAdmin: state.isAdmin, isAuthorized: state.isAuthorized }));
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                 }
-                
+
                 if (state.isAuthorized) {
                     await refreshAllData();
                     cleanupListeners();
-                    setupListener('types', 'types'); 
-                    setupListener('locations', 'locations'); 
-                    setupListener('attendants', 'attendants'); 
-                    setupListener('agenda', 'events'); 
-                    setupListener('feriados', 'feriados'); 
+                    setupListener('types', 'types');
+                    setupListener('locations', 'locations');
+                    setupListener('attendants', 'attendants');
+                    setupListener('agenda', 'events');
+                    setupListener('feriados', 'feriados');
                     setupListener('perfis', 'perfis');
                 }
-                if (event === 'SIGNED_IN') closeModal(); 
-                scheduleRender(); 
+                if (event === 'SIGNED_IN') closeModal();
+                scheduleRender();
             });
 
             if (state.isAuthorized) {
-                setupListener('types', 'types'); 
-                setupListener('locations', 'locations'); 
-                setupListener('attendants', 'attendants'); 
-                setupListener('agenda', 'events'); 
-                setupListener('feriados', 'feriados'); 
+                setupListener('types', 'types');
+                setupListener('locations', 'locations');
+                setupListener('attendants', 'attendants');
+                setupListener('agenda', 'events');
+                setupListener('feriados', 'feriados');
                 setupListener('perfis', 'perfis');
             }
 
             loadExternalHolidays(new Date().getFullYear());
         }
-        
+
         window.deferredPrompt = null;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault(); window.deferredPrompt = e;
@@ -1687,5 +1867,7 @@
 
         init();
     </script>
+
 </body>
+
 </html>
