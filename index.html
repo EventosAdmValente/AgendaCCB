@@ -11,21 +11,16 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Agenda CCB">
     <meta name="mobile-web-app-capable" content="yes">
-    
-    
-    <!-- Bibliotecas Externas (CDNs) -->
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
     
-    <!-- PDF & Image Libs -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
-    <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
@@ -53,7 +48,6 @@
         #report-capture-area { width: 794px; min-height: 1123px; background: white; padding: 50px; box-sizing: border-box; display: flex; flex-direction: column; transform-origin: top center; }
         .highlight-item { background-color: #fef3c7 !important; border-left: 4px solid #f59e0b !important; }
 
-        /* Status Conexão */
         #conn-status {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
             z-index: 100; transition: all 0.3s ease; pointer-events: none;
@@ -81,7 +75,6 @@
 </head>
 <body class="h-screen w-full flex flex-col bg-slate-100">
 
-    <!-- App Root -->
     <div id="app" class="flex-1 w-full h-full relative overflow-hidden flex flex-col">
         <div class="loading-container">
             <div class="loading-spinner"></div>
@@ -89,13 +82,10 @@
         </div>
     </div>
 
-    <!-- Connection Status Toast -->
     <div id="conn-status"></div>
 
-    <!-- Modals Overlay -->
     <div id="modal-container" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"></div>
 
-    <!-- Template: Login Modal -->
     <template id="login-modal-template">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
             <div class="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
@@ -124,17 +114,11 @@
         </div>
     </template>
 
-    <!-- Main Logic -->
     <script type="module">
-        /**
-         * ==========================================
-         * 1. CONFIGURAÇÃO DO SUPABASE
-         * ==========================================
-         */
+
         const SUPABASE_URL = "https://gcsvapoqpbrrqubxawkd.supabase.co"; 
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdjc3ZhcG9xcGJycnF1Ynhhd2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4OTgyMzYsImV4cCI6MjA4MDQ3NDIzNn0.QtIldObznGEYTXyEf0MS4mIgIDgbMKmS0M2FBVInTZQ";
         const ADMIN_EMAIL = "eventosadmvalente@gmail.com"; 
-
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             auth: {
                 persistSession: true,
@@ -143,9 +127,72 @@
             }
         });
 
-        /**
-         * Tradução de erros de autenticação do Supabase
-         */
+        const activeChannels = new Map();
+        function cleanupListeners() {
+            activeChannels.forEach((channel, name) => {
+                supabaseClient.removeChannel(channel);
+            });
+            activeChannels.clear();
+        }
+
+        const setupListener = (table, stateKey) => {
+            const channelName = `public:${table}`;
+            
+            if (activeChannels.has(channelName)) {
+                supabaseClient.removeChannel(activeChannels.get(channelName));
+                activeChannels.delete(channelName);
+            }
+
+            const channel = supabaseClient.channel(channelName)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, (payload) => {
+                    const current = [...(state[stateKey] || [])];
+                    if (!current.find(item => String(item.id) === String(payload.new.id))) {
+                        state[stateKey] = [...current, payload.new];
+                        localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
+                        
+                        if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                        const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'perfis' };
+                        if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
+                    }
+                })
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, async (payload) => {
+                    const current = [...(state[stateKey] || [])];
+                    state[stateKey] = current.map(item => String(item.id) === String(payload.new.id) ? payload.new : item);
+                    localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
+                    
+                    if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                    const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'perfis' };
+                    if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
+
+                    if (table === 'perfis' && state.user && payload.new.id === state.user.id) {
+                        const isMasterAdmin = (state.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+                        const wasAuthorized = state.isAuthorized;
+                        
+                        state.isAdmin = isMasterAdmin || (payload.new.permissao === 'admin');
+                        state.isAuthorized = isMasterAdmin || (payload.new.autorizado === true);
+                        
+                        localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify({ 
+                            isAdmin: state.isAdmin, 
+                            isAuthorized: state.isAuthorized 
+                        }));
+
+                        if (state.isAuthorized && !wasAuthorized) await refreshAllData();
+                    }
+                })
+                .on('postgres_changes', { event: 'DELETE', schema: 'public', table }, (payload) => {
+                    const current = [...(state[stateKey] || [])];
+                    state[stateKey] = current.filter(item => String(item.id) !== String(payload.old.id));
+                    localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
+                    
+                    if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                    const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'perfis' };
+                    if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
+                })
+                .subscribe();
+            
+            activeChannels.set(channelName, channel);
+        };
+
         function translateAuthError(message) {
             const msg = message.toLowerCase();
             if (msg.includes('invalid login credentials')) return "E-mail ou senha incorretos.";
@@ -154,51 +201,37 @@
             if (msg.includes('signup requires a valid email')) return "Por favor, insira um endereço de e-mail válido.";
             if (msg.includes('email not confirmed')) return "E-mail ainda não confirmado. Verifique sua caixa de entrada.";
             if (msg.includes('invalid email or password')) return "E-mail ou senha inválidos.";
-            return message; // Retorna original caso não mapeado
+            return message; 
         }
 
-        /**
-         * ==========================================
-         * LÓGICA DE PERSISTÊNCIA OFFLINE (V3 - Conflitos)
-         * ==========================================
-         */
             const SYNC_QUEUE_KEY = 'adm_valente_sync_queue';
             const USER_PROFILE_CACHE_KEY = 'cache_user_profile';
 
             async function processOfflineQueue() {
                 if (!navigator.onLine) return;
                 
-                // Aguarda 1 segundo antes de iniciar o processamento (Requisito 3)
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                 if (queue.length === 0) return;
-
-                console.log(`[Offline Sync] Analisando ${queue.length} itens...`);
                 
-                // Pegamos o primeiro item para processar
                 const item = queue[0];
                 const { table, action, data, id, originalSnapshot } = item;
 
-                // Se for UPDATE, precisamos verificar conflitos (Requisito 3)
                 if (action === 'UPDATE' && id && originalSnapshot) {
                     try {
                         const { data: serverRecord, error } = await supabaseClient.from(table).select('*').eq('id', id).single();
                         
-                        // Registro excluído por outro ou alterado (Requisito 3)
                         const serverString = serverRecord ? JSON.stringify(serverRecord) : null;
                         const snapshotString = JSON.stringify(originalSnapshot);
 
                         if (!serverRecord || serverString !== snapshotString) {
                             showConflictModal(item, serverRecord);
-                            return; // Interrompe processamento da fila até decisão do usuário
+                            return; 
                         }
-                    } catch (err) {
-                        console.error("Erro ao verificar conflito:", err);
-                    }
+                    } catch (err) { }
                 }
 
-                // Se não há conflito ou se for INSERT/DELETE, prossegue normal
                 await executeSync(item);
             }
 
@@ -213,20 +246,16 @@
                     if (action === 'UPDATE') res = await supabaseClient.from(table).update(cleanData).eq('id', id);
                     if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
 
-                    // Remove item processado da fila
                     const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                     const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
                     localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
 
                     if (newQueue.length > 0) {
-                        processOfflineQueue(); // Processa próximo item
+                        processOfflineQueue(); 
                     } else {
-                        await refreshAllData();
                         showConnStatus('online-recovered');
                     }
-                } catch (err) {
-                    console.error("Erro na execução do sync:", err);
-                }
+                } catch (err) { }
             }
 
             function showConflictModal(item, serverRecord) {
@@ -259,7 +288,6 @@
                 localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
 
                 if (decision === 'descartar') {
-                    // Grava no cache as alterações do outro usuário (Requisito 3)
                     const stateKey = item.table === 'agenda' ? 'events' : item.table;
                     if (serverRecord) {
                         const currentList = [...state[stateKey]];
@@ -268,15 +296,12 @@
                         state[stateKey] = currentList;
                         localStorage.setItem(`cache_${item.table}`, JSON.stringify(currentList));
                     } else {
-                        // Foi excluído no servidor
                         state[stateKey] = state[stateKey].filter(i => String(i.id) !== String(item.id));
                         localStorage.setItem(`cache_${item.table}`, JSON.stringify(state[stateKey]));
                     }
                     closeModal();
                     if (newQueue.length > 0) processOfflineQueue();
-                    else await refreshAllData();
                 } else {
-                    // Grava no cache e envia imediatamente (Requisito 3)
                     closeModal();
                     await executeSync(item);
                 }
@@ -288,7 +313,6 @@
                 const finalId = id || tempId;
                 const stateKey = table === 'agenda' ? 'events' : table;
                 
-                // Captura Snapshot Original para Detecção de Conflitos (Requisito 3)
                 let originalSnapshot = null;
                 if (action === 'UPDATE' && id) {
                     originalSnapshot = state[stateKey].find(i => String(i.id) === String(id));
@@ -315,7 +339,6 @@
                     return { success: true, offline: true, tempId };
                 }
 
-                // Fluxo Online Imediato (com verificação de conflito rápida se for UPDATE)
                 try {
                     if (action === 'UPDATE' && originalSnapshot) {
                         const { data: serverRecord } = await supabaseClient.from(table).select('*').eq('id', id).single();
@@ -331,21 +354,15 @@
                     if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
                     
                     if (res && res.error) throw res.error;
-                    await refreshAllData();
+                    // Passo 1: Não chamamos mais refreshAllData aqui. O Realtime cuida da atualização.
                     return { success: true, offline: false };
                 } catch (err) {
-                    console.error("Erro no smartSave:", err);
                     return { success: false, error: err.message };
                 }
             };
 
             window.addEventListener('online', processOfflineQueue);
         
-        /**
-         * ==========================================
-         * 2. ESTADO GLOBAL (STATE)
-         * ==========================================
-         */
         const getCachedProfile = () => {
             try {
                 const p = localStorage.getItem(USER_PROFILE_CACHE_KEY);
@@ -437,12 +454,6 @@
 
         window.state = state;
 
-        /**
-         * ==========================================
-         * 3. FERIADOS EXTERNOS (API BRASIL + BAHIA)
-         * ==========================================
-         */
-
         async function loadExternalHolidays(year) {
             if (state.fetchedYears.has(year)) return;
 
@@ -459,16 +470,8 @@
                 state.externalHolidays = [...state.externalHolidays, ...holidays];
                 state.fetchedYears.add(year);
                 scheduleRender();
-            } catch (e) {
-                console.error("Não foi possível carregar feriados externos para", year);
-            }
+            } catch (e) { }
         }
-
-        /**
-         * ==========================================
-         * 4. RENDERIZAÇÃO E NAVEGAÇÃO
-         * ==========================================
-         */
 
         let renderTimer = null;
         function scheduleRender() {
@@ -507,9 +510,6 @@
             renderIcons();
         }
 
-        /**
-         * Funções Globais de Atualização de UI (Realtime)
-         */
         window.updateHomeList = () => {
             const container = document.getElementById('event-list-container');
             if (!container) return;
@@ -593,7 +593,6 @@
                     labelEl.style.fontSize = currentSize + 'px';
                 }
             }
-
             renderIcons();
 
             if (state.highlightedItemId) {
@@ -686,7 +685,6 @@
             const app = document.getElementById('app');
             if (!app) return;
 
-            // CASO 1: Usuário não logado
             if (!state.user) {
                 app.innerHTML = `
                     <div class="flex flex-col h-full bg-slate-100">
@@ -710,7 +708,6 @@
                 return;
             }
 
-            // CASO 2: Usuário logado mas NÃO autorizado
             if (!state.isAuthorized) {
                 app.innerHTML = `
                     <div class="flex flex-col h-full bg-slate-100">
@@ -738,7 +735,6 @@
                 return;
             }
 
-            // CASO 3: Usuário Autorizado (Visualização Normal)
             app.innerHTML = `
                 <div id="home-container" class="flex flex-col h-full bg-slate-100 relative">
                     <div id="nav-menu-placeholder">${renderNavMenu()}</div>
@@ -847,6 +843,10 @@
                 if (af.type.enabled && af.type.id) {
                     const type = state.types.find((t) => t.id === af.type.id);
                     if (type) parts.push(type.name);
+                }
+                if (af.attendant.enabled && af.attendant.id) {
+                    const att = state.attendants.find((a) => a.id === af.attendant.id);
+                    if (att) parts.push(att.name);
                 }
                 const locChain = [];
                 if (af.adm.enabled && af.adm.value) locChain.push(af.adm.value);
@@ -1152,7 +1152,7 @@
             }
 
             state.searchTerm = '';
-            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-center gap-2 text-navy"><i data-lucide="sliders-horizontal" class="w-5 h-5"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtros Avançados</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-5 overflow-y-auto scrollbar-none"><div class="flex flex-col gap-3"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('eventos')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status dos Eventos</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.eventos.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.eventos.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.eventos.enabled ? `<div class="flex bg-slate-100 p-1 rounded-xl"><button onclick="window.setAdvFilterStatus('ativos'); window.renderAdvancedFilterModal();" class="flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${af.eventos.status === 'ativos' ? 'bg-white text-navy shadow-sm' : 'text-slate-400'}">ATIVOS</button><button onclick="window.setAdvFilterStatus('passados'); window.renderAdvancedFilterModal();" class="flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${af.eventos.status === 'passados' ? 'bg-white text-navy shadow-sm' : 'text-slate-400'}">INATIVOS</button></div>` : ''}</div><div class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('type')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Tipo</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.type.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.type.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.type.enabled ? `<button onclick="window.openSelectPicker('types', 'Tipo', 'adv_type')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('type') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span class="truncate">${state.types.find((t)=>t.id===af.type.id)?.name || 'Selecionar Tipo...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('adm')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por ADM</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.adm.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.adm.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.adm.enabled ? `<button onclick="window.openDistinctPicker('adm')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('adm') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors mb-2"><span>${af.adm.value || 'Selecionar ADM...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>${af.adm.value ? `<div class="flex flex-col gap-2 mt-2 ml-2 border-l-2 border-slate-100 pl-4"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('setor')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Setor</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.setor.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.setor.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.setor.enabled ? `<button onclick="window.openDistinctPicker('setor')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('setor') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${af.setor.value || 'Selecionar Setor...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>${af.setor.value ? `<div class="flex flex-col gap-2 mt-4 ml-2 border-l-2 border-slate-100 pl-4"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('cidade')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Cidade</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.cidade.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.cidade.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.cidade.enabled ? `<button onclick="window.openDistinctPicker('cidade')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('cidade') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${af.cidade.value || 'Selecionar Cidade...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div>` : ''}` : ''}</div>` : ''}` : ''}</div><div class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('location')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Localidade</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.location.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.location.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.location.enabled ? `<button onclick="window.openSelectPicker('locations', 'Local', 'adv_location')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('location') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${state.locations.find((l)=>l.id===af.location.id)?.localidade || 'Selecionar Localidade...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('attendant')"><label class="text-[10px] font-black text-slate-400 uppercase ml-1 block uppercase tracking-widest">Filtrar por Atendente</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.attendant.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.attendant.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.attendant.enabled ? `<button onclick="window.openSelectPicker('attendants', 'Atendente', 'adv_attendant')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('attendant') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${state.attendants.find((a)=>a.id===af.attendant.id)?.name || 'Selecionar Atendente...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('period')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Período</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.period.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.period.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.period.enabled ? `<div class="flex flex-col gap-2"><div class="grid grid-cols-2 gap-2"><button onclick="window.openDateRangePicker('start')" class="relative flex items-center justify-center py-2.5 px-4 bg-slate-50 border ${errs.includes('period') && !af.period.start ? 'border-red-500 bg-red-50' : 'border-slate-100'} rounded-2xl text-xs font-bold text-navy transition-colors"><span class="absolute left-3 text-[9px] text-slate-400 uppercase">Início</span><span class="truncate">${af.period.start ? formatDate(af.period.start) : 'Data...'}</span></button><button onclick="window.openDateRangePicker('end')" class="relative flex items-center justify-center py-2.5 px-4 bg-slate-50 border ${errs.includes('period') && !af.period.end ? 'border-red-500 bg-red-50' : 'border-slate-100'} rounded-2xl text-xs font-bold text-navy transition-colors"><span class="absolute left-3 text-[9px] text-slate-400 uppercase">Fim</span><span class="truncate">${af.period.end ? formatDate(af.period.end) : 'Data...'}</span></button></div><div class="grid grid-cols-2 gap-2"><button onclick="state.viewDate = (state.advancedFilter.period.start ? new Date(state.advancedFilter.period.start + 'T00:00:00') : new Date()); window.openMonthPicker('adv_period')" class="w-full flex justify-between items-center py-2.5 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-navy"><span class="text-navy uppercase">${selMonthLabel}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button><button onclick="window.openYearPicker('adv_period')" class="w-full flex justify-between items-center py-2.5 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-navy"><span class="text-navy uppercase">${selYearLabel}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button></div></div>` : ''}</div></div><div class="p-6 border-t border-slate-50 flex gap-3"><button onclick="window.clearAdvancedFilters()" class="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 text-[11px] uppercase tracking-widest active:scale-95 transition-all"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Limpar Filtro</button><button onclick="window.applyAdvancedFilters()" class="flex-1 bg-navy text-white py-2.5 rounded-xl font-black flex items-center justify-center gap-2 shadow-lg shadow-navy/20 text-[11px] uppercase tracking-widest active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
+            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-center gap-2 text-navy"><i data-lucide="sliders-horizontal" class="w-5 h-5"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtros Avançados</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div id="adv-filter-scroll-container" class="p-6 flex flex-col gap-5 overflow-y-auto scrollbar-none"><div id="adv-sec-eventos" class="flex flex-col gap-3"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('eventos')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status dos Eventos</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.eventos.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.eventos.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.eventos.enabled ? `<div class="flex bg-slate-100 p-1 rounded-xl"><button onclick="window.setAdvFilterStatus('ativos'); window.renderAdvancedFilterModal();" class="flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${af.eventos.status === 'ativos' ? 'bg-white text-navy shadow-sm' : 'text-slate-400'}">ATIVOS</button><button onclick="window.setAdvFilterStatus('passados'); window.renderAdvancedFilterModal();" class="flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${af.eventos.status === 'passados' ? 'bg-white text-navy shadow-sm' : 'text-slate-400'}">INATIVOS</button></div>` : ''}</div><div id="adv-sec-type" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('type')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Tipo</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.type.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.type.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.type.enabled ? `<button onclick="window.openSelectPicker('types', 'Tipo', 'adv_type')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('type') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span class="truncate">${state.types.find((t)=>t.id===af.type.id)?.name || 'Selecionar Tipo...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div id="adv-sec-adm" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('adm')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por ADM</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.adm.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.adm.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.adm.enabled ? `<button onclick="window.openDistinctPicker('adm')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('adm') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors mb-2"><span>${af.adm.value || 'Selecionar ADM...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>${af.adm.value ? `<div id="adv-sec-setor" class="flex flex-col gap-2 mt-2 ml-2 border-l-2 border-slate-100 pl-4"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('setor')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Setor</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.setor.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.setor.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.setor.enabled ? `<button onclick="window.openDistinctPicker('setor')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('setor') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${af.setor.value || 'Selecionar Setor...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>${af.setor.value ? `<div id="adv-sec-cidade" class="flex flex-col gap-2 mt-4 ml-2 border-l-2 border-slate-100 pl-4"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('cidade')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Cidade</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.cidade.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.cidade.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.cidade.enabled ? `<button onclick="window.openDistinctPicker('cidade')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('cidade') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${af.cidade.value || 'Selecionar Cidade...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div>` : ''}` : ''}</div>` : ''}` : ''}</div><div id="adv-sec-location" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('location')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Localidade</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.location.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.location.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.location.enabled ? `<button onclick="window.openSelectPicker('locations', 'Local', 'adv_location')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('location') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${state.locations.find((l)=>l.id===af.location.id)?.localidade || 'Selecionar Localidade...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div id="adv-sec-attendant" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('attendant')"><label class="text-[10px] font-black text-slate-400 uppercase ml-1 block uppercase tracking-widest">Filtrar por Atendente</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.attendant.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.attendant.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.attendant.enabled ? `<button onclick="window.openSelectPicker('attendants', 'Atendente', 'adv_attendant')" class="w-full flex justify-between items-center py-2.5 px-4 ${errs.includes('attendant') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} border rounded-2xl text-xs font-bold text-navy transition-colors"><span>${state.attendants.find((a)=>a.id===af.attendant.id)?.name || 'Selecionar Atendente...'}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button>` : ''}</div><div id="adv-sec-period" class="flex flex-col gap-2"><div class="flex justify-between items-center" onclick="window.toggleAdvFilterSection('period')"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar por Período</label><div class="w-10 h-5 bg-slate-100 rounded-full relative transition-colors ${af.period.enabled ? 'bg-orange-custom/20' : ''}"><div class="absolute top-1 left-1 w-3 h-3 rounded-full transition-all ${af.period.enabled ? 'left-6 bg-orange-custom' : 'bg-slate-300'}"></div></div></div>${af.period.enabled ? `<div class="flex flex-col gap-2"><div class="grid grid-cols-2 gap-2"><button onclick="window.openDateRangePicker('start')" class="relative flex items-center justify-center py-2.5 px-4 bg-slate-50 border ${errs.includes('period') && !af.period.start ? 'border-red-500 bg-red-50' : 'border-slate-100'} rounded-2xl text-xs font-bold text-navy transition-colors"><span class="absolute left-3 text-[9px] text-slate-400 uppercase">Início</span><span class="truncate">${af.period.start ? formatDate(af.period.start) : 'Data...'}</span></button><button onclick="window.openDateRangePicker('end')" class="relative flex items-center justify-center py-2.5 px-4 bg-slate-50 border ${errs.includes('period') && !af.period.end ? 'border-red-500 bg-red-50' : 'border-slate-100'} rounded-2xl text-xs font-bold text-navy transition-colors"><span class="absolute left-3 text-[9px] text-slate-400 uppercase">Fim</span><span class="truncate">${af.period.end ? formatDate(af.period.end) : 'Data...'}</span></button></div><div class="grid grid-cols-2 gap-2"><button onclick="state.viewDate = (state.advancedFilter.period.start ? new Date(state.advancedFilter.period.start + 'T00:00:00') : new Date()); window.openMonthPicker('adv_period')" class="w-full flex justify-between items-center py-2.5 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-navy"><span class="text-navy uppercase">${selMonthLabel}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button><button onclick="window.openYearPicker('adv_period')" class="w-full flex justify-between items-center py-2.5 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-navy"><span class="text-navy uppercase">${selYearLabel}</span><i data-lucide="chevron-down" class="w-4 h-4 opacity-30"></i></button></div></div>` : ''}</div></div><div class="p-6 border-t border-slate-50 flex gap-3"><button onclick="window.clearAdvancedFilters()" class="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 text-[11px] uppercase tracking-widest active:scale-95 transition-all"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Limpar Filtro</button><button onclick="window.applyAdvancedFilters()" class="flex-1 bg-navy text-white py-2.5 rounded-xl font-black flex items-center justify-center gap-2 shadow-lg shadow-navy/20 text-[11px] uppercase tracking-widest active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
         }
 
         function openDistinctPicker(f) {
@@ -1181,7 +1181,6 @@
             
             if (coll === 'feriados') window.__feriado_modal_cache = { safeId, item };
             
-            // Layout especializado para PERFIS (Gestão de Usuários)
             if (coll === 'perfis') {
                 showModal(`
                     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -1208,7 +1207,7 @@
 
                             <div class="flex flex-col gap-1">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Nível de Permissão</label>
-                                <select id="user-permission" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10 appearance-none bg-white">
+                                <select id="user-permission" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy appearance-none bg-white">
                                     <option value="leitura" ${item.permissao === 'leitura' ? 'selected' : ''}>Somente Leitura</option>
                                     <option value="admin" ${item.permissao === 'admin' ? 'selected' : ''}>Administrador</option>
                                 </select>
@@ -1222,7 +1221,7 @@
                 return;
             }
 
-            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"><div class="p-4 bg-slate-50 border-b flex justify-between items-center"><h3 class="font-black text-navy text-xs uppercase tracking-widest">${isE ? 'Editar' : 'Novo'} ${ctx.title}</h3><button onclick="window.closeModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${coll === 'locations' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">ADM</label><input id="loc-adm" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.adm || ''}" placeholder="Nome do ADM"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Setor</label><input id="loc-setor" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.setor || ''}" placeholder="Número/Nome do Setor"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Cidade</label><input id="loc-cidade" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.cidade || ''}" placeholder="Ex: Valente"></div>` : ''}${coll === 'feriados' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data do Feriado</label><button id="feriado-btn" onclick="window.openFeriadoDatePicker()" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-slate-50 text-left flex justify-between items-center transition-colors"><span id="feriado-date-display">${item.data ? formatDateFull(item.data) : 'Selecionar Data...'}</span><i data-lucide="calendar" class="w-4 h-4 opacity-40"></i><input type="hidden" id="feriado-date-val" value="${item.data || ''}"></button></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Feriado</label><input id="feriado-tipo" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.tipo_feriado || ''}" placeholder="Ex: Nacional, Municipal..."></div>` : ''}<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10 transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>${coll === 'types' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Sigla (EVT)</label><input id="row-extra" type="text" maxlength="5" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-black text-navy uppercase" value="${item.sigla || ''}"></div>` : ''}${coll === 'attendants' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Ministério</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.ministerio || ''}" placeholder="Ex: Louvor"></div>` : ''}<button onclick="window.saveRow('${coll}', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR REGISTRO ${!navigator.onLine ? '(OFFLINE)' : ''}</button></div></div>`);
+            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"><div class="p-4 bg-slate-50 border-b flex justify-between items-center"><h3 class="font-black text-navy text-xs uppercase tracking-widest">${isE ? 'Editar' : 'Novo'} ${ctx.title}</h3><button onclick="window.closeModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${coll === 'locations' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">ADM</label><input id="loc-adm" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.adm || ''}" placeholder="Nome do ADM"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Setor</label><input id="loc-setor" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.setor || ''}" placeholder="Número/Nome do Setor"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Cidade</label><input id="loc-cidade" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.cidade || ''}" placeholder="Ex: Valente"></div>` : ''}${coll === 'feriados' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data do Feriado</label><button id="feriado-btn" onclick="window.openFeriadoDatePicker()" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-slate-50 text-left flex justify-between items-center transition-colors"><span id="feriado-date-display">${item.data ? formatDateFull(item.data) : 'Selecionar Data...'}</span><i data-lucide="calendar" class="w-4 h-4 opacity-40"></i><input type="hidden" id="feriado-date-val" value="${item.data || ''}"></button></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Feriado</label><input id="feriado-tipo" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.tipo_feriado || ''}" placeholder="Ex: Nacional, Municipal..."></div>` : ''}<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>${coll === 'types' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Sigla (EVT)</label><input id="row-extra" type="text" maxlength="5" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-black text-navy uppercase" value="${item.sigla || ''}"></div>` : ''}${coll === 'attendants' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Ministério</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.ministerio || ''}" placeholder="Ex: Louvor"></div>` : ''}<button onclick="window.saveRow('${coll}', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR REGISTRO ${!navigator.onLine ? '(OFFLINE)' : ''}</button></div></div>`);
         }
 
         async function saveRow(coll, id) {
@@ -1233,7 +1232,7 @@
             const dateBtn = document.getElementById('feriado-btn');
 
             let hasError = false;
-            if (coll !== 'perfis') { // Perfis não permite mudar nome no modal edit
+            if (coll !== 'perfis') { 
                 if (!name) { nameEl?.classList.add('input-error'); hasError = true; } else { nameEl?.classList.remove('input-error'); }
             }
             if (coll === 'feriados' && !dateVal) { dateBtn?.classList.add('input-error'); hasError = true; } else { dateBtn?.classList.remove('input-error'); }
@@ -1249,7 +1248,6 @@
                 p.permissao = document.getElementById('user-permission')?.value; 
             }
             
-            // Verificação de duplicados (apenas para novas inserções ou mudança de nome em tabelas comuns)
             if (coll !== 'perfis' && coll !== 'agenda') {
                 let ext = null;
                 if (coll === 'types') {
@@ -1406,22 +1404,32 @@
             return sorted.map((i) => {
                 const name = (coll === 'locations' ? i.localidade : (coll === 'perfis' ? i.nome : i.name)) || '';
                 const isS = isA ? state.advancedFilter?.[tar]?.id === i.id : state[prop] === i.id;
-                return `<button onclick="${isA ? `window.state.advancedFilter.${tar}.id = '${i.id}'; window.state.advancedFilter.validationErrors = window.state.advancedFilter.validationErrors.filter(e => e !== '${tar}'); window.renderAdvancedFilterModal();` : `window.state.${prop} = '${i.id}'; window.state.formErrors = window.state.formErrors.filter(e => !'${prop}'.includes(e)); window.closeModal();`}" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><div class="flex flex-col min-w-0 flex-1"><span class="group-hover:text-navy transition-colors font-bold text-sm leading-tight">${name}</span></div>${isS ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0 ml-2"></i>' : ''}</button>`;
+                return `<button onclick="${isA ? `window.state.advancedFilter.${tar}.id = '${i.id}'; window.state.advancedFilter.validationErrors = window.state.advancedFilter.validationErrors.filter(e => e !== '${tar}'); window.renderAdvancedFilterModal(); window.scrollToAdvSection('${tar}');` : `window.state.${prop} = '${i.id}'; window.state.formErrors = window.state.formErrors.filter(e => !'${prop}'.includes(e)); window.closeModal();`}" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><div class="flex flex-col min-w-0 flex-1"><span class="group-hover:text-navy transition-colors font-bold text-sm leading-tight">${name}</span></div>${isS ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0 ml-2"></i>' : ''}</button>`;
             }).join('');
         }
 
         async function refreshAllData() {
             if (!state.isAuthorized || !navigator.onLine) return;
-            const tables = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'agenda': 'events', 'feriados': 'feriados', 'perfis': 'perfis' };
-            for (const [table, key] of Object.entries(tables)) {
-                try {
-                    const { data } = await supabaseClient.from(table).select('*');
-                    if (data) {
+            const tables = { 
+                'types': 'types', 
+                'locations': 'locations', 
+                'attendants': 'attendants', 
+                'agenda': 'events', 
+                'feriados': 'feriados', 
+                'perfis': 'perfis' 
+            };
+            
+            // Passo 1: Carregamento paralelo das tabelas
+            try {
+                const promises = Object.entries(tables).map(async ([table, key]) => {
+                    const { data, error } = await supabaseClient.from(table).select('*');
+                    if (!error && data) {
                         state[key] = data;
                         localStorage.setItem(`cache_${table}`, JSON.stringify(data));
                     }
-                } catch(e) {}
-            }
+                });
+                await Promise.all(promises);
+            } catch(e) {}
         }
 
         function showConnStatus(status) {
@@ -1437,6 +1445,7 @@
             renderApp, scheduleRender, navigateTo, openMenu, closeMenu, closeModal, showModal,
             handleLogout: () => { 
                 state.isLoading = true;
+                cleanupListeners();
                 localStorage.clear();
                 sessionStorage.clear();
                 supabaseClient.auth.signOut().then(() => {
@@ -1451,7 +1460,7 @@
             selectYear: (y, m) => { const d = new Date(state.viewDate); d.setFullYear(y); state.viewDate = d; if (m === 'adv_period') { state.advancedFilter.period.start = `${y}-01-01`; state.advancedFilter.period.end = `${y}-12-31`; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); } else { if (m === 'filter') state.selectedDate = `${y}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; renderCalendar(m); } },
             openMonthPicker: (m) => { const names = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"]; const year = state.viewDate.getFullYear(); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button><div class="flex items-center justify-center gap-3 w-full mb-6"><button onclick="window.changePickerYear(-1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-left" class="w-6 h-6"></i></button><span class="text-sm font-black text-navy uppercase tracking-widest">${year}</span><button onclick="window.changePickerYear(1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-right" class="w-6 h-6"></i></button></div><div class="grid grid-cols-3 gap-3 w-full">${names.map((n, i) => `<button onclick="window.selectMonth(${i}, '${m}')" class="py-4 text-[11px] font-black rounded-xl border transition-all ${state.viewDate.getMonth() === i ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${n.slice(0, 3)}</button>`).join('')}</div></div>`); },
             openYearPicker: (m) => { const currentYear = new Date().getFullYear(); const selectedYear = (m === 'adv_period' && state.advancedFilter.period.start) ? new Date(state.advancedFilter.period.start + 'T00:00:00').getFullYear() : currentYear; state.viewDate = new Date(selectedYear, 0, 1); const years = []; for(let i = currentYear - 30; i < currentYear + 30; i++) years.push(i); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button><div class="flex items-center justify-center w-full mb-6"><span class="text-sm font-black text-navy uppercase tracking-widest">ANO</span></div><div id="year-scroll-container" class="grid grid-cols-3 gap-3 w-full max-h-[224px] overflow-y-auto scrollbar-none py-2">${years.map(y => `<button id="year-btn-${y}" onclick="window.selectYear(${y}, '${m}')" class="py-4 text-xs font-black rounded-xl border transition-all ${y === selectedYear ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${y}</button>`).join('')}</div></div>`); setTimeout(() => { const btn = document.getElementById(`year-btn-${selectedYear}`); if (btn) btn.scrollIntoView({ block: 'center' }); }, 10); },
-            selectCalendarDate: (d, m = 'filter') => { if (m === 'filter') { state.selectedDate = d; renderCalendar('filter'); } else if (m === 'picker') { state.formTempDate = d; state.formErrors = state.formErrors.filter(e => e !== 'date'); closeModal(); } else if (m === 'adv_start' || m === 'adv_end') { state.advancedFilter.period[m === 'adv_start' ? 'start' : 'end'] = d; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); } else if (m === 'feriado_picker') { const c = window.__feriado_modal_cache; window.openRowModal('feriados', c.safeId, { ...c.item, data: d }); } },
+            selectCalendarDate: (d, m = 'filter') => { if (m === 'filter') { state.selectedDate = d; renderCalendar('filter'); } else if (m === 'picker') { state.formTempDate = d; state.formErrors = state.formErrors.filter(e => e !== 'date'); closeModal(); } else if (m === 'adv_start' || m === 'adv_end') { state.advancedFilter.period[m === 'adv_start' ? 'start' : 'end'] = d; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); window.scrollToAdvSection('period'); } else if (m === 'feriado_picker') { const c = window.__feriado_modal_cache; window.openRowModal('feriados', c.safeId, { ...c.item, data: d }); } },
             applyCalendarAndClose: () => { state.fastFilter = { active: false }; state.advancedFilter.active = false; window.updateHomeList(); closeModal(); },
             openFormDate: () => { state.viewDate = new Date((state.formTempDate || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar('picker'); },
             openFeriadoDatePicker: () => { state.viewDate = new Date((document.getElementById('feriado-date-val')?.value || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar('feriado_picker'); },
@@ -1460,8 +1469,8 @@
             openFastFilterModal: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; state.ffTemp.baseDates = { today: new Date(), week: new Date(), month: new Date(), year: new Date() }; renderFastFilterUI(); },
             shiftFF: (t, o) => { const d = new Date(state.ffTemp.baseDates[t]); if (t === 'today') d.setDate(d.getDate() + o); else if (t === 'week') d.setDate(d.getDate() + (o * 7)); else if (t === 'month') d.setMonth(d.getMonth() + o); else if (t === 'year') d.setFullYear(d.getFullYear() + o); state.ffTemp.baseDates[t] = d; state.ffTemp.selected = t; renderFastFilterUI(); },
             applyNewFastFilter: () => { const b = new Date(state.ffTemp.baseDates[state.ffTemp.selected]); let st = '', en = '', la = ''; const f = (d) => d.toISOString().split('T')[0]; const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; if (state.ffTemp.selected === 'today') { st = en = f(b); let w = b.toLocaleDateString('pt-BR', { weekday: 'long' }); la = `${w.charAt(0).toUpperCase() + w.slice(1)}, dia ${fBR(b)}`; } else if (state.ffTemp.selected === 'week') { const d1 = new Date(b); d1.setDate(b.getDate() - b.getDay()); const d2 = new Date(d1); d2.setDate(d1.getDate() + 6); st = f(d1); en = f(d2); la = `Semana ${fBR(d1)} a ${fBR(d2)}`; } else if (state.ffTemp.selected === 'month') { const d1 = new Date(b.getFullYear(), b.getMonth(), 1); const d2 = new Date(b.getFullYear(), b.getMonth() + 1, 0); st = f(d1); en = f(d2); la = `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][b.getMonth()]} / ${b.getFullYear()}`; } else if (state.ffTemp.selected === 'year') { st = `${b.getFullYear()}-01-01`; en = `${b.getFullYear()}-12-31`; la = `Ano de ${b.getFullYear()}`; } state.selectedDate = null; state.advancedFilter.active = false; state.fastFilter = { active: true, dateStart: st, dateEnd: en, label: la }; closeModal(); window.updateHomeList(); },
-            toggleAdvFilterSection: (sec) => { const af = state.advancedFilter; af[sec].enabled = !af[sec].enabled; af.validationErrors = af.validationErrors.filter(e => e !== sec); if (sec === 'adm' && !af.adm.enabled) { af.adm.value = ''; af.setor.enabled = false; af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'setor' && !af.setor.enabled) { af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'cidade' && !af.cidade.enabled) { af.cidade.value = ''; af.location.id = ''; } window.renderAdvancedFilterModal(); },
-            handleAdvFilterSelect: (f, v) => { const af = state.advancedFilter; af[f].value = v; af.validationErrors = af.validationErrors.filter(e => e !== f); if (f === 'adm') { af.setor.value = ''; af.cidade.value = ''; af.location.id = ''; } else if (f === 'setor') { af.cidade.value = ''; af.location.id = ''; } else if (f === 'cidade') af.location.id = ''; window.renderAdvancedFilterModal(); },
+            toggleAdvFilterSection: (sec) => { const af = state.advancedFilter; af[sec].enabled = !af[sec].enabled; af.validationErrors = af.validationErrors.filter(e => e !== sec); if (sec === 'adm' && !af.adm.enabled) { af.adm.value = ''; af.setor.enabled = false; af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'setor' && !af.setor.enabled) { af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'cidade' && !af.cidade.enabled) { af.cidade.value = ''; af.location.id = ''; } window.renderAdvancedFilterModal(); if (af[sec].enabled) window.scrollToAdvSection(sec); },
+            handleAdvFilterSelect: (f, v) => { const af = state.advancedFilter; af[f].value = v; af.validationErrors = af.validationErrors.filter(e => e !== f); if (f === 'adm') { af.setor.value = ''; af.cidade.value = ''; af.location.id = ''; } else if (f === 'setor') { af.cidade.value = ''; af.location.id = ''; } else if (f === 'cidade') af.location.id = ''; window.renderAdvancedFilterModal(); window.scrollToAdvSection(f); },
             setAdvFilterStatus: (s) => { state.advancedFilter.eventos.status = s; },
             clearAdvancedFilters: () => { state.advancedFilter = { active: false, eventos: { enabled: false, status: 'ativos' }, type: { enabled: false, id: '' }, location: { enabled: false, id: '' }, attendant: { enabled: false, id: '' }, adm: { enabled: false, value: '' }, setor: { enabled: false, value: '' }, cidade: { enabled: false, value: '' }, period: { enabled: false, start: '', end: '' }, validationErrors: [] }; window.updateHomeList(); window.renderAdvancedFilterModal(); },
             applyAdvancedFilters: () => { const af = state.advancedFilter; const errs = []; if (af.type.enabled && !af.type.id) errs.push('type'); if (af.location.enabled && !af.location.id) errs.push('location'); if (af.attendant.enabled && !af.attendant.id) errs.push('attendant'); if (af.adm.enabled && !af.adm.value) errs.push('adm'); if (af.setor.enabled && !af.setor.value) errs.push('setor'); if (af.cidade.enabled && !af.cidade.value) errs.push('cidade'); if (af.period.enabled && (!af.period.start || !af.period.end)) errs.push('period'); if (errs.length > 0) { state.advancedFilter.validationErrors = errs; window.renderAdvancedFilterModal(); return; } state.selectedDate = null; state.fastFilter.active = false; state.advancedFilter.active = true; state.advancedFilter.validationErrors = []; closeModal(); window.updateHomeList(); },
@@ -1525,15 +1534,12 @@
             confirmInstall: async () => {
                 const promptEvent = window.deferredPrompt;
                 if (promptEvent) {
-                    // Trigger the native prompt first to avoid potential focus issues
                     await promptEvent.prompt();
                     const { outcome } = await promptEvent.userChoice;
                     
                     if (outcome === 'accepted') {
-                        // User clicked install, now show our status modal
                         window.showInstallingStatusModal();
                     } else {
-                        // User rejected native prompt
                         closeModal();
                     }
                     window.deferredPrompt = null;
@@ -1548,11 +1554,16 @@
                     document.body.innerHTML = "";
                     window.location.href = "about:blank";
                 }, 100);
+            },
+            scrollToAdvSection: (sec) => {
+                setTimeout(() => {
+                    const el = document.getElementById(`adv-sec-${sec}`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 50);
             }
         });
 
        async function init() {
-            // 1. Carregar cache local IMEDIATAMENTE (Sincronamente antes de qualquer rede)
             const tablesToCache = ['types', 'locations', 'attendants', 'agenda', 'feriados', 'perfis'];
             let hasInitialData = false;
             tablesToCache.forEach(table => { 
@@ -1564,25 +1575,21 @@
                 } 
             });
 
-            // 2. Tentar recuperar sessão local e snapshot de autorização
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
                 state.user = session.user;
                 const isMasterAdmin = session.user.email?.toLowerCase() === (ADMIN_EMAIL || '').toLowerCase();
                 
-                // Se já temos um snapshot de autorização no cache, usamos ele para o primeiro render
                 const cachedProfile = getCachedProfile();
                 if (isMasterAdmin || cachedProfile.isAuthorized) {
                     state.isAdmin = isMasterAdmin || cachedProfile.isAdmin;
                     state.isAuthorized = isMasterAdmin || cachedProfile.isAuthorized;
                 }
 
-                // Se temos autorização (via cache ou master) E temos dados, liberamos o UI agora
                 if (state.isAuthorized && hasInitialData) {
                     state.isLoading = false;
                 }
 
-                // 3. Revalidação em Background (apenas se online)
                 if (navigator.onLine) {
                     try {
                         const { data: profile, error } = await supabaseClient.from('perfis').select('permissao, autorizado').eq('id', session.user.id).single();
@@ -1595,17 +1602,13 @@
                                 isAuthorized: state.isAuthorized
                             }));
                         }
-                    } catch (e) {
-                        console.error("Erro na revalidação silenciosa. Mantendo estado cacheado.");
-                    }
+                    } catch (e) { }
                     if (state.isAuthorized) await refreshAllData();
                 }
             }
             
-            // Força saída do loading se nada aconteceu
             state.isLoading = false;
 
-            // 4. Gestão de Histórico e Eventos
             window.history.replaceState({ screen: 'home' }, "");
             window.addEventListener('popstate', (event) => {
                 if (state.isMenuOpen) { state.isMenuOpen = false; return; }
@@ -1627,6 +1630,7 @@
 
             supabaseClient.auth.onAuthStateChange(async (event, session) => { 
                 if (event === 'SIGNED_OUT' || !session) {
+                    cleanupListeners();
                     state.user = null; state.isAuthorized = false; state.isAdmin = false; state.currentScreen = 'home';
                     localStorage.removeItem(USER_PROFILE_CACHE_KEY); scheduleRender(); return;
                 }
@@ -1645,75 +1649,28 @@
                     } catch (e) {}
                 }
                 
-                if (state.isAuthorized) await refreshAllData();
+                if (state.isAuthorized) {
+                    await refreshAllData();
+                    cleanupListeners();
+                    setupListener('types', 'types'); 
+                    setupListener('locations', 'locations'); 
+                    setupListener('attendants', 'attendants'); 
+                    setupListener('agenda', 'events'); 
+                    setupListener('feriados', 'feriados'); 
+                    setupListener('perfis', 'perfis');
+                }
                 if (event === 'SIGNED_IN') closeModal(); 
                 scheduleRender(); 
             });
 
-            /**
-             * MONITORAÇÃO REALTIME (Requisito 4, 5, 6)
-             */
-            const setupListener = (table, stateKey) => {
-                supabaseClient.channel(`public:${table}`)
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, (payload) => {
-                        const current = [...(state[stateKey] || [])];
-                        if (!current.find(item => String(item.id) === String(payload.new.id))) {
-                            state[stateKey] = [...current, payload.new];
-                            localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
-                            
-                            // Gatilho UI em Tempo Real
-                            if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
-                            const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'users' };
-                            if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
-                        }
-                    })
-                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, async (payload) => {
-                        const current = [...(state[stateKey] || [])];
-                        state[stateKey] = current.map(item => String(item.id) === String(payload.new.id) ? payload.new : item);
-                        localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
-                        
-                        // Gatilho UI em Tempo Real
-                        if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
-                        const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'users' };
-                        if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
-
-                        // Reação Imediata a Mudanças de Autorização e Permissão (Requisitos 5 e 6)
-                        if (table === 'perfis' && state.user && payload.new.id === state.user.id) {
-                            const isMasterAdmin = (state.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase());
-                            const wasAuthorized = state.isAuthorized;
-                            
-                            state.isAdmin = isMasterAdmin || (payload.new.permissao === 'admin');
-                            state.isAuthorized = isMasterAdmin || (payload.new.autorizado === true);
-                            
-                            localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify({ 
-                                isAdmin: state.isAdmin, 
-                                isAuthorized: state.isAuthorized 
-                            }));
-
-                            // Se foi autorizado agora, carrega os dados
-                            if (state.isAuthorized && !wasAuthorized) await refreshAllData();
-                        }
-                    })
-                    .on('postgres_changes', { event: 'DELETE', schema: 'public', table }, (payload) => {
-                        const current = [...(state[stateKey] || [])];
-                        state[stateKey] = current.filter(item => String(item.id) !== String(payload.old.id));
-                        localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
-                        
-                        // Gatilho UI em Tempo Real
-                        if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
-                        const screenMap = { 'types':'types', 'locations':'locations', 'attendants':'attendants', 'feriados':'feriados', 'perfis':'users' };
-                        if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
-                    })
-                    .subscribe();
-            };
-
-            // Ativa ouvintes em todas as tabelas administrativas e de dados
-            setupListener('types', 'types'); 
-            setupListener('locations', 'locations'); 
-            setupListener('attendants', 'attendants'); 
-            setupListener('agenda', 'events'); 
-            setupListener('feriados', 'feriados'); 
-            setupListener('perfis', 'perfis');
+            if (state.isAuthorized) {
+                setupListener('types', 'types'); 
+                setupListener('locations', 'locations'); 
+                setupListener('attendants', 'attendants'); 
+                setupListener('agenda', 'events'); 
+                setupListener('feriados', 'feriados'); 
+                setupListener('perfis', 'perfis');
+            }
 
             loadExternalHolidays(new Date().getFullYear());
         }
