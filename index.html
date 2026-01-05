@@ -508,23 +508,43 @@
             }
 
             try {
-                // Adicionando timeout manual para evitar travamentos silenciosos
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout de conexão")), 10000));
+                console.log("[smartSave] Entrou no bloco TRY. Verificando navigator.onLine:", navigator.onLine);
+
+                // Timeout manual (reduzi para 7s para ser mais ágil no fallback)
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 7000));
 
                 if (action === 'UPDATE' && originalSnapshot) {
                     console.log("[smartSave] Verificando conflitos no servidor...");
                     const fetchPromise = supabaseClient.from(table).select('*').eq('id', id).single();
-                    const { data: serverRecord, error: fetchError } = await Promise.race([fetchPromise, timeoutPromise]);
+                    let serverRecord, fetchError;
+
+                    try {
+                        console.log("[smartSave] Iniciando Promise.race para conflito...");
+                        const resConf = await Promise.race([fetchPromise, timeoutPromise]);
+                        console.log("[smartSave] ResConf recebido.");
+                        serverRecord = resConf.data;
+                        fetchError = resConf.error;
+                    } catch (e) {
+                        console.warn("[smartSave] Timeout ou Erro no check de conflito. Entrando em modo offline forçado:", e.message);
+                        throw new Error("FALLBACK_OFFLINE");
+                    }
 
                     if (fetchError && (fetchError.code === 'PGRST301' || fetchError.message.includes('JWT') || fetchError.status === 401)) {
-                        console.error("[smartSave] Erro de autenticação no check de conflito:", fetchError);
+                        console.error("[smartSave] Erro de autenticação detectado:", fetchError);
                         if (attempt < 2) {
+                            console.log("[smartSave] Tentando refreshSession por erro de auth...");
                             const { error: refreshError } = await supabaseClient.auth.refreshSession();
-                            if (!refreshError) return window.smartSave(table, action, data, id, attempt + 1);
+                            if (!refreshError) {
+                                console.log("[smartSave] Refresh bem-sucedido. Retentando smartSave...");
+                                return window.smartSave(table, action, data, id, attempt + 1);
+                            }
+                            console.error("[smartSave] Falha no refreshSession:", refreshError);
                         }
+                        console.log("[smartSave] Forçando logout por falha de sessão.");
                         window.handleLogout();
                         return { success: false, error: "Sessão expirada. Faça login novamente." };
                     }
+
                     if (!serverRecord || JSON.stringify(serverRecord) !== JSON.stringify(originalSnapshot)) {
                         console.warn("[smartSave] Conflito detectado.");
                         showConflictModal({ table, action, data, id, timestamp: Date.now(), originalSnapshot }, serverRecord);
@@ -532,17 +552,26 @@
                     }
                 }
 
-                console.log(`[smartSave] Executando requisição Supabase: ${action}`);
+                console.log(`[smartSave] Executando requisição Supabase (${action}) para a tabela ${table}...`);
                 let opPromise;
                 if (action === 'INSERT') opPromise = supabaseClient.from(table).insert(data).select().single();
-                if (action === 'UPDATE') opPromise = supabaseClient.from(table).update(data).eq('id', id).select().single();
-                if (action === 'DELETE') opPromise = supabaseClient.from(table).delete().eq('id', id);
+                else if (action === 'UPDATE') opPromise = supabaseClient.from(table).update(data).eq('id', id).select().single();
+                else if (action === 'DELETE') opPromise = supabaseClient.from(table).delete().eq('id', id);
 
-                const res = await Promise.race([opPromise, timeoutPromise]);
+                let res;
+                try {
+                    console.log("[smartSave] Iniciando Promise.race para operação principal...");
+                    res = await Promise.race([opPromise, timeoutPromise]);
+                    console.log("[smartSave] Operação principal concluída.");
+                } catch (e) {
+                    console.warn("[smartSave] Timeout na operação principal. Entrando em modo offline forçado.");
+                    throw new Error("FALLBACK_OFFLINE");
+                }
 
                 if (res && res.error) {
-                    console.error("[smartSave] Erro retornado pelo Supabase:", res.error);
+                    console.error("[smartSave] Erro no resultado do Supabase:", res.error);
                     if (attempt < 2 && (res.error.code === 'PGRST301' || res.error.message.includes('JWT') || res.error.status === 401)) {
+                        console.log("[smartSave] Tentando refreshSession após erro na operação...");
                         const { error: refreshError } = await supabaseClient.auth.refreshSession();
                         if (!refreshError) return window.smartSave(table, action, data, id, attempt + 1);
                     }
@@ -553,7 +582,7 @@
                     throw res.error;
                 }
 
-                console.log("[smartSave] Sucesso! Atualizando estado local.");
+                console.log("[smartSave] Sucesso online! Atualizando estado local.");
                 const newVal = res.data;
                 let currentList = [...(state[stateKey] || [])];
 
@@ -575,7 +604,26 @@
 
                 return { success: true, offline: false };
             } catch (err) {
-                console.error("[smartSave] Exceção capturada:", err);
+                console.error("[smartSave] Erro FINAL detectado:", err);
+
+                if (err.message === "FALLBACK_OFFLINE" || err.message === "Failed to fetch" || err.name === "TypeError") {
+                    console.info("[smartSave] INFO: Salvando no modo Offline por segurança.");
+                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                    queue.push({ table, action, data, id: finalId, timestamp: Date.now(), originalSnapshot });
+                    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+
+                    let list = [...(state[stateKey] || [])];
+                    if (action === 'INSERT') list.push({ id: tempId, ...data });
+                    else if (action === 'UPDATE') { const idx = list.findIndex(i => String(i.id) === String(id)); if (idx !== -1) list[idx] = { ...list[idx], ...data }; }
+                    else if (action === 'DELETE') list = list.filter(i => String(i.id) !== String(id));
+
+                    state[stateKey] = list;
+                    localStorage.setItem(`cache_${table}`, JSON.stringify(list));
+                    showConnStatus('offline');
+
+                    return { success: true, offline: true, tempId };
+                }
+
                 return { success: false, error: err.message };
             }
         };
