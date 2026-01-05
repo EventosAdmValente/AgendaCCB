@@ -262,7 +262,9 @@
             auth: {
                 persistSession: true,
                 autoRefreshToken: true,
-                detectSessionInUrl: true
+                detectSessionInUrl: true,
+                flowType: 'pkce',
+                storageKey: 'agenda-ccb-auth'
             }
         });
 
@@ -506,11 +508,13 @@
             try {
                 if (action === 'UPDATE' && originalSnapshot) {
                     const { data: serverRecord, error: fetchError } = await supabaseClient.from(table).select('*').eq('id', id).single();
-                    if (fetchError && (fetchError.code === 'PGRST301' || fetchError.message.includes('JWT'))) {
+                    if (fetchError && (fetchError.code === 'PGRST301' || fetchError.message.includes('JWT') || fetchError.status === 401)) {
                         if (attempt < 2) {
-                            await supabaseClient.auth.refreshSession();
-                            return window.smartSave(table, action, data, id, attempt + 1);
+                            const { error: refreshError } = await supabaseClient.auth.refreshSession();
+                            if (!refreshError) return window.smartSave(table, action, data, id, attempt + 1);
                         }
+                        window.handleLogout();
+                        return { success: false, error: "Sessão expirada. Faça login novamente." };
                     }
                     if (!serverRecord || JSON.stringify(serverRecord) !== JSON.stringify(originalSnapshot)) {
                         showConflictModal({ table, action, data, id, timestamp: Date.now(), originalSnapshot }, serverRecord);
@@ -524,12 +528,13 @@
                 if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
 
                 if (res && res.error) {
-                    // Auto-retry on auth errors
                     if (attempt < 2 && (res.error.code === 'PGRST301' || res.error.message.includes('JWT') || res.error.status === 401)) {
                         const { error: refreshError } = await supabaseClient.auth.refreshSession();
-                        if (!refreshError) {
-                            return window.smartSave(table, action, data, id, attempt + 1);
-                        }
+                        if (!refreshError) return window.smartSave(table, action, data, id, attempt + 1);
+                    }
+                    if (res.error.code === 'PGRST301' || res.error.status === 401) {
+                        window.handleLogout();
+                        return { success: false, error: "Sessão expirada. Faça login novamente." };
                     }
                     throw res.error;
                 }
@@ -1930,6 +1935,13 @@
             }
 
             loadExternalHolidays(new Date().getFullYear());
+
+            document.addEventListener('visibilitychange', async () => {
+                if (document.visibilityState === 'visible' && state.user) {
+                    const { data, error } = await supabaseClient.auth.getSession();
+                    if (error || !data.session) window.handleLogout();
+                }
+            });
         }
 
         window.deferredPrompt = null;
