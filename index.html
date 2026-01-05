@@ -579,7 +579,8 @@
             formErrors: [],
             clockMode: 'hour',
             clockTempHour: '08',
-            clockTempMinute: '00'
+            clockTempMinute: '00',
+            originalEventSnapshot: null
         };
 
         const state = new Proxy(INITIAL_STATE, {
@@ -611,7 +612,6 @@
                 return true;
             }
         });
-
         window.state = state;
 
         async function loadExternalHolidays(year) {
@@ -1100,6 +1100,24 @@
             const showCounters = typeName.includes('batismo') || typeName.includes('santa ceia');
             const errs = state.formErrors || [];
 
+            // Dirty Check Logic
+            let hasChanges = false;
+            if (isEditing && state.originalEventSnapshot) {
+                const snap = state.originalEventSnapshot;
+                const currentIrmaos = parseInt(state.formTempIrmaos || '0');
+                const currentIrmas = parseInt(state.formTempIrmas || '0');
+
+                if (state.formTempDate !== snap.date) hasChanges = true;
+                if (state.formTempTime !== snap.time) hasChanges = true;
+                if (String(state.formTempLoc) !== String(snap.location_id)) hasChanges = true;
+                if (String(state.formTempType) !== String(snap.type_id)) hasChanges = true;
+                if (String(state.formTempAtt || '') !== String(snap.attendant_id || '')) hasChanges = true;
+                if (currentIrmaos !== (snap.irmaos || 0)) hasChanges = true;
+                if (currentIrmas !== (snap.irmas || 0)) hasChanges = true;
+            } else if (!isEditing) {
+                hasChanges = true; // New event always has "changes" to save
+            }
+
             app.innerHTML = `
                 <div class="flex flex-col h-full bg-slate-100">
                     <div class="bg-navy text-white p-4 flex items-center gap-3 shadow-lg">
@@ -1139,7 +1157,7 @@
                                 </button>
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Atendente</label>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Atendente <span class="text-slate-300 font-bold normal-case">(opcional)</span></label>
                                 <button onclick="window.openSelectPicker('attendants', 'Atendente', 'formTempAtt')" class="flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
                                     <i data-lucide="users" class="w-4 h-4 opacity-50"></i>
                                     <span>${state.attendants.find((a) => a.id === state.formTempAtt)?.name || 'Selecionar Atendente'}</span>
@@ -1148,15 +1166,26 @@
                             <div class="${showCounters ? '' : 'hidden'} grid grid-cols-2 gap-3 transition-all duration-300">
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Irmãos</label>
-                                    <input id="event-irmaos" type="number" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmaos || ''}" placeholder="0">
+                                    <input id="event-irmaos" type="number" oninput="window.state.formTempIrmaos = this.value" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmaos || ''}" placeholder="0">
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Irmãs</label>
-                                    <input id="event-irmas" type="number" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmas || ''}" placeholder="0">
+                                    <input id="event-irmas" type="number" oninput="window.state.formTempIrmas = this.value" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmas || ''}" placeholder="0">
                                 </div>
                             </div>
-                            <button onclick="window.saveEvent()" class="bg-navy text-white p-4 rounded-xl font-black mt-2 shadow-lg active:scale-[0.98] transition-transform">SALVAR EVENTO ${!navigator.onLine ? '(OFFLINE)' : ''}</button>
-                            ${isEditing ? `<button onclick="window.requestDeleteEvent('${state.editingEventId}')" class="text-red-600 p-3 text-xs font-bold border border-red-100 rounded-lg bg-red-50/30 mt-2 flex items-center justify-center gap-2 active:bg-red-100 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i> Excluir Evento</button>` : ''}
+                            
+                            <div class="flex flex-col gap-2 mt-2">
+                                ${isEditing ? `
+                                    ${hasChanges ? `
+                                        <button onclick="window.saveEvent()" class="bg-navy text-white p-4 rounded-xl font-black shadow-lg active:scale-[0.98] transition-transform uppercase text-xs tracking-widest">SALVAR ALTERAÇÕES ${!navigator.onLine ? '(OFFLINE)' : ''}</button>
+                                    ` : `
+                                        <button onclick="window.navigateTo('home')" class="bg-slate-100 text-slate-500 p-4 rounded-xl font-black shadow-sm active:scale-[0.98] transition-transform uppercase text-xs tracking-widest border border-slate-200">CANCELAR E VOLTAR</button>
+                                    `}
+                                    <button onclick="window.requestDeleteEvent('${state.editingEventId}')" class="text-red-600 p-3 text-xs font-bold border border-red-100 rounded-lg bg-red-50/30 flex items-center justify-center gap-2 active:bg-red-100 transition-colors uppercase tracking-widest"><i data-lucide="trash-2" class="w-4 h-4"></i> Excluir Evento</button>
+                                ` : `
+                                    <button onclick="window.saveEvent()" class="bg-navy text-white p-4 rounded-xl font-black shadow-lg active:scale-[0.98] transition-transform uppercase text-xs tracking-widest">SALVAR EVENTO ${!navigator.onLine ? '(OFFLINE)' : ''}</button>
+                                `}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1636,8 +1665,8 @@
             applyAdvancedFilters: () => { const af = state.advancedFilter; const errs = []; if (af.type.enabled && !af.type.id) errs.push('type'); if (af.location.enabled && !af.location.id) errs.push('location'); if (af.attendant.enabled && !af.attendant.id) errs.push('attendant'); if (af.adm.enabled && !af.adm.value) errs.push('adm'); if (af.setor.enabled && !af.setor.value) errs.push('setor'); if (af.cidade.enabled && !af.cidade.value) errs.push('cidade'); if (af.period.enabled && (!af.period.start || !af.period.end)) errs.push('period'); if (errs.length > 0) { state.advancedFilter.validationErrors = errs; window.renderAdvancedFilterModal(); return; } state.selectedDate = null; state.fastFilter.active = false; state.advancedFilter.active = true; state.advancedFilter.validationErrors = []; closeModal(); window.updateHomeList(); },
             openDateRangePicker: (t) => { state.viewDate = new Date((state.advancedFilter.period[t] || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar(t === 'start' ? 'adv_start' : 'adv_end'); },
             openPDFPreview: () => alert("Exportação em breve."),
-            startCreateEvent: () => { state.editingEventId = null; state.formTempDate = new Date().toISOString().split('T')[0]; state.formTempTime = '08:00'; state.formTempLoc = ''; state.formTempType = ''; state.formTempAtt = ''; state.formTempIrmaos = ''; state.formTempIrmas = ''; state.formErrors = []; navigateTo('event-form'); },
-            openEditEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); if (ev) { state.editingEventId = id; state.formTempDate = ev.date; state.formTempTime = ev.time; state.formTempLoc = ev.location_id; state.formTempType = ev.type_id; state.formTempAtt = ev.attendant_id || ''; state.formTempIrmaos = ev.irmaos || ''; state.formTempIrmas = ev.irmas || ''; state.formErrors = []; navigateTo('event-form'); } },
+            startCreateEvent: () => { state.editingEventId = null; state.formTempDate = new Date().toISOString().split('T')[0]; state.formTempTime = '08:00'; state.formTempLoc = ''; state.formTempType = ''; state.formTempAtt = ''; state.formTempIrmaos = ''; state.formTempIrmas = ''; state.formErrors = []; state.originalEventSnapshot = null; navigateTo('event-form'); },
+            openEditEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); if (ev) { state.editingEventId = id; state.formTempDate = ev.date; state.formTempTime = ev.time; state.formTempLoc = ev.location_id; state.formTempType = ev.type_id; state.formTempAtt = ev.attendant_id || ''; state.formTempIrmaos = ev.irmaos || ''; state.formTempIrmas = ev.irmas || ''; state.formErrors = []; state.originalEventSnapshot = JSON.parse(JSON.stringify(ev)); navigateTo('event-form'); } },
             openTimePickerModal: () => { const [h, m] = (state.formTempTime || '08:00').split(':'); state.clockTempHour = h; state.clockTempMinute = m; state.clockMode = 'hour'; showModal(''); renderClockUI(); },
             selectClockValue: (v) => { if (state.clockMode === 'hour') { state.clockTempHour = v.padStart(2, '0'); state.clockMode = 'minute'; } else state.clockTempMinute = v.padStart(2, '0'); renderClockUI(); },
             confirmClockTime: () => { state.formTempTime = `${state.clockTempHour}:${state.clockTempMinute}`; closeModal(); },
