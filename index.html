@@ -357,7 +357,7 @@
                         }
                     } else {
                         console.log("[App] Tudo OK. Sincronizando...");
-                        if (window.processOfflineQueue) processOfflineQueue();
+                        if (window.processOfflineQueue) processOfflineQueue(true);
                     }
                 } catch (e) { console.error("[App] Erro visibilidade:", e); }
             }
@@ -476,7 +476,7 @@
         const SYNC_QUEUE_KEY = 'adm_valente_sync_queue';
         const USER_PROFILE_CACHE_KEY = 'cache_user_profile';
 
-        async function processOfflineQueue() {
+        async function processOfflineQueue(isRecovery = false) {
             if (!navigator.onLine) return;
 
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -501,10 +501,10 @@
                 } catch (err) { }
             }
 
-            await executeSync(item);
+            await executeSync(item, isRecovery);
         }
 
-        async function executeSync(item) {
+        async function executeSync(item, isRecovery = false) {
             const { table, action, data, id } = item;
             const cleanData = { ...data };
             delete cleanData.id;
@@ -587,10 +587,12 @@
                 localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
 
                 if (newQueue.length > 0) {
-                    processOfflineQueue();
+                    processOfflineQueue(isRecovery);
                 } else {
-                    showConnStatus('online-recovered');
-                    await refreshAllData();
+                    if (isRecovery) {
+                        showConnStatus('online-recovered');
+                        await refreshAllData();
+                    }
                     if (window.updateHomeList) window.updateHomeList();
                 }
             } catch (err) {
@@ -691,13 +693,13 @@
 
             // 3. DISPARAR SINCRONIZAÇÃO EM SEGUNDO PLANO (sem esperar pelo retorno)
             console.log("[smartSave] Disparando sincronização em segundo plano...");
-            if (navigator.onLine) processOfflineQueue();
+            if (navigator.onLine) processOfflineQueue(false);
             else showConnStatus('offline');
 
             return { success: true, offline: true, tempId };
         };
 
-        window.addEventListener('online', processOfflineQueue);
+        window.addEventListener('online', () => processOfflineQueue(true));
 
         const getCachedProfile = () => {
             try {
@@ -2024,7 +2026,7 @@
             });
 
             window.addEventListener('offline', () => { showConnStatus('offline'); });
-            window.addEventListener('online', async () => { showConnStatus('online-recovered'); await refreshAllData(); scheduleRender(); });
+            window.addEventListener('online', () => processOfflineQueue(true));
 
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'TOKEN_REFRESHED' && session) {
@@ -2081,7 +2083,7 @@
 
 
             // Tenta sincronizar pendências logo ao abrir o app
-            if (navigator.onLine) processOfflineQueue();
+            if (navigator.onLine) processOfflineQueue(true);
         }
 
         window.deferredPrompt = null;
