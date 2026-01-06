@@ -1952,7 +1952,7 @@
             }
         });
 
-        async function init() {
+        function loadCachedData() {
             const tablesToCache = ['types', 'locations', 'attendants', 'agenda', 'feriados', 'perfis'];
             let hasInitialData = false;
             tablesToCache.forEach(table => {
@@ -1963,6 +1963,11 @@
                     hasInitialData = true;
                 }
             });
+            return hasInitialData;
+        }
+
+        async function init() {
+            let hasInitialData = loadCachedData();
 
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
@@ -2083,6 +2088,30 @@
 
         window.addEventListener('appinstalled', (evt) => {
             setTimeout(() => { closeModal(); showLoginModal(true); }, 8000);
+        });
+
+        let lastHiddenTime = 0;
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                lastHiddenTime = Date.now();
+                console.log("[Visibility] App invisível às:", new Date(lastHiddenTime).toLocaleTimeString());
+            } else if (document.visibilityState === 'visible' && lastHiddenTime > 0) {
+                const now = Date.now();
+                const diffMinutes = (now - lastHiddenTime) / 1000 / 60;
+                console.log(`[Visibility] App visível novamente. Ficou invisível por ${diffMinutes.toFixed(2)} minutos.`);
+
+                if (diffMinutes >= 1) {
+                    if (navigator.onLine) {
+                        console.log("[Visibility] Online e >= 1 min: Forçando recarregamento da página...");
+                        window.location.reload(true);
+                    } else {
+                        console.log("[Visibility] Offline e >= 1 min: Recarregando dados do cache...");
+                        loadCachedData();
+                        scheduleRender();
+                    }
+                }
+                lastHiddenTime = 0;
+            }
         });
 
         init();
