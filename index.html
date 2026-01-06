@@ -337,12 +337,44 @@
         }
 
         // Monitora se o usuário ficou muito tempo fora e a sessão "dormiu"
-        document.addEventListener("visibilitychange", () => {
+        document.addEventListener("visibilitychange", async () => {
             if (document.visibilityState === "visible") {
-                console.log("[App] Visível novamente - Forçando atualização da página...");
-                window.location.reload();
+                try {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    const isSessionActive = !!session;
+                    const isRealtimeActive = supabaseClient.realtime && supabaseClient.realtime.isConnected();
+
+                    console.log(`[App] Visível - Sessão: ${isSessionActive}, Realtime: ${isRealtimeActive}`);
+
+                    if (!isSessionActive || !isRealtimeActive) {
+                        if (navigator.onLine) {
+                            console.log("[App] Instabilidade ONLINE. Recarregando...");
+                            window.location.reload();
+                        } else {
+                            console.log("[App] Instabilidade OFFLINE. Usando cache...");
+                            if (window.loadFromCache) window.loadFromCache();
+                            showConnStatus('offline');
+                        }
+                    } else {
+                        console.log("[App] Tudo OK. Sincronizando...");
+                        if (window.processOfflineQueue) processOfflineQueue();
+                    }
+                } catch (e) { console.error("[App] Erro visibilidade:", e); }
             }
         });
+
+        window.loadFromCache = () => {
+            console.log("[App] Carregando dados do cache local...");
+            const tables = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'agenda': 'events', 'feriados': 'feriados', 'perfis': 'perfis' };
+            Object.entries(tables).forEach(([table, key]) => {
+                try {
+                    const cached = localStorage.getItem(`cache_${table}`);
+                    if (cached) state[key] = JSON.parse(cached);
+                } catch (e) { }
+            });
+            state.isLoading = false;
+            scheduleRender();
+        };
 
         const activeChannels = new Map();
         function cleanupListeners() {
@@ -2037,15 +2069,7 @@
 
             loadExternalHolidays(new Date().getFullYear());
 
-            document.addEventListener('visibilitychange', async () => {
-                if (document.visibilityState === 'visible' && state.user) {
-                    console.log("[App] Verificando sessão na volta ao app...");
-                    // Se o usuário está logado, o reload acima (no listener global) já resolveria,
-                    // mas mantemos este aqui se for necessário um comportamento específico por tela no futuro.
-                    // No momento, o reload global prevalece.
-                    window.location.reload();
-                }
-            });
+
 
             // Tenta sincronizar pendências logo ao abrir o app
             if (navigator.onLine) processOfflineQueue();
