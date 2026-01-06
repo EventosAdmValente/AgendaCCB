@@ -432,23 +432,115 @@
             const { table, action, data, id } = item;
             const cleanData = { ...data };
             delete cleanData.id;
+            const stateKey = table === 'agenda' ? 'events' : table;
 
             try {
-                let res;
-                if (action === 'INSERT') res = await supabaseClient.from(table).insert(cleanData);
-                if (action === 'UPDATE') res = await supabaseClient.from(table).update(cleanData).eq('id', id);
-                if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
+                console.log(`[executeSync] Sincronizando ${action} para ${table}...`);
 
+                // 1. Verificação proativa da sessão
+                let { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+
+                if (sessionError || !session) {
+                    console.warn("[executeSync] Sessão inválida ou expirada. Tentando refresh...");
+                    const { error: refreshError } = await supabaseClient.auth.refreshSession();
+
+                    if (refreshError) {
+                        console.warn("[executeSync] Refresh automático falhou. Tentando recuperação manual do localStorage...");
+                        const stored = localStorage.getItem('agenda-ccb-auth');
+                        if (stored) {
+                            try {
+                                const parsed = JSON.parse(stored);
+                                if (parsed && parsed.access_token && parsed.refresh_token) {
+                                    const { data: recoverData, error: recoverError } = await supabaseClient.auth.setSession({
+                                        access_token: parsed.access_token,
+                                        refresh_token: parsed.refresh_token
+                                    });
+                                    if (!recoverError && recoverData.session) {
+                                        console.log("[executeSync] Sessão recuperada manualmente via localStorage!");
+                                        session = recoverData.session;
+                                    }
+                                }
+                            } catch (e) {
+                                console.error("[executeSync] Erro ao processar token do localStorage:", e);
+                            }
+                        }
+                    } else {
+                        const newSessionResult = await supabaseClient.auth.getSession();
+                        session = newSessionResult.data.session;
+                    }
+
+                    if (!session) {
+                        console.error("[executeSync] Falha crítica na sessão pós-recuperação. Sincronização pausada.");
+                        return; // Mantém o item na fila
+                    }
+                }
+
+                // 2. Executa a operação
+                let res;
+                if (action === 'INSERT') res = await supabaseClient.from(table).insert(cleanData).select().single();
+                else if (action === 'UPDATE') res = await supabaseClient.from(table).update(cleanData).eq('id', id).select().single();
+                else if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
+
+                if (res && res.error) {
+                    console.error(`[executeSync] Erro Supabase em ${table}:`, res.error);
+
+                    // Incrementa contador de falhas no item da fila
+                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                    const qIdx = queue.findIndex(q => q.timestamp === item.timestamp);
+                    if (qIdx !== -1) {
+                        queue[qIdx].attempts = (queue[qIdx].attempts || 0) + 1;
+                        console.warn(`[executeSync] Tentativa ${queue[qIdx].attempts} de 4 para este item.`);
+
+                        if (queue[qIdx].attempts >= 4) {
+                            console.error("[executeSync] QUARTA TENTATIVA RADICAL: Forçando recarregamento da página...");
+                            localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+                            // Pequeno delay para garantir que o log seja visível e o storage salve
+                            setTimeout(() => window.location.reload(), 500);
+                            return;
+                        }
+                        localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+                    }
+
+                    // Retenta uma vez se for problema de token que o getSession não pegou
+                    if (res.error.code === 'PGRST301' || res.error.status === 401) {
+                        const { error: rE } = await supabaseClient.auth.refreshSession();
+                        if (!rE) return executeSync(item);
+                    }
+                    return;
+                }
+
+                console.log(`[executeSync] Sucesso! Atualizando IDs locais se necessário.`);
+
+                // Se foi um INSERT, precisamos trocar o ID temporário pelo real em todo o app
+                if (action === 'INSERT' && res.data && String(id).startsWith('temp_')) {
+                    const realId = res.data.id;
+
+                    // 1. Atualiza no state
+                    state[stateKey] = state[stateKey].map(i => String(i.id) === String(id) ? res.data : i);
+                    localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
+
+                    // 2. Atualiza outros itens na fila que dependam desse ID (ex: um UPDATE logo após o INSERT)
+                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                    const updatedQueue = queue.map(q => {
+                        if (q.table === table && String(q.id) === String(id)) q.id = realId;
+                        return q;
+                    });
+                    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updatedQueue));
+
+                    console.log(`[executeSync] ID mapeado: ${id} -> ${realId}`);
+                }
+
+                // Remove o item processado da fila
                 const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                 const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
                 localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
 
                 if (newQueue.length > 0) {
                     processOfflineQueue();
-                } else {
-                    showConnStatus('online-recovered');
                 }
-            } catch (err) { }
+            } catch (err) {
+                console.error("[executeSync] Exceção na sincronização:", err);
+            }
         }
 
         function showConflictModal(item, serverRecord) {
@@ -505,8 +597,8 @@
             }
         };
 
-        window.smartSave = async (table, action, data, id = null, attempt = 1) => {
-            console.log(`[smartSave] Iniciando: ${table} | Ação: ${action} | Tentativa: ${attempt}`);
+        window.smartSave = async (table, action, data, id = null) => {
+            console.log(`[smartSave] Offline-First: ${table} | Ação: ${action}`);
             const isNew = action === 'INSERT';
             const tempId = isNew ? `temp_${Date.now()}` : id;
             const finalId = id || tempId;
@@ -517,156 +609,36 @@
                 originalSnapshot = state[stateKey].find(i => String(i.id) === String(id));
             }
 
-            if (!navigator.onLine) {
-                console.warn("[smartSave] Offline detectado pelo navegador.");
-                const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-                queue.push({ table, action, data, id: finalId, timestamp: Date.now(), originalSnapshot });
-                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
-
-                let list = [...(state[stateKey] || [])];
-                if (action === 'INSERT') {
-                    list.push({ id: tempId, ...data });
-                } else if (action === 'UPDATE') {
-                    const idx = list.findIndex(i => String(i.id) === String(id));
-                    if (idx !== -1) list[idx] = { ...list[idx], ...data };
-                } else if (action === 'DELETE') {
-                    list = list.filter(i => String(i.id) !== String(id));
-                }
-                state[stateKey] = list;
-                localStorage.setItem(`cache_${table}`, JSON.stringify(list));
-
-                showConnStatus('offline');
-                return { success: true, offline: true, tempId };
+            // 1. SALVAR IMEDIATAMENTE NO NAVEGADOR (State + localStorage)
+            console.log("[smartSave] Atualizando estado local do navegador...");
+            let list = [...(state[stateKey] || [])];
+            if (action === 'INSERT') {
+                list.push({ id: tempId, ...data });
+            } else if (action === 'UPDATE') {
+                const idx = list.findIndex(i => String(i.id) === String(id));
+                if (idx !== -1) list[idx] = { ...list[idx], ...data };
+            } else if (action === 'DELETE') {
+                list = list.filter(i => String(i.id) !== String(id));
             }
 
-            try {
-                console.log("[smartSave] Entrou no bloco TRY. Verificando navigator.onLine:", navigator.onLine);
+            state[stateKey] = list;
+            localStorage.setItem(`cache_${table}`, JSON.stringify(list));
 
-                // Timeout manual (reduzi para 7s para ser mais ágil no fallback)
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 7000));
+            // Atualiza UI instantaneamente
+            if (window.state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+            const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
+            if (window.state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
 
-                if (action === 'UPDATE' && originalSnapshot) {
-                    console.log("[smartSave] Verificando conflitos no servidor...");
-                    const fetchPromise = supabaseClient.from(table).select('*').eq('id', id).single();
-                    let serverRecord, fetchError;
+            // 2. ADICIONAR NA FILA DE SINCRONIZAÇÃO
+            const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+            queue.push({ table, action, data, id: finalId, timestamp: Date.now(), originalSnapshot });
+            localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
 
-                    try {
-                        console.log("[smartSave] Iniciando Promise.race para conflito...");
-                        const resConf = await Promise.race([fetchPromise, timeoutPromise]);
-                        console.log("[smartSave] ResConf recebido.");
-                        serverRecord = resConf.data;
-                        fetchError = resConf.error;
-                    } catch (e) {
-                        console.warn("[smartSave] Timeout ou Erro no check de conflito. Entrando em modo offline forçado:", e.message);
-                        throw new Error("FALLBACK_OFFLINE");
-                    }
+            // 3. DISPARAR SINCRONIZAÇÃO EM SEGUNDO PLANO (sem esperar pelo retorno)
+            console.log("[smartSave] Disparando sincronização em segundo plano...");
+            if (navigator.onLine) processOfflineQueue();
 
-                    if (fetchError && (fetchError.code === 'PGRST301' || fetchError.message.includes('JWT') || fetchError.status === 401)) {
-                        console.error("[smartSave] Erro de autenticação detectado:", fetchError);
-                        if (attempt < 2) {
-                            console.log("[smartSave] Tentando refreshSession por erro de auth...");
-                            const { error: refreshError } = await supabaseClient.auth.refreshSession();
-                            if (!refreshError) {
-                                console.log("[smartSave] Refresh bem-sucedido. Retentando smartSave...");
-                                return window.smartSave(table, action, data, id, attempt + 1);
-                            }
-                            console.error("[smartSave] Falha no refreshSession:", refreshError);
-                        }
-                        console.log("[smartSave] Forçando logout por falha de sessão.");
-                        window.handleLogout();
-                        return { success: false, error: "Sessão expirada. Faça login novamente." };
-                    }
-
-                    if (!serverRecord || JSON.stringify(serverRecord) !== JSON.stringify(originalSnapshot)) {
-                        console.warn("[smartSave] Conflito detectado.");
-                        showConflictModal({ table, action, data, id, timestamp: Date.now(), originalSnapshot }, serverRecord);
-                        return { success: true, pendingConflict: true };
-                    }
-                }
-
-                console.log(`[smartSave] Executando requisição Supabase (${action}) para a tabela ${table}...`);
-                let opPromise;
-                if (action === 'INSERT') opPromise = supabaseClient.from(table).insert(data).select().single();
-                else if (action === 'UPDATE') opPromise = supabaseClient.from(table).update(data).eq('id', id).select().single();
-                else if (action === 'DELETE') opPromise = supabaseClient.from(table).delete().eq('id', id);
-
-                let res;
-                try {
-                    console.log("[smartSave] Iniciando Promise.race para operação principal...");
-                    res = await Promise.race([opPromise, timeoutPromise]);
-                    console.log("[smartSave] Operação principal concluída.");
-                } catch (e) {
-                    console.warn("[smartSave] Timeout na operação principal. Entrando em modo offline forçado.");
-                    throw new Error("FALLBACK_OFFLINE");
-                }
-
-                if (res && res.error) {
-                    console.error("[smartSave] Erro no resultado do Supabase:", res.error);
-                    if (attempt < 2 && (res.error.code === 'PGRST301' || res.error.message.includes('JWT') || res.error.status === 401)) {
-                        console.log("[smartSave] Tentando refreshSession após erro na operação...");
-                        const { error: refreshError } = await supabaseClient.auth.refreshSession();
-                        if (!refreshError) return window.smartSave(table, action, data, id, attempt + 1);
-                    }
-                    if (res.error.code === 'PGRST301' || res.error.status === 401) {
-                        window.handleLogout();
-                        return { success: false, error: "Sessão expirada. Faça login novamente." };
-                    }
-                    throw res.error;
-                }
-
-                console.log("[smartSave] Sucesso online! Atualizando estado local.");
-                const newVal = res.data;
-                let currentList = [...(state[stateKey] || [])];
-
-                if (action === 'INSERT' && newVal) {
-                    currentList.push(newVal);
-                } else if (action === 'UPDATE' && newVal) {
-                    const idx = currentList.findIndex(i => String(i.id) === String(newVal.id));
-                    if (idx !== -1) currentList[idx] = newVal;
-                } else if (action === 'DELETE') {
-                    currentList = currentList.filter(i => String(i.id) !== String(id));
-                }
-
-                state[stateKey] = currentList;
-                localStorage.setItem(`cache_${table}`, JSON.stringify(currentList));
-
-                if (window.state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
-                const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
-                if (window.state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
-
-                return { success: true, offline: false };
-            } catch (err) {
-                console.error("[smartSave] Erro FINAL detectado:", err);
-
-                if (err.message === "FALLBACK_OFFLINE" || err.message === "Failed to fetch" || err.name === "TypeError") {
-                    console.info("[smartSave] INFO: Salvando no modo Offline por segurança.");
-
-                    // Notificação UI de salvamento local
-                    const toast = document.createElement('div');
-                    toast.className = 'sync-toast';
-                    toast.innerHTML = '<i data-lucide="cloud-off" class="w-4 h-4"></i> Conexão instável - Salvo no aparelho';
-                    document.body.appendChild(toast);
-                    if (window.lucide) window.lucide.createIcons();
-                    setTimeout(() => toast.remove(), 4000);
-
-                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-                    queue.push({ table, action, data, id: finalId, timestamp: Date.now(), originalSnapshot });
-                    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
-
-                    let list = [...(state[stateKey] || [])];
-                    if (action === 'INSERT') list.push({ id: tempId, ...data });
-                    else if (action === 'UPDATE') { const idx = list.findIndex(i => String(i.id) === String(id)); if (idx !== -1) list[idx] = { ...list[idx], ...data }; }
-                    else if (action === 'DELETE') list = list.filter(i => String(i.id) !== String(id));
-
-                    state[stateKey] = list;
-                    localStorage.setItem(`cache_${table}`, JSON.stringify(list));
-                    showConnStatus('offline');
-
-                    return { success: true, offline: true, tempId };
-                }
-
-                return { success: false, error: err.message };
-            }
+            return { success: true, offline: true, tempId };
         };
 
         window.addEventListener('online', processOfflineQueue);
@@ -857,7 +829,6 @@
                                         
                                         <div class="absolute top-3 right-3 flex flex-col items-end gap-1.5 z-10">
                                             <div class="flex items-center gap-1.5">
-                                                ${isTemp ? `<div class="temp-badge"><i data-lucide="cloud-off" class="w-2.5 h-2.5"></i> Pendente</div>` : ''}
                                                 <span class="text-[9px] font-black bg-navy text-white px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm">
                                                     ${type?.sigla || 'EVT'}
                                                 </span>
@@ -966,7 +937,6 @@
                         <div class="flex items-center gap-4 min-w-0">
                             <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100 relative">
                                 <i data-lucide="${itemIcon}" class="w-5 h-5 text-navy"></i>
-                                ${isTemp ? `<div class="absolute -top-1 -right-1 bg-orange-500 text-white rounded-full p-0.5"><i data-lucide="cloud-off" class="w-2 h-2"></i></div>` : ''}
                             </div>
                             <div class="min-w-0 flex flex-col justify-center">
                                 <div class="font-bold text-navy text-sm leading-tight flex items-center gap-2">
