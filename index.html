@@ -286,17 +286,61 @@
     </template>
 
     <script type="module">
-
         const SUPABASE_URL = "https://gcsvapoqpbrrqubxawkd.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdjc3ZhcG9xcGJycnF1Ynhhd2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4OTgyMzYsImV4cCI6MjA4MDQ3NDIzNn0.QtIldObznGEYTXyEf0MS4mIgIDgbMKmS0M2FBVInTZQ";
         const ADMIN_EMAIL = "eventosadmvalente@gmail.com";
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            auth: {
-                persistSession: true,
-                autoRefreshToken: true,
-                detectSessionInUrl: true,
-                flowType: 'pkce',
-                storageKey: 'agenda-ccb-auth'
+        // Singleton: Garante que não criaremos múltiplos clientes se o script rodar de novo
+        if (!window.supabaseInstance) {
+            window.supabaseInstance = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+                auth: {
+                    persistSession: true,
+                    autoRefreshToken: true,
+                    detectSessionInUrl: true,
+                    storageKey: 'agenda-ccb-auth'
+                },
+                realtime: {
+                    timeout: 20000 // Aumentado para 20s conforme solicitado
+                }
+            });
+
+            // Monitoramento Heartbeat para detectar falhas de conexão
+            window.supabaseInstance.realtime.onHeartbeat(() => {
+                console.log("[Realtime] Heartbeat recebido - Conexão ativa.");
+            });
+        }
+        const supabaseClient = window.supabaseInstance;
+
+        // Gerenciamento de canais com proteção contra duplicidade
+        const activeChannelss = new Map();
+
+        async function setupRealtime(tableName) {
+            // Se já existe um canal para essa tabela, removemos antes de criar outro
+            if (activeChannelss.has(tableName)) {
+                await supabaseClient.removeChannel(activeChannelss.get(tableName));
+            }
+
+            const channel = supabaseClient
+                .channel(`public:${tableName}`)
+                .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
+                    console.log(`Mudança em ${tableName}:`, payload);
+                    // Sua função de atualizar a UI aqui
+                })
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') console.log(`Monitorando: ${tableName}`);
+                    if (status === 'CHANNEL_ERROR') {
+                        console.error('Erro no Realtime, tentando reconectar...');
+                        setTimeout(() => setupRealtime(tableName), 5000);
+                    }
+                });
+
+            activeChannels.set(tableName, channel);
+        }
+
+        // Monitora se o usuário ficou muito tempo fora e a sessão "dormiu"
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") {
+                console.log("[App] Visível novamente - Forçando atualização da página...");
+                window.location.reload();
             }
         });
 
@@ -441,37 +485,30 @@
                 let { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
 
                 if (sessionError || !session) {
-                    console.warn("[executeSync] Sessão inválida ou expirada. Tentando refresh...");
-                    const { error: refreshError } = await supabaseClient.auth.refreshSession();
+                    console.warn("[executeSync] Sessão inválida. Tentando refresh...");
+                    const { data: refreshData, error: refreshError } = await supabaseClient.auth.refreshSession();
+                    session = refreshData?.session;
 
-                    if (refreshError) {
-                        console.warn("[executeSync] Refresh automático falhou. Tentando recuperação manual do localStorage...");
-                        const stored = localStorage.getItem('agenda-ccb-auth');
-                        if (stored) {
-                            try {
-                                const parsed = JSON.parse(stored);
-                                if (parsed && parsed.access_token && parsed.refresh_token) {
-                                    const { data: recoverData, error: recoverError } = await supabaseClient.auth.setSession({
-                                        access_token: parsed.access_token,
-                                        refresh_token: parsed.refresh_token
-                                    });
-                                    if (!recoverError && recoverData.session) {
-                                        console.log("[executeSync] Sessão recuperada manualmente via localStorage!");
-                                        session = recoverData.session;
-                                    }
-                                }
-                            } catch (e) {
-                                console.error("[executeSync] Erro ao processar token do localStorage:", e);
+                    if (refreshError || !session) {
+                        console.warn("[executeSync] Refresh falhou. Tentando recuperação manual do localStorage...");
+                        try {
+                            const storageData = JSON.parse(localStorage.getItem('agenda-ccb-auth') || '{}');
+                            if (storageData.access_token && storageData.refresh_token) {
+                                console.log("[executeSync] Token encontrado. Recriando sessão...");
+                                const { data: setData, error: setError } = await supabaseClient.auth.setSession({
+                                    access_token: storageData.access_token,
+                                    refresh_token: storageData.refresh_token
+                                });
+                                session = setData?.session;
                             }
+                        } catch (e) {
+                            console.error("[executeSync] Erro ao ler localStorage p/ recuperação:", e);
                         }
-                    } else {
-                        const newSessionResult = await supabaseClient.auth.getSession();
-                        session = newSessionResult.data.session;
                     }
 
                     if (!session) {
-                        console.error("[executeSync] Falha crítica na sessão pós-recuperação. Sincronização pausada.");
-                        return; // Mantém o item na fila
+                        console.error("[executeSync] Falha crítica na sessão. Sincronização pausada.");
+                        return; // Mantém na fila
                     }
                 }
 
@@ -483,24 +520,6 @@
 
                 if (res && res.error) {
                     console.error(`[executeSync] Erro Supabase em ${table}:`, res.error);
-
-                    // Incrementa contador de falhas no item da fila
-                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-                    const qIdx = queue.findIndex(q => q.timestamp === item.timestamp);
-                    if (qIdx !== -1) {
-                        queue[qIdx].attempts = (queue[qIdx].attempts || 0) + 1;
-                        console.warn(`[executeSync] Tentativa ${queue[qIdx].attempts} de 4 para este item.`);
-
-                        if (queue[qIdx].attempts >= 4) {
-                            console.error("[executeSync] QUARTA TENTATIVA RADICAL: Forçando recarregamento da página...");
-                            localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
-                            // Pequeno delay para garantir que o log seja visível e o storage salve
-                            setTimeout(() => window.location.reload(), 500);
-                            return;
-                        }
-                        localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
-                    }
-
                     // Retenta uma vez se for problema de token que o getSession não pegou
                     if (res.error.code === 'PGRST301' || res.error.status === 401) {
                         const { error: rE } = await supabaseClient.auth.refreshSession();
@@ -537,6 +556,8 @@
 
                 if (newQueue.length > 0) {
                     processOfflineQueue();
+                } else {
+                    showConnStatus('online-recovered');
                 }
             } catch (err) {
                 console.error("[executeSync] Exceção na sincronização:", err);
@@ -637,6 +658,7 @@
             // 3. DISPARAR SINCRONIZAÇÃO EM SEGUNDO PLANO (sem esperar pelo retorno)
             console.log("[smartSave] Disparando sincronização em segundo plano...");
             if (navigator.onLine) processOfflineQueue();
+            else showConnStatus('offline');
 
             return { success: true, offline: true, tempId };
         };
@@ -829,6 +851,7 @@
                                         
                                         <div class="absolute top-3 right-3 flex flex-col items-end gap-1.5 z-10">
                                             <div class="flex items-center gap-1.5">
+                                                ${isTemp ? `<div class="temp-badge"><i data-lucide="cloud-off" class="w-2.5 h-2.5"></i> Pendente</div>` : ''}
                                                 <span class="text-[9px] font-black bg-navy text-white px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm">
                                                     ${type?.sigla || 'EVT'}
                                                 </span>
@@ -937,6 +960,7 @@
                         <div class="flex items-center gap-4 min-w-0">
                             <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100 relative">
                                 <i data-lucide="${itemIcon}" class="w-5 h-5 text-navy"></i>
+                                ${isTemp ? `<div class="absolute -top-1 -right-1 bg-orange-500 text-white rounded-full p-0.5"><i data-lucide="cloud-off" class="w-2 h-2"></i></div>` : ''}
                             </div>
                             <div class="min-w-0 flex flex-col justify-center">
                                 <div class="font-bold text-navy text-sm leading-tight flex items-center gap-2">
@@ -2015,9 +2039,11 @@
 
             document.addEventListener('visibilitychange', async () => {
                 if (document.visibilityState === 'visible' && state.user) {
-                    const { data, error } = await supabaseClient.auth.getSession();
-                    if (error || !data.session) window.handleLogout();
-                    else processOfflineQueue(); // Aproveita pra tentar sincronizar ao voltar pro app
+                    console.log("[App] Verificando sessão na volta ao app...");
+                    // Se o usuário está logado, o reload acima (no listener global) já resolveria,
+                    // mas mantemos este aqui se for necessário um comportamento específico por tela no futuro.
+                    // No momento, o reload global prevalece.
+                    window.location.reload();
                 }
             });
 
