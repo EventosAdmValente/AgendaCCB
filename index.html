@@ -181,6 +181,38 @@
             visibility: visible;
         }
 
+        .sync-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #f59e0b;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 11px;
+            box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.4);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translate(-50%, -100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translate(-50%, 0);
+                opacity: 1;
+            }
+        }
+
         .temp-badge {
             background-color: #fff7ed;
             border: 1px solid #ffedd5;
@@ -608,6 +640,15 @@
 
                 if (err.message === "FALLBACK_OFFLINE" || err.message === "Failed to fetch" || err.name === "TypeError") {
                     console.info("[smartSave] INFO: Salvando no modo Offline por segurança.");
+
+                    // Notificação UI de salvamento local
+                    const toast = document.createElement('div');
+                    toast.className = 'sync-toast';
+                    toast.innerHTML = '<i data-lucide="cloud-off" class="w-4 h-4"></i> Conexão instável - Salvo no aparelho';
+                    document.body.appendChild(toast);
+                    if (window.lucide) window.lucide.createIcons();
+                    setTimeout(() => toast.remove(), 4000);
+
                     const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                     queue.push({ table, action, data, id: finalId, timestamp: Date.now(), originalSnapshot });
                     localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
@@ -2006,8 +2047,12 @@
                 if (document.visibilityState === 'visible' && state.user) {
                     const { data, error } = await supabaseClient.auth.getSession();
                     if (error || !data.session) window.handleLogout();
+                    else processOfflineQueue(); // Aproveita pra tentar sincronizar ao voltar pro app
                 }
             });
+
+            // Tenta sincronizar pendências logo ao abrir o app
+            if (navigator.onLine) processOfflineQueue();
         }
 
         window.deferredPrompt = null;
