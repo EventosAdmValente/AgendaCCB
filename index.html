@@ -590,6 +590,8 @@
                     processOfflineQueue();
                 } else {
                     showConnStatus('online-recovered');
+                    await refreshAllData();
+                    if (window.updateHomeList) window.updateHomeList();
                 }
             } catch (err) {
                 console.error("[executeSync] Exceção na sincronização:", err);
@@ -1796,6 +1798,8 @@
                     }
                 });
                 await Promise.all(promises);
+                scheduleRender();
+                if (window.updateHomeList) window.updateHomeList();
             } catch (e) { }
         }
 
