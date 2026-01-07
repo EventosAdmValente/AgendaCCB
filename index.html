@@ -1009,8 +1009,16 @@
                 let badgesHtml = "";
                 const mainName = (coll === 'locations' ? item.localidade : (coll === 'feriados' ? item.nome_feriado : (coll === 'perfis' ? item.nome : item.name))) || '';
                 if (coll === 'locations') {
-                    const line2 = [item.adm, item.setor].filter(Boolean).join(' | ');
-                    badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${line2}</div><div class="text-[11px] text-slate-400 font-semibold leading-tight mt-0.5 h-3">${item.cidade || ''}</div>`;
+                    const line2 = [item.adm, item.setor, item.cidade].filter(Boolean).join(' | ');
+                    const anciaes = [item.anciao_1, item.anciao_2, item.anciao_3].filter(Boolean).join(', ');
+                    const diaconos = [item.diacono_1, item.diacono_2, item.diacono_3].filter(Boolean).join(', ');
+                    const cooperadores = [item.com_1, item.com_2, item.cjm].filter(Boolean).join(', ');
+                    badgesHtml = `
+                        <div class="text-[11px] text-slate-600 font-medium leading-tight mt-1">${line2}</div>
+                        <div class="text-[11px] text-slate-500 font-semibold leading-tight mt-1">Anc: ${anciaes || '---'}</div>
+                        <div class="text-[11px] text-slate-500 font-semibold leading-tight mt-0.5">Diac: ${diaconos || '---'}</div>
+                        <div class="text-[11px] text-slate-500 font-semibold leading-tight mt-0.5">Coop: ${cooperadores || '---'}</div>
+                    `;
                 } else if (coll === 'types') {
                     badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.sigla || ''}</div><div class="text-[11px] text-slate-400 leading-tight mt-0.5 h-3"></div>`;
                 } else if (coll === 'attendants') {
