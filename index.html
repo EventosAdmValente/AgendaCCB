@@ -225,6 +225,24 @@
             align-items: center;
             gap: 2px;
         }
+
+        @keyframes highlight-pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.02);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .highlight-item {
+            animation: highlight-pulse 1s ease-in-out;
+        }
     </style>
     <link rel="manifest" href="./manifest.json">
 
@@ -476,32 +494,65 @@
         const SYNC_QUEUE_KEY = 'adm_valente_sync_queue';
         const USER_PROFILE_CACHE_KEY = 'cache_user_profile';
 
+        let isProcessingQueue = false;
+
         async function processOfflineQueue(isRecovery = false) {
-            if (!navigator.onLine) return;
+            console.log(`[Queue] Acionando processamento. Online: ${navigator.onLine}, Já processando: ${isProcessingQueue}`);
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-            if (queue.length === 0) return;
-
-            const item = queue[0];
-            const { table, action, data, id, originalSnapshot } = item;
-
-            if (action === 'UPDATE' && id && originalSnapshot) {
-                try {
-                    const { data: serverRecord, error } = await supabaseClient.from(table).select('*').eq('id', id).single();
-
-                    const serverString = serverRecord ? JSON.stringify(serverRecord) : null;
-                    const snapshotString = JSON.stringify(originalSnapshot);
-
-                    if (!serverRecord || serverString !== snapshotString) {
-                        showConflictModal(item, serverRecord);
-                        return;
-                    }
-                } catch (err) { }
+            if (isProcessingQueue) return;
+            if (!navigator.onLine) {
+                showConnStatus('offline');
+                return;
             }
 
-            await executeSync(item, isRecovery);
+            isProcessingQueue = true;
+            console.log("[Queue] Iniciando loop de sincronização...");
+
+            try {
+                while (navigator.onLine) {
+                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                    if (queue.length === 0) {
+                        console.log("[Queue] Fila limpa!");
+                        if (isRecovery) {
+                            showConnStatus('online-recovered');
+                            await refreshAllData();
+                        }
+                        break;
+                    }
+
+                    const item = queue[0];
+                    console.log(`[Queue] Próximo item: ${item.action} na tabela ${item.table}`);
+
+                    // Verificação de conflito (opcional, dependendo da ação)
+                    if (item.action === 'UPDATE' && item.id && item.originalSnapshot) {
+                        try {
+                            const { data: serverRecord } = await supabaseClient.from(item.table).select('*').eq('id', item.id).single();
+                            if (serverRecord && JSON.stringify(serverRecord) !== JSON.stringify(item.originalSnapshot)) {
+                                console.warn("[Queue] Conflito detectado antes do envio.");
+                                showConflictModal(item, serverRecord);
+                                isProcessingQueue = false; // Para o loop até resolver o conflito
+                                return;
+                            }
+                        } catch (err) { }
+                    }
+
+                    const success = await executeSync(item, isRecovery);
+
+                    if (!success) {
+                        console.warn("[Queue] Falha crítica no item. Interrompendo loop para evitar loop de erro.");
+                        break;
+                    }
+
+                    // Pequena pausa para não sobrecarregar
+                    await new Promise(r => setTimeout(r, 200));
+                }
+            } catch (err) {
+                console.error("[Queue] Exceção no loop da fila:", err);
+            } finally {
+                isProcessingQueue = false;
+                console.log("[Queue] Loop finalizado. isProcessingQueue = false");
+                if (window.updateHomeList) window.updateHomeList();
+            }
         }
 
         async function executeSync(item, isRecovery = false) {
@@ -511,7 +562,7 @@
             const stateKey = table === 'agenda' ? 'events' : table;
 
             try {
-                console.log(`[executeSync] Sincronizando ${action} para ${table}...`);
+                console.log(`[executeSync] Tentando: ${action} em ${table} (ID: ${id})`);
 
                 // 1. Verificação proativa da sessão
                 let { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
@@ -521,26 +572,9 @@
                     const { data: refreshData, error: refreshError } = await supabaseClient.auth.refreshSession();
                     session = refreshData?.session;
 
-                    if (refreshError || !session) {
-                        console.warn("[executeSync] Refresh falhou. Tentando recuperação manual do localStorage...");
-                        try {
-                            const storageData = JSON.parse(localStorage.getItem('agenda-ccb-auth') || '{}');
-                            if (storageData.access_token && storageData.refresh_token) {
-                                console.log("[executeSync] Token encontrado. Recriando sessão...");
-                                const { data: setData, error: setError } = await supabaseClient.auth.setSession({
-                                    access_token: storageData.access_token,
-                                    refresh_token: storageData.refresh_token
-                                });
-                                session = setData?.session;
-                            }
-                        } catch (e) {
-                            console.error("[executeSync] Erro ao ler localStorage p/ recuperação:", e);
-                        }
-                    }
-
                     if (!session) {
-                        console.error("[executeSync] Falha crítica na sessão. Sincronização pausada.");
-                        return; // Mantém na fila
+                        console.error("[executeSync] Falha ao recuperar sessão. Abortando item.");
+                        return false;
                     }
                 }
 
@@ -551,26 +585,22 @@
                 else if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
 
                 if (res && res.error) {
-                    console.error(`[executeSync] Erro Supabase em ${table}:`, res.error);
-                    // Retenta uma vez se for problema de token que o getSession não pegou
+                    console.error(`[executeSync] Erro Supabase [${res.error.code}]:`, res.error.message);
                     if (res.error.code === 'PGRST301' || res.error.status === 401) {
                         const { error: rE } = await supabaseClient.auth.refreshSession();
-                        if (!rE) return executeSync(item);
+                        if (!rE) return executeSync(item, isRecovery);
                     }
-                    return;
+                    return false;
                 }
 
-                console.log(`[executeSync] Sucesso! Atualizando IDs locais se necessário.`);
+                console.log(`[executeSync] Sucesso no servidor.`);
 
-                // Se foi um INSERT, precisamos trocar o ID temporário pelo real em todo o app
+                // Se foi um INSERT, precisamos trocar o ID temporário pelo real
                 if (action === 'INSERT' && res.data && String(id).startsWith('temp_')) {
                     const realId = res.data.id;
-
-                    // 1. Atualiza no state
                     state[stateKey] = state[stateKey].map(i => String(i.id) === String(id) ? res.data : i);
                     localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
 
-                    // 2. Atualiza outros itens na fila que dependam desse ID (ex: um UPDATE logo após o INSERT)
                     const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                     const updatedQueue = queue.map(q => {
                         if (q.table === table && String(q.id) === String(id)) q.id = realId;
@@ -578,7 +608,10 @@
                     });
                     localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updatedQueue));
 
-                    console.log(`[executeSync] ID mapeado: ${id} -> ${realId}`);
+                    if (String(state.highlightedItemId) === String(id)) {
+                        state.highlightedItemId = realId;
+                    }
+                    console.log(`[executeSync] ID Mapeado: ${id} -> ${realId}`);
                 }
 
                 // Remove o item processado da fila
@@ -586,17 +619,10 @@
                 const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
                 localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
 
-                if (newQueue.length > 0) {
-                    processOfflineQueue(isRecovery);
-                } else {
-                    if (isRecovery) {
-                        showConnStatus('online-recovered');
-                        await refreshAllData();
-                    }
-                    if (window.updateHomeList) window.updateHomeList();
-                }
+                return true;
             } catch (err) {
-                console.error("[executeSync] Exceção na sincronização:", err);
+                console.error("[executeSync] Exceção catastrófica:", err);
+                return false;
             }
         }
 
@@ -642,13 +668,13 @@
                     localStorage.setItem(`cache_${item.table}`, JSON.stringify(state[stateKey]));
                 }
                 closeModal();
-                if (newQueue.length > 0) processOfflineQueue();
+                if (newQueue.length > 0) processOfflineQueue(false);
 
                 const targetScreen = item.table === 'agenda' ? 'home' : (item.table === 'perfis' ? 'users' : item.table);
                 window.navigateTo(targetScreen);
             } else {
                 closeModal();
-                await executeSync(item);
+                processOfflineQueue(false);
                 const targetScreen = item.table === 'agenda' ? 'home' : (item.table === 'perfis' ? 'users' : item.table);
                 window.navigateTo(targetScreen);
             }
@@ -681,6 +707,10 @@
             state[stateKey] = list;
             localStorage.setItem(`cache_${table}`, JSON.stringify(list));
 
+            // Aplica destaque e sinaliza necessidade de rolagem
+            state.highlightedItemId = finalId;
+            state.needsScroll = true;
+
             // Atualiza UI instantaneamente
             if (window.state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
             const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
@@ -692,7 +722,7 @@
             localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
 
             // 3. DISPARAR SINCRONIZAÇÃO EM SEGUNDO PLANO (sem esperar pelo retorno)
-            console.log("[smartSave] Disparando sincronização em segundo plano...");
+            console.log(`[smartSave] Conexão: ${navigator.onLine ? 'ONLINE' : 'OFFLINE'}. Disparando fila...`);
             if (navigator.onLine) processOfflineQueue(false);
             else showConnStatus('offline');
 
@@ -758,7 +788,8 @@
             clockMode: 'hour',
             clockTempHour: '08',
             clockTempMinute: '00',
-            originalEventSnapshot: null
+            originalEventSnapshot: null,
+            needsScroll: false
         };
 
         const state = new Proxy(INITIAL_STATE, {
@@ -857,6 +888,8 @@
                 return;
             }
 
+
+
             const filtered = getFilteredEvents();
             container.innerHTML = `
                 <div class="flex justify-between items-start px-1 mb-1 gap-2 min-h-[18px] overflow-visible">
@@ -883,7 +916,7 @@
                 const isTemp = String(e.id).startsWith('temp_');
 
                 return `
-                                    <li id="item-${e.id}" onclick="${state.isAdmin ? `window.openEditEvent('${e.id}')` : ''}" class="relative p-3 transition-all ${isHighlighted ? 'bg-yellow-50 ring-2 ring-yellow-400 ring-inset z-10' : state.isAdmin ? 'active:bg-slate-50' : ''} ${isPast && !isHighlighted ? 'bg-slate-50/50 grayscale-[0.5] opacity-70' : ''}">
+                                    <li id="item-${e.id}" onclick="${state.isAdmin ? `window.openEditEvent('${e.id}')` : ''}" class="relative p-3 transition-all ${isHighlighted ? 'bg-yellow-50 ring-2 ring-yellow-400 ring-inset z-10 highlight-item' : state.isAdmin ? 'active:bg-slate-50' : ''} ${isPast && !isHighlighted ? 'bg-slate-50/50 grayscale-[0.5] opacity-70' : ''}">
                                         
                                         <div class="absolute top-3 right-3 flex flex-col items-end gap-1.5 z-10">
                                             <div class="flex items-center gap-1.5">
@@ -922,6 +955,8 @@
                 </div>
             `;
 
+
+
             const labelEl = document.getElementById('home-filter-label');
             if (labelEl) {
                 let currentSize = 13;
@@ -933,10 +968,13 @@
             }
             renderIcons();
 
-            if (state.highlightedItemId) {
+            if (state.highlightedItemId && state.needsScroll) {
                 setTimeout(() => {
                     const el = document.getElementById(`item-${state.highlightedItemId}`);
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        state.needsScroll = false;
+                    }
                 }, 100);
             }
         };
@@ -1014,8 +1052,14 @@
                     </div>`;
             }).join('');
             renderIcons();
-            if (state.highlightedItemId) {
-                setTimeout(() => { const el = document.getElementById(`item-${state.highlightedItemId}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100);
+            if (state.highlightedItemId && state.needsScroll) {
+                setTimeout(() => {
+                    const el = document.getElementById(`item-${state.highlightedItemId}`);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        state.needsScroll = false;
+                    }
+                }, 100);
             }
         };
 
@@ -1685,7 +1729,6 @@
             state.currentScreen = screen;
             state.isMenuOpen = false;
             state.managerSearchTerm = '';
-            state.highlightedItemId = null;
             state.formErrors = [];
         }
 
@@ -1825,7 +1868,7 @@
                     window.location.href = window.location.origin + window.location.pathname;
                 });
             },
-            showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; window.updateHomeList(); },
+            showLoginModal, saveRow, openRowModal, requestDeleteRow: (id, coll, name) => showDeleteConfirmModal(id, coll, name), confirmarExclusaoColecao, renderCalendar, renderClockUI, renderAdvancedFilterModal, openDistinctPicker, openAdvancedFilterModal: () => renderAdvancedFilterModal(), resetAllFilters: () => { state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = null; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; window.updateHomeList(); },
             startOpenAgenda: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; const t = new Date().toISOString().split('T')[0]; if (!state.selectedDate) state.selectedDate = t; state.viewDate = new Date(state.selectedDate + 'T00:00:00'); renderCalendar('filter'); },
             changeMonth: (o, m) => { const d = new Date(state.viewDate); d.setMonth(d.getMonth() + o); state.viewDate = d; if (m === 'filter') state.selectedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; renderCalendar(m); },
             changePickerYear: (o, m) => { const d = new Date(state.viewDate); d.setFullYear(d.getFullYear() + o); state.viewDate = d; if (m.includes('month') || m === 'adv_period') window.openMonthPicker(m); else window.openYearPicker(m); },
@@ -1849,8 +1892,8 @@
             applyAdvancedFilters: () => { const af = state.advancedFilter; const errs = []; if (af.type.enabled && !af.type.id) errs.push('type'); if (af.location.enabled && !af.location.id) errs.push('location'); if (af.attendant.enabled && !af.attendant.id) errs.push('attendant'); if (af.adm.enabled && !af.adm.value) errs.push('adm'); if (af.setor.enabled && !af.setor.value) errs.push('setor'); if (af.cidade.enabled && !af.cidade.value) errs.push('cidade'); if (af.period.enabled && (!af.period.start || !af.period.end)) errs.push('period'); if (errs.length > 0) { state.advancedFilter.validationErrors = errs; window.renderAdvancedFilterModal(); return; } state.selectedDate = null; state.fastFilter.active = false; state.advancedFilter.active = true; state.advancedFilter.validationErrors = []; closeModal(); window.updateHomeList(); },
             openDateRangePicker: (t) => { state.viewDate = new Date((state.advancedFilter.period[t] || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar(t === 'start' ? 'adv_start' : 'adv_end'); },
             openPDFPreview: () => alert("Exportação em breve."),
-            startCreateEvent: () => { state.editingEventId = null; state.formTempDate = new Date().toISOString().split('T')[0]; state.formTempTime = '08:00'; state.formTempLoc = ''; state.formTempType = ''; state.formTempAtt = ''; state.formTempIrmaos = ''; state.formTempIrmas = ''; state.formErrors = []; state.originalEventSnapshot = null; navigateTo('event-form'); },
-            openEditEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); if (ev) { state.editingEventId = id; state.formTempDate = ev.date; state.formTempTime = ev.time; state.formTempLoc = ev.location_id; state.formTempType = ev.type_id; state.formTempAtt = ev.attendant_id || ''; state.formTempIrmaos = ev.irmaos || ''; state.formTempIrmas = ev.irmas || ''; state.formErrors = []; state.originalEventSnapshot = JSON.parse(JSON.stringify(ev)); navigateTo('event-form'); } },
+            startCreateEvent: () => { state.editingEventId = null; state.formTempDate = new Date().toISOString().split('T')[0]; state.formTempTime = '08:00'; state.formTempLoc = ''; state.formTempType = ''; state.formTempAtt = ''; state.formTempIrmaos = ''; state.formTempIrmas = ''; state.formErrors = []; state.originalEventSnapshot = null; state.highlightedItemId = null; navigateTo('event-form'); },
+            openEditEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); if (ev) { state.editingEventId = id; state.formTempDate = ev.date; state.formTempTime = ev.time; state.formTempLoc = ev.location_id; state.formTempType = ev.type_id; state.formTempAtt = ev.attendant_id || ''; state.formTempIrmaos = ev.irmaos || ''; state.formTempIrmas = ev.irmas || ''; state.formErrors = []; state.originalEventSnapshot = JSON.parse(JSON.stringify(ev)); state.highlightedItemId = null; navigateTo('event-form'); } },
             openTimePickerModal: () => { const [h, m] = (state.formTempTime || '08:00').split(':'); state.clockTempHour = h; state.clockTempMinute = m; state.clockMode = 'hour'; showModal(''); renderClockUI(); },
             selectClockValue: (v) => { if (state.clockMode === 'hour') { state.clockTempHour = v.padStart(2, '0'); state.clockMode = 'minute'; } else state.clockTempMinute = v.padStart(2, '0'); renderClockUI(); },
             confirmClockTime: () => { state.formTempTime = `${state.clockTempHour}:${state.clockTempMinute}`; closeModal(); },
@@ -1870,7 +1913,15 @@
                     if (duplicate) { showEventDuplicateModal(duplicate); return; }
                     const action = state.editingEventId ? 'UPDATE' : 'INSERT';
                     const result = await window.smartSave('agenda', action, eventData, state.editingEventId);
-                    if (result.success) { if (!result.pendingConflict) window.navigateTo('home'); state.editingEventId = null; } else alert("Erro ao salvar: " + result.error);
+                    if (result.success) {
+                        if (!result.pendingConflict) {
+                            window.navigateTo('home');
+                            // Garante que o scroll aconteça
+                            state.highlightedItemId = result.tempId || state.editingEventId || result.id;
+                            state.needsScroll = true;
+                        }
+                        state.editingEventId = null;
+                    } else alert("Erro ao salvar: " + result.error);
                 } catch (e) {
                     alert("Erro inesperado: " + e.message);
                 } finally {
