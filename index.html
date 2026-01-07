@@ -784,7 +784,16 @@
             clockMode: 'hour',
             clockTempHour: '08',
             clockTempMinute: '00',
-            originalEventSnapshot: null
+            originalEventSnapshot: null,
+            reportFilter: {
+                table: 'agenda',
+                type: { enabled: false, id: 'all' },
+                location: { enabled: false, id: 'all' },
+                attendant: { enabled: false, id: 'all' },
+                adm: { enabled: false, id: 'all' },
+                setor: { enabled: false, id: 'all' },
+                cidade: { enabled: false, id: 'all' }
+            }
         };
 
         const state = new Proxy(INITIAL_STATE, {
@@ -1614,7 +1623,76 @@
                 return;
             }
 
-            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"><div class="p-4 bg-slate-50 border-b flex justify-between items-center"><h3 class="font-black text-navy text-xs uppercase tracking-widest">${isE ? 'Editar' : 'Novo'} ${ctx.title}</h3><button onclick="window.closeModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${coll === 'locations' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">ADM</label><input id="loc-adm" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.adm || ''}" placeholder="Nome do ADM"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Setor</label><input id="loc-setor" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.setor || ''}" placeholder="Número/Nome do Setor"></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Cidade</label><input id="loc-cidade" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.cidade || ''}" placeholder="Ex: Valente"></div>` : ''}${coll === 'feriados' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data do Feriado</label><button id="feriado-btn" onclick="window.openFeriadoDatePicker()" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-slate-50 text-left flex justify-between items-center transition-colors"><span id="feriado-date-display">${item.data ? formatDateFull(item.data) : 'Selecionar Data...'}</span><i data-lucide="calendar" class="w-4 h-4 opacity-40"></i><input type="hidden" id="feriado-date-val" value="${item.data || ''}"></button></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Feriado</label><input id="feriado-tipo" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.tipo_feriado || ''}" placeholder="Ex: Nacional, Municipal..."></div>` : ''}<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>${coll === 'types' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Sigla (EVT)</label><input id="row-extra" type="text" maxlength="5" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-black text-navy uppercase" value="${item.sigla || ''}"></div>` : ''}${coll === 'attendants' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Ministério</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.ministerio || ''}" placeholder="Ex: Louvor"></div>` : ''}<button onclick="window.saveRow('${coll}', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR REGISTRO ${!navigator.onLine ? '(OFFLINE)' : ''}</button></div></div>`);
+            const attOptions = state.attendants.sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+            const renderSel = (id, label, val) => `
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">${label}</label>
+                    <div class="relative">
+                        <select id="${id}" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy appearance-none bg-white focus:ring-2 focus:ring-navy/10 pr-8">
+                            <option value="">Selecione...</option>
+                            ${attOptions}
+                        </select>
+                        <i data-lucide="chevron-down" class="absolute right-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none"></i>
+                    </div>
+                </div>
+            `;
+            // Pre-select values helper script (injected after HTML)
+            const injectVals = `setTimeout(() => {
+                const vals = ${JSON.stringify({
+                'loc-anciao-1': item.anciao_1 || '', 'loc-anciao-2': item.anciao_2 || '', 'loc-anciao-3': item.anciao_3 || '',
+                'loc-diacono-1': item.diacono_1 || '', 'loc-diacono-2': item.diacono_2 || '', 'loc-diacono-3': item.diacono_3 || '',
+                'loc-com-1': item.com_1 || '', 'loc-com-2': item.com_2 || '', 'loc-cjm': item.cjm || ''
+            })};
+                Object.entries(vals).forEach(([k, v]) => { const el = document.getElementById(k); if(el) el.value = v; });
+            }, 0);`;
+
+
+            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"><div class="p-4 bg-slate-50 border-b flex justify-between items-center shrink-0"><h3 class="font-black text-navy text-xs uppercase tracking-widest">${isE ? 'Editar' : 'Novo'} ${ctx.title}</h3><button onclick="window.closeModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4 overflow-y-auto scrollbar-none">
+            ${coll === 'locations' ? `
+                <div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">ADM</label><input id="loc-adm" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.adm || ''}" placeholder="Nome do ADM"></div>
+                <div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Setor</label><input id="loc-setor" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.setor || ''}" placeholder="Número/Nome do Setor"></div>
+                <div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Cidade</label><input id="loc-cidade" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.cidade || ''}" placeholder="Ex: Valente"></div>
+                ${/* Moved Name Field here for Locations */ ''}
+                <div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>
+                
+                <div class="border-t border-slate-100 my-2 pt-2">
+                    <span class="text-[10px] font-black text-orange-custom uppercase tracking-widest block mb-2">Anciães</span>
+                    <div class="flex flex-col gap-3">
+                        ${renderSel('loc-anciao-1', 'Ancião 1')}
+                        ${renderSel('loc-anciao-2', 'Ancião 2')}
+                        ${renderSel('loc-anciao-3', 'Ancião 3')}
+                    </div>
+                </div>
+                <div class="border-t border-slate-100 my-2 pt-2">
+                    <span class="text-[10px] font-black text-orange-custom uppercase tracking-widest block mb-2">Diáconos</span>
+                    <div class="flex flex-col gap-3">
+                        ${renderSel('loc-diacono-1', 'Diácono 1')}
+                        ${renderSel('loc-diacono-2', 'Diácono 2')}
+                        ${renderSel('loc-diacono-3', 'Diácono 3')}
+                    </div>
+                </div>
+                <div class="border-t border-slate-100 my-2 pt-2">
+                    <span class="text-[10px] font-black text-orange-custom uppercase tracking-widest block mb-2">Cooperadores</span>
+                    <div class="flex flex-col gap-3">
+                        ${renderSel('loc-com-1', 'Coop. Oficial 1')}
+                        ${renderSel('loc-com-2', 'Coop. Oficial 2')}
+                        ${renderSel('loc-cjm', 'Coop. Jovens')}
+                    </div>
+                </div>
+            ` : ''}${coll === 'feriados' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data do Feriado</label><button id="feriado-btn" onclick="window.openFeriadoDatePicker()" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-slate-50 text-left flex justify-between items-center transition-colors"><span id="feriado-date-display">${item.data ? formatDateFull(item.data) : 'Selecionar Data...'}</span><i data-lucide="calendar" class="w-4 h-4 opacity-40"></i><input type="hidden" id="feriado-date-val" value="${item.data || ''}"></button></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Feriado</label><input id="feriado-tipo" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.tipo_feriado || ''}" placeholder="Ex: Nacional, Municipal..."></div>` : ''}${coll !== 'locations' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>` : ''}${coll === 'types' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Sigla (EVT)</label><input id="row-extra" type="text" maxlength="5" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-black text-navy uppercase" value="${item.sigla || ''}"></div>` : ''}${coll === 'attendants' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Ministério</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.ministerio || ''}" placeholder="Ex: Louvor"></div>` : ''}<button onclick="window.saveRow('${coll}', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR REGISTRO ${!navigator.onLine ? '(OFFLINE)' : ''}</button></div></div>`);
+
+            // Post-render value injection (fixes visual glitch)
+            if (coll === 'locations') {
+                const vals = {
+                    'loc-anciao-1': item.anciao_1, 'loc-anciao-2': item.anciao_2, 'loc-anciao-3': item.anciao_3,
+                    'loc-diacono-1': item.diacono_1, 'loc-diacono-2': item.diacono_2, 'loc-diacono-3': item.diacono_3,
+                    'loc-com-1': item.com_1, 'loc-com-2': item.com_2, 'loc-cjm': item.cjm
+                };
+                Object.entries(vals).forEach(([k, v]) => {
+                    const el = document.getElementById(k);
+                    if (el && v) el.value = v;
+                });
+            }
         }
 
         async function saveRow(coll, id) {
@@ -1633,7 +1711,23 @@
 
             const p = {};
             if (coll === 'types') { const sigla = document.getElementById('row-extra')?.value.trim() || ""; p.name = name; p.sigla = sigla.toUpperCase(); }
-            else if (coll === 'locations') { p.localidade = name; p.adm = document.getElementById('loc-adm')?.value.trim(); p.setor = document.getElementById('loc-setor')?.value.trim(); p.cidade = document.getElementById('loc-cidade')?.value.trim(); }
+            else if (coll === 'locations') {
+                p.localidade = name;
+                p.adm = document.getElementById('loc-adm')?.value.trim();
+                p.setor = document.getElementById('loc-setor')?.value.trim();
+                p.cidade = document.getElementById('loc-cidade')?.value.trim();
+
+                // New Ministry Fields
+                p.anciao_1 = document.getElementById('loc-anciao-1')?.value || null;
+                p.anciao_2 = document.getElementById('loc-anciao-2')?.value || null;
+                p.anciao_3 = document.getElementById('loc-anciao-3')?.value || null;
+                p.diacono_1 = document.getElementById('loc-diacono-1')?.value || null;
+                p.diacono_2 = document.getElementById('loc-diacono-2')?.value || null;
+                p.diacono_3 = document.getElementById('loc-diacono-3')?.value || null;
+                p.com_1 = document.getElementById('loc-com-1')?.value || null;
+                p.com_2 = document.getElementById('loc-com-2')?.value || null;
+                p.cjm = document.getElementById('loc-cjm')?.value || null;
+            }
             else if (coll === 'attendants') { const min = document.getElementById('row-extra')?.value.trim() || ""; p.name = name; p.ministerio = min; }
             else if (coll === 'feriados') { p.nome_feriado = name; p.data = dateVal; p.tipo_feriado = document.getElementById('feriado-tipo')?.value.trim(); }
             else if (coll === 'perfis') {
@@ -1866,14 +1960,170 @@
             renderFastFilterUI,
             openFastFilterModal: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; state.ffTemp.baseDates = { today: new Date(), week: new Date(), month: new Date(), year: new Date() }; renderFastFilterUI(); },
             shiftFF: (t, o) => { const d = new Date(state.ffTemp.baseDates[t]); if (t === 'today') d.setDate(d.getDate() + o); else if (t === 'week') d.setDate(d.getDate() + (o * 7)); else if (t === 'month') d.setMonth(d.getMonth() + o); else if (t === 'year') d.setFullYear(d.getFullYear() + o); state.ffTemp.baseDates[t] = d; state.ffTemp.selected = t; renderFastFilterUI(); },
-            applyNewFastFilter: () => { const b = new Date(state.ffTemp.baseDates[state.ffTemp.selected]); let st = '', en = '', la = ''; const f = (d) => d.toISOString().split('T')[0]; const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; if (state.ffTemp.selected === 'today') { st = en = f(b); let w = b.toLocaleDateString('pt-BR', { weekday: 'long' }); la = `${w.charAt(0).toUpperCase() + w.slice(1)}, dia ${fBR(b)}`; } else if (state.ffTemp.selected === 'week') { const d1 = new Date(b); d1.setDate(b.getDate() - b.getDay()); const d2 = new Date(d1); d2.setDate(d1.getDate() + 6); st = f(d1); en = f(d2); la = `Semana ${fBR(d1)} a ${fBR(d2)}`; } else if (state.ffTemp.selected === 'month') { const d1 = new Date(b.getFullYear(), b.getMonth(), 1); const d2 = new Date(b.getFullYear(), b.getMonth() + 1, 0); st = f(d1); en = f(d2); la = `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][b.getMonth()]} / ${b.getFullYear()}`; } else if (state.ffTemp.selected === 'year') { st = `${b.getFullYear()}-01-01`; en = `${b.getFullYear()}-12-31`; la = `Ano de ${b.getFullYear()}`; } state.selectedDate = null; state.advancedFilter.active = false; state.fastFilter = { active: true, dateStart: st, dateEnd: en, label: la }; closeModal(); window.updateHomeList(); },
+            applyNewFastFilter: () => { const b = new Date(state.ffTemp.baseDates[state.ffTemp.selected]); let st = '', en = '', la = ''; const f = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; if (state.ffTemp.selected === 'today') { st = en = f(b); let w = b.toLocaleDateString('pt-BR', { weekday: 'long' }); la = `${w.charAt(0).toUpperCase() + w.slice(1)}, dia ${fBR(b)}`; } else if (state.ffTemp.selected === 'week') { const d1 = new Date(b); d1.setDate(b.getDate() - b.getDay()); const d2 = new Date(d1); d2.setDate(d1.getDate() + 6); st = f(d1); en = f(d2); la = `Semana ${fBR(d1)} a ${fBR(d2)}`; } else if (state.ffTemp.selected === 'month') { const d1 = new Date(b.getFullYear(), b.getMonth(), 1); const d2 = new Date(b.getFullYear(), b.getMonth() + 1, 0); st = f(d1); en = f(d2); la = `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][b.getMonth()]} / ${b.getFullYear()}`; } else if (state.ffTemp.selected === 'year') { st = `${b.getFullYear()}-01-01`; en = `${b.getFullYear()}-12-31`; la = `Ano de ${b.getFullYear()}`; } state.selectedDate = null; state.advancedFilter.active = false; state.fastFilter = { active: true, dateStart: st, dateEnd: en, label: la }; closeModal(); window.updateHomeList(); },
             toggleAdvFilterSection: (sec) => { const af = state.advancedFilter; af[sec].enabled = !af[sec].enabled; af.validationErrors = af.validationErrors.filter(e => e !== sec); if (sec === 'adm' && !af.adm.enabled) { af.adm.value = ''; af.setor.enabled = false; af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'setor' && !af.setor.enabled) { af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'cidade' && !af.cidade.enabled) { af.cidade.value = ''; af.location.id = ''; } window.renderAdvancedFilterModal(); if (af[sec].enabled) window.scrollToAdvSection(sec); },
             handleAdvFilterSelect: (f, v) => { const af = state.advancedFilter; af[f].value = v; af.validationErrors = af.validationErrors.filter(e => e !== f); if (f === 'adm') { af.setor.value = ''; af.cidade.value = ''; af.location.id = ''; } else if (f === 'setor') { af.cidade.value = ''; af.location.id = ''; } else if (f === 'cidade') af.location.id = ''; window.renderAdvancedFilterModal(); window.scrollToAdvSection(f); },
             setAdvFilterStatus: (s) => { state.advancedFilter.eventos.status = s; },
             clearAdvancedFilters: () => { state.advancedFilter = { active: false, eventos: { enabled: false, status: 'ativos' }, type: { enabled: false, id: '' }, location: { enabled: false, id: '' }, attendant: { enabled: false, id: '' }, adm: { enabled: false, value: '' }, setor: { enabled: false, value: '' }, cidade: { enabled: false, value: '' }, period: { enabled: false, start: '', end: '' }, validationErrors: [] }; window.updateHomeList(); window.renderAdvancedFilterModal(); },
             applyAdvancedFilters: () => { const af = state.advancedFilter; const errs = []; if (af.type.enabled && !af.type.id) errs.push('type'); if (af.location.enabled && !af.location.id) errs.push('location'); if (af.attendant.enabled && !af.attendant.id) errs.push('attendant'); if (af.adm.enabled && !af.adm.value) errs.push('adm'); if (af.setor.enabled && !af.setor.value) errs.push('setor'); if (af.cidade.enabled && !af.cidade.value) errs.push('cidade'); if (af.period.enabled && (!af.period.start || !af.period.end)) errs.push('period'); if (errs.length > 0) { state.advancedFilter.validationErrors = errs; window.renderAdvancedFilterModal(); return; } state.selectedDate = null; state.fastFilter.active = false; state.advancedFilter.active = true; state.advancedFilter.validationErrors = []; closeModal(); window.updateHomeList(); },
             openDateRangePicker: (t) => { state.viewDate = new Date((state.advancedFilter.period[t] || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar(t === 'start' ? 'adv_start' : 'adv_end'); },
-            openPDFPreview: () => alert("Exportação em breve."),
+            openPDFPreview: () => window.renderReportCriteriaModal(),
+            renderReportCriteriaModal: () => {
+                const rf = state.reportFilter;
+                const isAgenda = rf.table === 'agenda';
+
+                // Helper to get labels
+                const getLabel = (k, id) => {
+                    if (id === 'all') return 'Todos';
+                    if (k === 'type') return state.types.find(t => t.id === id)?.name || 'Desconhecido';
+                    if (k === 'location') return state.locations.find(l => l.id === id)?.localidade || 'Desconhecido';
+                    if (k === 'attendant') return state.attendants.find(a => a.id === id)?.name || 'Desconhecido';
+                    if (k === 'adm' || k === 'setor' || k === 'cidade') return id;
+                    return '';
+                };
+
+                // Helper to render row
+                const renderRow = (key, label, collection) => {
+                    const isEnabled = rf[key].enabled;
+                    const currentId = rf[key].id; // 'all' or ID/Value
+                    const currentLabel = getLabel(key, currentId);
+
+                    return `
+                        <div class="flex items-center gap-3 p-4 bg-white hover:bg-slate-50 transition-all border-b border-slate-100 last:border-b-0">
+                            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                <input type="checkbox" class="sr-only peer" ${isEnabled ? 'checked' : ''} onchange="window.toggleReportCriteria('${key}')">
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-navy"></div>
+                            </label>
+                            
+                            <div class="flex-1 min-w-0 ${isEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}">
+                                <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">${label}</div>
+                                <button onclick="window.openReportSelector('${key}', '${collection}')" class="w-full text-left font-bold text-navy text-sm flex justify-between items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 shadow-sm active:bg-slate-100 transition-colors">
+                                    <span class="truncate">${currentLabel}</span>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                                </button>
+                            </div>
+                        </div>
+                   `;
+                };
+
+                const fieldsHtml = isAgenda ? `
+                    ${renderRow('type', 'Filtrar por Evento', 'types')}
+                    ${renderRow('location', 'Filtrar por Localidade', 'locations')}
+                    ${renderRow('attendant', 'Filtrar por Atendente', 'attendants')}
+                ` : `
+                    ${renderRow('adm', 'Filtrar por ADM', 'locations')}
+                    ${renderRow('setor', 'Filtrar por Setor', 'locations')}
+                    ${renderRow('cidade', 'Filtrar por Cidade', 'locations')}
+                `;
+
+                showModal(`
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+                        <div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white shadow-sm z-10 shrink-0">
+                            <div class="flex items-center gap-2 text-navy">
+                                <i data-lucide="file-text" class="w-5 h-5"></i>
+                                <h3 class="text-lg font-black tracking-tight uppercase">Critérios para Relatório</h3>
+                            </div>
+                            <button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        </div>
+                        
+                        <div class="p-4 bg-slate-50 border-b border-slate-100 shrink-0">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Tabela de Dados</label>
+                            <button onclick="window.toggleReportTable()" class="w-full bg-white border border-slate-200 rounded-xl p-3 flex justify-between items-center shadow-sm active:scale-[0.99] transition-all">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg ${isAgenda ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'} flex items-center justify-center">
+                                        <i data-lucide="${isAgenda ? 'calendar' : 'map-pin'}" class="w-4 h-4"></i>
+                                    </div>
+                                    <div class="text-left">
+                                        <div class="text-xs font-bold text-navy uppercase tracking-wide">${isAgenda ? 'Eventos (Agenda)' : 'Localidades'}</div>
+                                    </div>
+                                </div>
+                                <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="flex flex-col overflow-y-auto scrollbar-none bg-white divide-y divide-slate-50">
+                            ${fieldsHtml}
+                        </div>
+                        
+                        <div class="p-4 border-t border-slate-50 bg-white grid grid-cols-2 gap-3 shrink-0">
+                            <button onclick="window.closeModal()" class="py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all">Cancelar</button>
+                            <button class="py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Preview</button>
+                        </div>
+                    </div>
+                `);
+                renderIcons();
+            },
+            toggleReportTable: () => {
+                const rf = state.reportFilter;
+                rf.table = rf.table === 'agenda' ? 'locations' : 'agenda';
+                // Reset dynamic filters when switching tables
+                if (rf.table === 'agenda') {
+                    rf.adm.enabled = false; rf.setor.enabled = false; rf.cidade.enabled = false;
+                } else {
+                    rf.type.enabled = false; rf.location.enabled = false; rf.attendant.enabled = false;
+                }
+                window.renderReportCriteriaModal();
+            },
+            toggleReportCriteria: (key) => {
+                const rf = state.reportFilter;
+                rf[key].enabled = !rf[key].enabled;
+                if (!rf[key].enabled) rf[key].id = 'all';
+                window.renderReportCriteriaModal();
+            },
+            openReportSelector: (key, collection) => {
+                let items = [];
+                if (collection === 'locations' && (key === 'adm' || key === 'setor' || key === 'cidade')) {
+                    // Extract distinct values for localidade fields
+                    const rawValues = new Set(state.locations.map(l => l[key]).filter(v => v));
+                    items = [{ id: 'all', name: 'Todos' }, ...[...rawValues].sort().map(v => ({ id: v, name: v }))];
+                } else {
+                    items = [{ id: 'all', name: 'Todos', localidade: 'Todas', adm: 'Todos' }, ...state[collection]];
+                }
+
+                const renderItems = (list) => list.map(i => {
+                    const name = i.name || i.localidade || 'Sem Nome';
+                    const isSelected = state.reportFilter[key].id === i.id;
+                    return `
+                        <button onclick="window.selectReportCriteria('${key}', '${i.id.replace(/'/g, "\\'")}')" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100">
+                            <span class="group-hover:text-navy transition-colors font-bold text-sm leading-tight">${name}</span>
+                            ${isSelected ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0 ml-2"></i>' : ''}
+                        </button>
+                    `;
+                }).join('');
+
+                showModal(`
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+                        <div class="p-5 flex justify-between items-center bg-white border-b border-slate-50 shrink-0">
+                            <div class="flex items-center gap-3 text-navy">
+                                <i data-lucide="list" class="w-5 h-5"></i>
+                                <h3 class="font-bold text-lg">Selecionar Opção</h3>
+                            </div>
+                            <button onclick="window.renderReportCriteriaModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        </div>
+                        <div class="px-5 py-4 shrink-0">
+                            <div class="relative group">
+                                <input id="repPickerSearch" type="text" placeholder="Filtrar..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium">
+                                <i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <div id="repPickerList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none">
+                            ${renderItems(items)}
+                        </div>
+                    </div>
+                `);
+
+                document.getElementById('repPickerSearch')?.addEventListener('input', (e) => {
+                    const term = e.target.value.toLowerCase();
+                    const filtered = items.filter(i => (i.name || i.localidade || '').toLowerCase().includes(term));
+                    document.getElementById('repPickerList').innerHTML = renderItems(filtered);
+                    renderIcons();
+                });
+                renderIcons();
+            },
+            selectReportCriteria: (key, id) => {
+                state.reportFilter[key].id = id;
+                window.renderReportCriteriaModal();
+            },
             startCreateEvent: () => { state.editingEventId = null; state.formTempDate = new Date().toISOString().split('T')[0]; state.formTempTime = '08:00'; state.formTempLoc = ''; state.formTempType = ''; state.formTempAtt = ''; state.formTempIrmaos = ''; state.formTempIrmas = ''; state.formErrors = []; state.originalEventSnapshot = null; state.highlightedItemId = null; navigateTo('event-form'); },
             openEditEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); if (ev) { state.editingEventId = id; state.formTempDate = ev.date; state.formTempTime = ev.time; state.formTempLoc = ev.location_id; state.formTempType = ev.type_id; state.formTempAtt = ev.attendant_id || ''; state.formTempIrmaos = ev.irmaos || ''; state.formTempIrmas = ev.irmas || ''; state.formErrors = []; state.originalEventSnapshot = JSON.parse(JSON.stringify(ev)); state.highlightedItemId = null; navigateTo('event-form'); } },
             openTimePickerModal: () => { const [h, m] = (state.formTempTime || '08:00').split(':'); state.clockTempHour = h; state.clockTempMinute = m; state.clockMode = 'hour'; showModal(''); renderClockUI(); },
