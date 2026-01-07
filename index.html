@@ -432,15 +432,36 @@
                 });
             };
 
+            const isSameRecord = (r1, r2, table) => {
+                if (table === 'agenda') {
+                    return r1.date === r2.date && r1.time === r2.time && String(r1.location_id) === String(r2.location_id) && String(r1.type_id) === String(r2.type_id);
+                } else if (table === 'locations') {
+                    return r1.localidade === r2.localidade && r1.setor === r2.setor && r1.adm === r2.adm;
+                } else if (table === 'types' || table === 'attendants' || table === 'feriados' || table === 'perfis') {
+                    const name1 = r1.name || r1.nome || r1.nome_feriado;
+                    const name2 = r2.name || r2.nome || r2.nome_feriado;
+                    return name1 === name2;
+                }
+                return false;
+            };
+
             const channel = supabaseClient.channel(channelName)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, (payload) => {
                     const current = [...(state[stateKey] || [])];
-                    if (!current.find(item => String(item.id) === String(payload.new.id))) {
-                        state[stateKey] = [...current, payload.new];
-                        debouncedSave(table, state[stateKey]);
+                    if (current.find(item => String(item.id) === String(payload.new.id))) return;
 
-                        requestUIUpdate(table);
+                    // Tenta encontrar um registro temporário que corresponda a este novo registro real
+                    const tempItem = current.find(item => String(item.id).startsWith('temp_') && isSameRecord(item, payload.new, table));
+
+                    if (tempItem) {
+                        console.log(`[setupListener] Mesclando INSERT real ${payload.new.id} sobre temporário ${tempItem.id}`);
+                        state[stateKey] = current.map(item => item.id === tempItem.id ? payload.new : item);
+                    } else {
+                        state[stateKey] = [...current, payload.new];
                     }
+
+                    debouncedSave(table, state[stateKey]);
+                    requestUIUpdate(table);
                 })
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, async (payload) => {
                     const current = [...(state[stateKey] || [])];
