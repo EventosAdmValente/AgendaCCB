@@ -569,13 +569,27 @@
                 else if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
 
                 if (res && res.error) {
-                    console.error(`[executeSync] Erro Supabase em ${table}:`, res.error);
-                    // Retenta uma vez se for problema de token que o getSession não pegou
+                    console.error(`[executeSync] Erro Supabase em ${table} (${action}):`, res.error);
+
+                    // Se for erro de autenticação, tenta refresh e re-executa
                     if (res.error.code === 'PGRST301' || res.error.status === 401) {
                         const { error: rE } = await supabaseClient.auth.refreshSession();
                         if (!rE) return executeSync(item);
                     }
-                    return;
+
+                    // Se for erro de coluna inexistente ou erro de dados (não auth/rede), 
+                    // removemos da fila para não travar o app eternamente
+                    const fatalErrors = ['42703', 'PGRST204', '23505', '23502', '23503']; // Coluna não existe, não encontrado, duplicado, nulo, FK
+                    if (fatalErrors.includes(res.error.code) || res.error.status === 404 || res.error.status === 400) {
+                        console.warn(`[executeSync] Erro fatal detectado (${res.error.code}). Removendo item da fila para evitar travamento.`);
+                        const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                        const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
+                        localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
+                        if (newQueue.length > 0) processOfflineQueue(isRecovery);
+                        return;
+                    }
+
+                    return; // Mantém na fila se for erro de rede temporário
                 }
 
                 console.log(`[executeSync] Sucesso! Atualizando IDs locais se necessário.`);
@@ -677,7 +691,7 @@
             }
         };
 
-        window.smartSave = async (table, action, data, id = null) => {
+        window.smartSave = async (table, action, data, id = null, callback = null) => {
             console.log(`[smartSave] Offline-First: ${table} | Ação: ${action}`);
             const isNew = action === 'INSERT';
             const tempId = isNew ? `temp_${Date.now()}` : id;
@@ -711,6 +725,9 @@
             if (window.state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
             const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
             if (window.state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
+
+            // Se houver um callback (ex: closeModal, navigateTo), chama AGORA
+            if (callback) callback();
 
             // 2. ADICIONAR NA FILA DE SINCRONIZAÇÃO
             const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
@@ -1758,16 +1775,13 @@
 
             const isN = !id || id === 'undefined' || id === '';
             const action = isN ? 'INSERT' : 'UPDATE';
-            const result = await window.smartSave(coll, action, p, id);
 
-            if (result.success) {
-                if (!result.pendingConflict) {
+            await window.smartSave(coll, action, p, id, () => {
+                if (!state.pendingConflict) {
                     closeModal();
                     if (window.updateManagerListUI) window.updateManagerListUI(coll);
                 }
-            } else {
-                alert("Erro ao salvar: " + result.error);
-            }
+            });
         }
 
         function showDuplicateModal(name, coll, dupId, edId, curVals) {
@@ -1790,22 +1804,20 @@
 
         async function confirmarExclusaoColecao(id, coll) {
             if (!state.isAdmin) return;
-            const result = await window.smartSave(coll, 'DELETE', null, id);
-            if (result.success) {
+            await window.smartSave(coll, 'DELETE', null, id, () => {
                 closeModal();
                 if (window.updateManagerListUI) window.updateManagerListUI(coll);
-            }
+            });
         }
 
         async function confirmarEDeletar(id) {
             console.log("[confirmarEDeletar] Iniciando exclusão do ID:", id);
             if (!id || !state.isAdmin) return;
-            const result = await window.smartSave('agenda', 'DELETE', null, id);
-            if (result.success) {
-                console.log("[confirmarEDeletar] Exclusão bem-sucedida.");
+            await window.smartSave('agenda', 'DELETE', null, id, () => {
+                console.log("[confirmarEDeletar] UI atualizada para exclusão.");
                 closeModal();
                 navigateTo('home');
-            }
+            });
         }
 
         function navigateTo(screen, push = true) {
@@ -2152,13 +2164,15 @@
                     const duplicate = state.events.find(e => e.date === eventData.date && e.time === eventData.time && e.location_id === eventData.location_id && e.type_id === eventData.type_id && String(e.id) !== String(state.editingEventId));
                     if (duplicate) { showEventDuplicateModal(duplicate); return; }
                     const action = state.editingEventId ? 'UPDATE' : 'INSERT';
-                    const result = await window.smartSave('agenda', action, eventData, state.editingEventId);
-                    if (result.success) { if (!result.pendingConflict) window.navigateTo('home'); state.editingEventId = null; } else alert("Erro ao salvar: " + result.error);
+                    await window.smartSave('agenda', action, eventData, state.editingEventId, () => {
+                        window.navigateTo('home');
+                        state.editingEventId = null;
+                    });
                 } catch (e) {
                     alert("Erro inesperado: " + e.message);
                 } finally {
                     if (btn) { btn.disabled = false; btn.innerText = `SALVAR EVENTO ${!navigator.onLine ? '(OFFLINE)' : ''}`; }
-                    if (state.formErrors.length > 0) scheduleRender();
+                    if (state.formErrors && state.formErrors.length > 0) scheduleRender();
                 }
             },
             requestDeleteEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); const type = state.types.find((t) => t.id === ev?.type_id); const loc = state.locations.find((l) => l.id === ev?.location_id); showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative border-t-[8px] border-red-500"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5"><i data-lucide="alert-triangle" class="text-red-500 w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3">Excluir?</h3><p class="text-sm text-slate-500 mb-8 px-2">Deseja excluir este evento?<br><strong class="text-slate-700">${type?.name || ''} em ${loc?.localidade || ''}</strong></p><div class="w-full flex gap-3"><button onclick="window.closeModal()" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold uppercase text-sm">Não</button><button onclick="window.confirmarEDeletar('${id}')" class="flex-1 bg-red-600 py-3 rounded-xl font-black uppercase text-sm">Sim</button></div></div></div>`); },
