@@ -494,65 +494,32 @@
         const SYNC_QUEUE_KEY = 'adm_valente_sync_queue';
         const USER_PROFILE_CACHE_KEY = 'cache_user_profile';
 
-        let isProcessingQueue = false;
-
         async function processOfflineQueue(isRecovery = false) {
-            console.log(`[Queue] Acionando processamento. Online: ${navigator.onLine}, Já processando: ${isProcessingQueue}`);
+            if (!navigator.onLine) return;
 
-            if (isProcessingQueue) return;
-            if (!navigator.onLine) {
-                showConnStatus('offline');
-                return;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+            if (queue.length === 0) return;
+
+            const item = queue[0];
+            const { table, action, data, id, originalSnapshot } = item;
+
+            if (action === 'UPDATE' && id && originalSnapshot) {
+                try {
+                    const { data: serverRecord, error } = await supabaseClient.from(table).select('*').eq('id', id).single();
+
+                    const serverString = serverRecord ? JSON.stringify(serverRecord) : null;
+                    const snapshotString = JSON.stringify(originalSnapshot);
+
+                    if (!serverRecord || serverString !== snapshotString) {
+                        showConflictModal(item, serverRecord);
+                        return;
+                    }
+                } catch (err) { }
             }
 
-            isProcessingQueue = true;
-            console.log("[Queue] Iniciando loop de sincronização...");
-
-            try {
-                while (navigator.onLine) {
-                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-                    if (queue.length === 0) {
-                        console.log("[Queue] Fila limpa!");
-                        if (isRecovery) {
-                            showConnStatus('online-recovered');
-                            await refreshAllData();
-                        }
-                        break;
-                    }
-
-                    const item = queue[0];
-                    console.log(`[Queue] Próximo item: ${item.action} na tabela ${item.table}`);
-
-                    // Verificação de conflito (opcional, dependendo da ação)
-                    if (item.action === 'UPDATE' && item.id && item.originalSnapshot) {
-                        try {
-                            const { data: serverRecord } = await supabaseClient.from(item.table).select('*').eq('id', item.id).single();
-                            if (serverRecord && JSON.stringify(serverRecord) !== JSON.stringify(item.originalSnapshot)) {
-                                console.warn("[Queue] Conflito detectado antes do envio.");
-                                showConflictModal(item, serverRecord);
-                                isProcessingQueue = false; // Para o loop até resolver o conflito
-                                return;
-                            }
-                        } catch (err) { }
-                    }
-
-                    const success = await executeSync(item, isRecovery);
-
-                    if (!success) {
-                        console.warn("[Queue] Falha crítica no item. Interrompendo loop para evitar loop de erro.");
-                        break;
-                    }
-
-                    // Pequena pausa para não sobrecarregar
-                    await new Promise(r => setTimeout(r, 200));
-                }
-            } catch (err) {
-                console.error("[Queue] Exceção no loop da fila:", err);
-            } finally {
-                isProcessingQueue = false;
-                console.log("[Queue] Loop finalizado. isProcessingQueue = false");
-                if (window.updateHomeList) window.updateHomeList();
-            }
+            await executeSync(item, isRecovery);
         }
 
         async function executeSync(item, isRecovery = false) {
@@ -562,7 +529,7 @@
             const stateKey = table === 'agenda' ? 'events' : table;
 
             try {
-                console.log(`[executeSync] Tentando: ${action} em ${table} (ID: ${id})`);
+                console.log(`[executeSync] Sincronizando ${action} para ${table}...`);
 
                 // 1. Verificação proativa da sessão
                 let { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
@@ -572,9 +539,26 @@
                     const { data: refreshData, error: refreshError } = await supabaseClient.auth.refreshSession();
                     session = refreshData?.session;
 
+                    if (refreshError || !session) {
+                        console.warn("[executeSync] Refresh falhou. Tentando recuperação manual do localStorage...");
+                        try {
+                            const storageData = JSON.parse(localStorage.getItem('agenda-ccb-auth') || '{}');
+                            if (storageData.access_token && storageData.refresh_token) {
+                                console.log("[executeSync] Token encontrado. Recriando sessão...");
+                                const { data: setData, error: setError } = await supabaseClient.auth.setSession({
+                                    access_token: storageData.access_token,
+                                    refresh_token: storageData.refresh_token
+                                });
+                                session = setData?.session;
+                            }
+                        } catch (e) {
+                            console.error("[executeSync] Erro ao ler localStorage p/ recuperação:", e);
+                        }
+                    }
+
                     if (!session) {
-                        console.error("[executeSync] Falha ao recuperar sessão. Abortando item.");
-                        return false;
+                        console.error("[executeSync] Falha crítica na sessão. Sincronização pausada.");
+                        return; // Mantém na fila
                     }
                 }
 
@@ -585,22 +569,26 @@
                 else if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
 
                 if (res && res.error) {
-                    console.error(`[executeSync] Erro Supabase [${res.error.code}]:`, res.error.message);
+                    console.error(`[executeSync] Erro Supabase em ${table}:`, res.error);
+                    // Retenta uma vez se for problema de token que o getSession não pegou
                     if (res.error.code === 'PGRST301' || res.error.status === 401) {
                         const { error: rE } = await supabaseClient.auth.refreshSession();
-                        if (!rE) return executeSync(item, isRecovery);
+                        if (!rE) return executeSync(item);
                     }
-                    return false;
+                    return;
                 }
 
-                console.log(`[executeSync] Sucesso no servidor.`);
+                console.log(`[executeSync] Sucesso! Atualizando IDs locais se necessário.`);
 
-                // Se foi um INSERT, precisamos trocar o ID temporário pelo real
+                // Se foi um INSERT, precisamos trocar o ID temporário pelo real em todo o app
                 if (action === 'INSERT' && res.data && String(id).startsWith('temp_')) {
                     const realId = res.data.id;
+
+                    // 1. Atualiza no state
                     state[stateKey] = state[stateKey].map(i => String(i.id) === String(id) ? res.data : i);
                     localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
 
+                    // 2. Atualiza outros itens na fila que dependam desse ID (ex: um UPDATE logo após o INSERT)
                     const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                     const updatedQueue = queue.map(q => {
                         if (q.table === table && String(q.id) === String(id)) q.id = realId;
@@ -608,10 +596,12 @@
                     });
                     localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updatedQueue));
 
+                    // 3. Mantém o destaque visual se o item estiver selecionado
                     if (String(state.highlightedItemId) === String(id)) {
                         state.highlightedItemId = realId;
                     }
-                    console.log(`[executeSync] ID Mapeado: ${id} -> ${realId}`);
+
+                    console.log(`[executeSync] ID mapeado: ${id} -> ${realId}`);
                 }
 
                 // Remove o item processado da fila
@@ -619,10 +609,17 @@
                 const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
                 localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
 
-                return true;
+                if (newQueue.length > 0) {
+                    processOfflineQueue(isRecovery);
+                } else {
+                    if (isRecovery) {
+                        showConnStatus('online-recovered');
+                        await refreshAllData();
+                    }
+                    if (window.updateHomeList) window.updateHomeList();
+                }
             } catch (err) {
-                console.error("[executeSync] Exceção catastrófica:", err);
-                return false;
+                console.error("[executeSync] Exceção na sincronização:", err);
             }
         }
 
@@ -668,13 +665,13 @@
                     localStorage.setItem(`cache_${item.table}`, JSON.stringify(state[stateKey]));
                 }
                 closeModal();
-                if (newQueue.length > 0) processOfflineQueue(false);
+                if (newQueue.length > 0) processOfflineQueue();
 
                 const targetScreen = item.table === 'agenda' ? 'home' : (item.table === 'perfis' ? 'users' : item.table);
                 window.navigateTo(targetScreen);
             } else {
                 closeModal();
-                processOfflineQueue(false);
+                await executeSync(item);
                 const targetScreen = item.table === 'agenda' ? 'home' : (item.table === 'perfis' ? 'users' : item.table);
                 window.navigateTo(targetScreen);
             }
@@ -707,9 +704,8 @@
             state[stateKey] = list;
             localStorage.setItem(`cache_${table}`, JSON.stringify(list));
 
-            // Aplica destaque e sinaliza necessidade de rolagem
+            // Aplica destaque e rolagem
             state.highlightedItemId = finalId;
-            state.needsScroll = true;
 
             // Atualiza UI instantaneamente
             if (window.state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
@@ -722,7 +718,7 @@
             localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
 
             // 3. DISPARAR SINCRONIZAÇÃO EM SEGUNDO PLANO (sem esperar pelo retorno)
-            console.log(`[smartSave] Conexão: ${navigator.onLine ? 'ONLINE' : 'OFFLINE'}. Disparando fila...`);
+            console.log("[smartSave] Disparando sincronização em segundo plano...");
             if (navigator.onLine) processOfflineQueue(false);
             else showConnStatus('offline');
 
@@ -788,8 +784,7 @@
             clockMode: 'hour',
             clockTempHour: '08',
             clockTempMinute: '00',
-            originalEventSnapshot: null,
-            needsScroll: false
+            originalEventSnapshot: null
         };
 
         const state = new Proxy(INITIAL_STATE, {
@@ -888,8 +883,6 @@
                 return;
             }
 
-
-
             const filtered = getFilteredEvents();
             container.innerHTML = `
                 <div class="flex justify-between items-start px-1 mb-1 gap-2 min-h-[18px] overflow-visible">
@@ -955,8 +948,6 @@
                 </div>
             `;
 
-
-
             const labelEl = document.getElementById('home-filter-label');
             if (labelEl) {
                 let currentSize = 13;
@@ -968,13 +959,10 @@
             }
             renderIcons();
 
-            if (state.highlightedItemId && state.needsScroll) {
+            if (state.highlightedItemId) {
                 setTimeout(() => {
                     const el = document.getElementById(`item-${state.highlightedItemId}`);
-                    if (el) {
-                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        state.needsScroll = false;
-                    }
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }, 100);
             }
         };
@@ -1052,14 +1040,8 @@
                     </div>`;
             }).join('');
             renderIcons();
-            if (state.highlightedItemId && state.needsScroll) {
-                setTimeout(() => {
-                    const el = document.getElementById(`item-${state.highlightedItemId}`);
-                    if (el) {
-                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        state.needsScroll = false;
-                    }
-                }, 100);
+            if (state.highlightedItemId) {
+                setTimeout(() => { const el = document.getElementById(`item-${state.highlightedItemId}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100);
             }
         };
 
@@ -1913,15 +1895,7 @@
                     if (duplicate) { showEventDuplicateModal(duplicate); return; }
                     const action = state.editingEventId ? 'UPDATE' : 'INSERT';
                     const result = await window.smartSave('agenda', action, eventData, state.editingEventId);
-                    if (result.success) {
-                        if (!result.pendingConflict) {
-                            window.navigateTo('home');
-                            // Garante que o scroll aconteça
-                            state.highlightedItemId = result.tempId || state.editingEventId || result.id;
-                            state.needsScroll = true;
-                        }
-                        state.editingEventId = null;
-                    } else alert("Erro ao salvar: " + result.error);
+                    if (result.success) { if (!result.pendingConflict) window.navigateTo('home'); state.editingEventId = null; } else alert("Erro ao salvar: " + result.error);
                 } catch (e) {
                     alert("Erro inesperado: " + e.message);
                 } finally {
