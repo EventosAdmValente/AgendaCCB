@@ -1048,14 +1048,15 @@
                 const mainName = (coll === 'locations' ? item.localidade : (coll === 'feriados' ? item.nome_feriado : (coll === 'perfis' ? item.nome : item.name))) || '';
                 if (coll === 'locations') {
                     const line2 = [item.adm, item.setor, item.cidade].filter(Boolean).join(' | ');
-                    const anciaes = [item.anciao_1, item.anciao_2, item.anciao_3].filter(Boolean).join(', ');
-                    const diaconos = [item.diacono_1, item.diacono_2, item.diacono_3].filter(Boolean).join(', ');
-                    const cooperadores = [item.com_1, item.com_2, item.cjm].filter(Boolean).join(', ');
+                    const anciaes = [item.anciao_1, item.anciao_2, item.anciao_3].filter(Boolean).join(' - ');
+                    const diaconos = [item.diacono_1, item.diacono_2, item.diacono_3].filter(Boolean).join(' - ');
+                    const cooperadores = [item.com_1, item.com_2].filter(Boolean).join(' - ');
                     badgesHtml = `
                         <div class="text-[11px] text-slate-600 font-medium leading-tight mt-1">${line2}</div>
-                        <div class="text-[11px] text-slate-500 font-semibold leading-tight mt-1">Anc: ${anciaes || '---'}</div>
-                        <div class="text-[11px] text-slate-500 font-semibold leading-tight mt-0.5">Diac: ${diaconos || '---'}</div>
-                        <div class="text-[11px] text-slate-500 font-semibold leading-tight mt-0.5">Coop: ${cooperadores || '---'}</div>
+                        <div class="text-[11px] text-slate-500 font-semibold leading-tight mt-1">ANC: ${anciaes || '---'}</div>
+                        <div class="text-[11px] text-slate-500 font-semibold leading-tight mt-0.5">DCN: ${diaconos || '---'}</div>
+                        <div class="text-[11px] text-slate-500 font-semibold leading-tight mt-0.5">COM: ${cooperadores || '---'}</div>
+                        ${item.cjm ? `<div class="text-[11px] text-slate-500 font-semibold leading-tight mt-0.5">CJE: ${item.cjm}</div>` : ''}
                     `;
                 } else if (coll === 'types') {
                     badgesHtml = `<div class="text-[11px] text-slate-600 font-medium leading-tight mt-1 h-3">${item.sigla || ''}</div><div class="text-[11px] text-slate-400 leading-tight mt-0.5 h-3"></div>`;
@@ -1655,10 +1656,11 @@
 
                             <div class="flex flex-col gap-1">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Nível de Permissão</label>
-                                <select id="user-permission" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy appearance-none bg-white">
-                                    <option value="leitura" ${item.permissao === 'leitura' ? 'selected' : ''}>Somente Leitura</option>
-                                    <option value="admin" ${item.permissao === 'admin' ? 'selected' : ''}>Administrador</option>
-                                </select>
+                                <button onclick="window.openPermissionPicker('${coll}', '${safeId}', '${item.permissao || 'leitura'}')" class="w-full flex justify-between items-center p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-white focus:ring-2 focus:ring-navy/10 text-left">
+                                    <span>${item.permissao === 'admin' ? 'Administrador' : 'Somente Leitura'}</span>
+                                    <input type="hidden" id="user-permission" value="${item.permissao || 'leitura'}">
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                                </button>
                             </div>
 
                             <button onclick="window.saveRow('perfis', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR ALTERAÇÕES</button>
@@ -1669,28 +1671,21 @@
                 return;
             }
 
-            const attOptions = state.attendants.sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(a => `<option value="${a.name}">${a.name}</option>`).join('');
-            const renderSel = (id, label, val) => `
+            const renderSel = (fieldId, label, requiredMinistry = '') => {
+                const val = item[fieldId.replace('loc-', '').replace(/-/g, '_')] || '';
+                return `
                 <div class="flex flex-col gap-1">
                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">${label}</label>
-                    <div class="relative">
-                        <select id="${id}" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy appearance-none bg-white focus:ring-2 focus:ring-navy/10 pr-8">
-                            <option value="">Selecione...</option>
-                            ${attOptions}
-                        </select>
-                        <i data-lucide="chevron-down" class="absolute right-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none"></i>
-                    </div>
+                    <button onclick="window.openLocationStaffPicker('${coll}', '${safeId}', '${fieldId}', '${label.replace(/'/g, "\\'")}', '${requiredMinistry}')" 
+                            class="w-full flex justify-between items-center p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-white focus:ring-2 focus:ring-navy/10 text-left">
+                        <span class="truncate">${val || 'Selecionar...'}</span>
+                        <input type="hidden" id="${fieldId}" value="${val || ''}">
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 shrink-0"></i>
+                    </button>
                 </div>
             `;
-            // Pre-select values helper script (injected after HTML)
-            const injectVals = `setTimeout(() => {
-                const vals = ${JSON.stringify({
-                'loc-anciao-1': item.anciao_1 || '', 'loc-anciao-2': item.anciao_2 || '', 'loc-anciao-3': item.anciao_3 || '',
-                'loc-diacono-1': item.diacono_1 || '', 'loc-diacono-2': item.diacono_2 || '', 'loc-diacono-3': item.diacono_3 || '',
-                'loc-com-1': item.com_1 || '', 'loc-com-2': item.com_2 || '', 'loc-cjm': item.cjm || ''
-            })};
-                Object.entries(vals).forEach(([k, v]) => { const el = document.getElementById(k); if(el) el.value = v; });
-            }, 0);`;
+            };
+
 
 
             showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"><div class="p-4 bg-slate-50 border-b flex justify-between items-center shrink-0"><h3 class="font-black text-navy text-xs uppercase tracking-widest">${isE ? 'Editar' : 'Novo'} ${ctx.title}</h3><button onclick="window.closeModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4 overflow-y-auto scrollbar-none">
@@ -1704,41 +1699,30 @@
                 <div class="border-t border-slate-100 my-2 pt-2">
                     <span class="text-[10px] font-black text-orange-custom uppercase tracking-widest block mb-2">Anciães</span>
                     <div class="flex flex-col gap-3">
-                        ${renderSel('loc-anciao-1', 'Ancião 1')}
-                        ${renderSel('loc-anciao-2', 'Ancião 2')}
-                        ${renderSel('loc-anciao-3', 'Ancião 3')}
+                        ${renderSel('loc-anciao-1', 'Ancião 1', 'Ancião')}
+                        ${renderSel('loc-anciao-2', 'Ancião 2', 'Ancião')}
+                        ${renderSel('loc-anciao-3', 'Ancião 3', 'Ancião')}
                     </div>
                 </div>
                 <div class="border-t border-slate-100 my-2 pt-2">
                     <span class="text-[10px] font-black text-orange-custom uppercase tracking-widest block mb-2">Diáconos</span>
                     <div class="flex flex-col gap-3">
-                        ${renderSel('loc-diacono-1', 'Diácono 1')}
-                        ${renderSel('loc-diacono-2', 'Diácono 2')}
-                        ${renderSel('loc-diacono-3', 'Diácono 3')}
+                        ${renderSel('loc-diacono-1', 'Diácono 1', 'Diácono')}
+                        ${renderSel('loc-diacono-2', 'Diácono 2', 'Diácono')}
+                        ${renderSel('loc-diacono-3', 'Diácono 3', 'Diácono')}
                     </div>
                 </div>
                 <div class="border-t border-slate-100 my-2 pt-2">
                     <span class="text-[10px] font-black text-orange-custom uppercase tracking-widest block mb-2">Cooperadores</span>
                     <div class="flex flex-col gap-3">
-                        ${renderSel('loc-com-1', 'Coop. Oficial 1')}
-                        ${renderSel('loc-com-2', 'Coop. Oficial 2')}
-                        ${renderSel('loc-cjm', 'Coop. Jovens')}
+                        ${renderSel('loc-com-1', 'Coop. Oficial 1', 'Coop. Oficial')}
+                        ${renderSel('loc-com-2', 'Coop. Oficial 2', 'Coop. Oficial')}
+                        ${renderSel('loc-cjm', 'Coop. Jovens', 'Coop. Jovens')}
                     </div>
                 </div>
             ` : ''}${coll === 'feriados' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data do Feriado</label><button id="feriado-btn" onclick="window.openFeriadoDatePicker()" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-slate-50 text-left flex justify-between items-center transition-colors"><span id="feriado-date-display">${item.data ? formatDateFull(item.data) : 'Selecionar Data...'}</span><i data-lucide="calendar" class="w-4 h-4 opacity-40"></i><input type="hidden" id="feriado-date-val" value="${item.data || ''}"></button></div><div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Feriado</label><input id="feriado-tipo" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.tipo_feriado || ''}" placeholder="Ex: Nacional, Municipal..."></div>` : ''}${coll !== 'locations' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>` : ''}${coll === 'types' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Sigla (EVT)</label><input id="row-extra" type="text" maxlength="5" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-black text-navy uppercase" value="${item.sigla || ''}"></div>` : ''}${coll === 'attendants' ? `<div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">Ministério</label><input id="row-extra" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy focus:ring-2 focus:ring-navy/10" value="${item.ministerio || ''}" placeholder="Ex: Louvor"></div>` : ''}<button onclick="window.saveRow('${coll}', '${safeId}')" class="w-full bg-navy text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-transform">SALVAR REGISTRO ${!navigator.onLine ? '(OFFLINE)' : ''}</button></div></div>`);
 
-            // Post-render value injection (fixes visual glitch)
-            if (coll === 'locations') {
-                const vals = {
-                    'loc-anciao-1': item.anciao_1, 'loc-anciao-2': item.anciao_2, 'loc-anciao-3': item.anciao_3,
-                    'loc-diacono-1': item.diacono_1, 'loc-diacono-2': item.diacono_2, 'loc-diacono-3': item.diacono_3,
-                    'loc-com-1': item.com_1, 'loc-com-2': item.com_2, 'loc-cjm': item.cjm
-                };
-                Object.entries(vals).forEach(([k, v]) => {
-                    const el = document.getElementById(k);
-                    if (el && v) el.value = v;
-                });
-            }
+
         }
 
         async function saveRow(coll, id) {
@@ -2273,7 +2257,86 @@
                     const el = document.getElementById(`adv-sec-${sec}`);
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }, 50);
-            }
+            },
+            openLocationStaffPicker: (coll, id, fieldId, title, requiredMinistry = '') => {
+                const currentVals = {
+                    id: id,
+                    adm: document.getElementById('loc-adm')?.value,
+                    setor: document.getElementById('loc-setor')?.value,
+                    cidade: document.getElementById('loc-cidade')?.value,
+                    localidade: document.getElementById('row-name')?.value,
+                    anciao_1: document.getElementById('loc-anciao-1')?.value,
+                    anciao_2: document.getElementById('loc-anciao-2')?.value,
+                    anciao_3: document.getElementById('loc-anciao-3')?.value,
+                    diacono_1: document.getElementById('loc-diacono-1')?.value,
+                    diacono_2: document.getElementById('loc-diacono-2')?.value,
+                    diacono_3: document.getElementById('loc-diacono-3')?.value,
+                    com_1: document.getElementById('loc-com-1')?.value,
+                    com_2: document.getElementById('loc-com-2')?.value,
+                    cjm: document.getElementById('loc-cjm')?.value,
+                };
+                window.__location_modal_cache = { coll, id, item: currentVals };
+
+                let items = [...state.attendants];
+                if (requiredMinistry) {
+                    items = items.filter(a => (a.ministerio || '').toLowerCase() === requiredMinistry.toLowerCase());
+                }
+
+                showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50 shrink-0"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${title}</h3></div><button onclick="window.openRowModal('locations', '${id}', window.__location_modal_cache.item)" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="px-5 py-4 shrink-0"><div class="relative group"><input id="pickerSearch" type="text" placeholder="Filtrar..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium"><i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i></div></div><div id="pickerItemsList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none"></div></div>`);
+
+                const renderItems = (list) => {
+                    const sorted = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    return `<button onclick="window.handleLocationStaffSelection('${fieldId}', '')" class="w-full p-4 text-left font-semibold text-red-500 hover:bg-red-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-red-100"><span class="font-bold text-sm leading-tight italic">Limpar Seleção</span></button>` +
+                        sorted.map((i) => {
+                            const isS = currentVals[fieldId.replace('loc-', '').replace(/-/g, '_')] === i.name;
+                            return `<button onclick="window.handleLocationStaffSelection('${fieldId}', '${i.name.replace(/'/g, "\\'")}')" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><span class="group-hover:text-navy transition-colors font-bold text-sm leading-tight">${i.name}</span>${isS ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0 ml-2"></i>' : ''}</button>`;
+                        }).join('');
+                };
+
+                const listEl = document.getElementById('pickerItemsList');
+                if (listEl) listEl.innerHTML = renderItems(items);
+
+                document.getElementById('pickerSearch')?.addEventListener('input', (e) => {
+                    const term = (e.target.value || '').toLowerCase();
+                    const filtered = items.filter((i) => (i.name || '').toLowerCase().includes(term));
+                    document.getElementById('pickerItemsList').innerHTML = renderItems(filtered);
+                    renderIcons();
+                });
+                renderIcons();
+            },
+            handleLocationStaffSelection: (fieldId, name) => {
+                const cache = window.__location_modal_cache;
+                cache.item[fieldId.replace('loc-', '').replace(/-/g, '_')] = name;
+                window.openRowModal('locations', cache.id, cache.item);
+            },
+            openPermissionPicker: (coll, id, currentVal) => {
+                const options = [
+                    { value: 'leitura', label: 'Somente Leitura' },
+                    { value: 'admin', label: 'Administrador' }
+                ];
+                const auth = document.getElementById('user-authorized')?.checked;
+                const nome = state.perfis.find(p => String(p.id) === String(id))?.nome || '';
+                window.__user_modal_cache = { coll, id, item: { autorizado: auth, permissao: currentVal, nome: nome } };
+
+                showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50 shrink-0"><div class="flex items-center gap-3 text-navy"><i data-lucide="shield-check" class="w-5 h-5"></i><h3 class="font-bold text-lg">Nível de Acesso</h3></div><button onclick="window.closePermissionPicker()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-2 flex flex-col">
+                    ${options.map(o => `
+                        <button onclick="window.handlePermissionSelection('${o.value}')" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100">
+                            <span class="font-bold text-sm text-navy">${o.label}</span>
+                            ${currentVal === o.value ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom"></i>' : ''}
+                        </button>
+                    `).join('')}
+                </div></div>`);
+                renderIcons();
+            },
+            handlePermissionSelection: (val) => {
+                const cache = window.__user_modal_cache;
+                cache.item.permissao = val;
+                window.openRowModal('perfis', cache.id, cache.item);
+            },
+            closePermissionPicker: () => {
+                const cache = window.__user_modal_cache;
+                window.openRowModal('perfis', cache.id, cache.item);
+            },
         });
 
         function loadCachedData() {
