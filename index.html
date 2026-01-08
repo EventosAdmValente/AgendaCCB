@@ -533,7 +533,7 @@
                     const serverString = serverRecord ? JSON.stringify(serverRecord) : null;
                     const snapshotString = JSON.stringify(originalSnapshot);
 
-                    if (!serverRecord || serverString !== snapshotString) {
+                    if (!serverRecord || (serverString !== snapshotString && serverRecord.alterado_por !== state.user.id)) {
                         showConflictModal(item, serverRecord);
                         return;
                     }
@@ -642,9 +642,20 @@
                 // Remove o item processado da fila
                 const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                 const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
-                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
 
-                if (newQueue.length > 0) {
+                // Atualiza o originalSnapshot de outros itens pendentes para o mesmo registro
+                // Isso evita conflitos falsos em edições consecutivas offline
+                const updatedQueue = newQueue.map(q => {
+                    if (q.table === table && String(q.id) === String(id) && q.action === 'UPDATE') {
+                        console.log(`[executeSync] Sincronizando originalSnapshot para item subsequente na fila (${q.timestamp})`);
+                        q.originalSnapshot = res.data;
+                    }
+                    return q;
+                });
+
+                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updatedQueue));
+
+                if (updatedQueue.length > 0) {
                     processOfflineQueue(isRecovery);
                 } else {
                     if (isRecovery) {
@@ -718,6 +729,8 @@
             const tempId = isNew ? `temp_${Date.now()}` : id;
             const finalId = id || tempId;
             const stateKey = table === 'agenda' ? 'events' : table;
+
+            if (state.user) data.alterado_por = state.user.id;
 
             let originalSnapshot = null;
             if (action === 'UPDATE' && id) {
@@ -1954,7 +1967,7 @@
             if (!el) return;
             el.className = '';
             if (status === 'offline') { el.innerHTML = '<i data-lucide="wifi-off" class="w-3.5 h-3.5"></i> Sem internet - Modo Offline'; el.classList.add('offline'); }
-            else if (status === 'online-recovered') { el.innerHTML = '<i data-lucide="wifi" class="w-3.5 h-3.5"></i> Conexão restabelecida. Sincronizando...'; el.classList.add('online-recovered'); setTimeout(() => { el.classList.remove('online-recovered'); }, 3000); }
+            else if (status === 'online-recovered') { el.innerHTML = '<i data-lucide="wifi" class="w-3.5 h-3.5"></i> Online Sincronizando...'; el.classList.add('online-recovered'); setTimeout(() => { el.classList.remove('online-recovered'); }, 3000); }
             renderIcons();
         }
 
