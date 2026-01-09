@@ -329,12 +329,12 @@
         const supabaseClient = window.supabaseInstance;
 
         // Gerenciamento de canais com proteção contra duplicidade
-        const activeChannelss = new Map();
+        const activeChannels = new Map();
 
         async function setupRealtime(tableName) {
             // Se já existe um canal para essa tabela, removemos antes de criar outro
-            if (activeChannelss.has(tableName)) {
-                await supabaseClient.removeChannel(activeChannelss.get(tableName));
+            if (activeChannels.has(tableName)) {
+                await supabaseClient.removeChannel(activeChannels.get(tableName));
             }
 
             const channel = supabaseClient
@@ -394,7 +394,6 @@
             scheduleRender();
         };
 
-        const activeChannels = new Map();
         function cleanupListeners() {
             activeChannels.forEach((channel, name) => {
                 supabaseClient.removeChannel(channel);
@@ -525,32 +524,42 @@
         const SYNC_QUEUE_KEY = 'adm_valente_sync_queue';
         const USER_PROFILE_CACHE_KEY = 'cache_user_profile';
 
+        let isProcessingQueue = false;
         async function processOfflineQueue(isRecovery = false) {
-            if (!navigator.onLine) return;
+            if (!navigator.onLine || isProcessingQueue) return;
+            isProcessingQueue = true;
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            try {
+                // Pequeno delay para garantir estabilidade da conexão
+                await new Promise(resolve => setTimeout(resolve, 500));
 
-            const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-            if (queue.length === 0) return;
+                while (navigator.onLine) {
+                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                    if (queue.length === 0) break;
 
-            const item = queue[0];
-            const { table, action, data, id, originalSnapshot } = item;
+                    const item = queue[0];
+                    const { table, action, id, originalSnapshot } = item;
 
-            if (action === 'UPDATE' && id && originalSnapshot) {
-                try {
-                    const { data: serverRecord, error } = await supabaseClient.from(table).select('*').eq('id', id).single();
+                    // Verificação de Conflito para Updates
+                    if (action === 'UPDATE' && id && originalSnapshot) {
+                        try {
+                            const { data: serverRecord } = await supabaseClient.from(table).select('*').eq('id', id).single();
+                            const serverString = serverRecord ? JSON.stringify(serverRecord) : null;
+                            const snapshotString = JSON.stringify(originalSnapshot);
 
-                    const serverString = serverRecord ? JSON.stringify(serverRecord) : null;
-                    const snapshotString = JSON.stringify(originalSnapshot);
-
-                    if (!serverRecord || (serverString !== snapshotString && serverRecord.alterado_por !== state.user.id)) {
-                        showConflictModal(item, serverRecord);
-                        return;
+                            if (!serverRecord || (serverString !== snapshotString && serverRecord.alterado_por !== state.user.id)) {
+                                showConflictModal(item, serverRecord);
+                                return; // O processamento para aqui e aguarda resposta do modal
+                            }
+                        } catch (err) { }
                     }
-                } catch (err) { }
-            }
 
-            await executeSync(item, isRecovery);
+                    const success = await executeSync(item, isRecovery);
+                    if (!success) break; // Erro de rede: para e aguarda próxima oportunidade
+                }
+            } finally {
+                isProcessingQueue = false;
+            }
         }
 
         async function executeSync(item, isRecovery = false) {
@@ -564,34 +573,11 @@
 
                 // 1. Verificação proativa da sessão
                 let { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-
                 if (sessionError || !session) {
-                    console.warn("[executeSync] Sessão inválida. Tentando refresh...");
                     const { data: refreshData, error: refreshError } = await supabaseClient.auth.refreshSession();
                     session = refreshData?.session;
-
-                    if (refreshError || !session) {
-                        console.warn("[executeSync] Refresh falhou. Tentando recuperação manual do localStorage...");
-                        try {
-                            const storageData = JSON.parse(localStorage.getItem('agenda-ccb-auth') || '{}');
-                            if (storageData.access_token && storageData.refresh_token) {
-                                console.log("[executeSync] Token encontrado. Recriando sessão...");
-                                const { data: setData, error: setError } = await supabaseClient.auth.setSession({
-                                    access_token: storageData.access_token,
-                                    refresh_token: storageData.refresh_token
-                                });
-                                session = setData?.session;
-                            }
-                        } catch (e) {
-                            console.error("[executeSync] Erro ao ler localStorage p/ recuperação:", e);
-                        }
-                    }
-
-                    if (!session) {
-                        console.error("[executeSync] Falha crítica na sessão. Sincronização pausada.");
-                        return; // Mantém na fila
-                    }
                 }
+                if (!session) return false;
 
                 // 2. Executa a operação
                 let res;
@@ -602,80 +588,51 @@
                 if (res && res.error) {
                     console.error(`[executeSync] Erro Supabase em ${table} (${action}):`, res.error);
 
-                    // Se for erro de autenticação, tenta refresh e re-executa
-                    if (res.error.code === 'PGRST301' || res.error.status === 401) {
-                        const { error: rE } = await supabaseClient.auth.refreshSession();
-                        if (!rE) return executeSync(item);
-                    }
-
-                    // Se for erro de coluna inexistente ou erro de dados (não auth/rede), 
-                    // removemos da fila para não travar o app eternamente
-                    const fatalErrors = ['42703', 'PGRST204', '23505', '23502', '23503']; // Coluna não existe, não encontrado, duplicado, nulo, FK
+                    // Erros Fatais (Remover da fila)
+                    const fatalErrors = ['42703', 'PGRST204', '23505', '23502', '23503'];
                     if (fatalErrors.includes(res.error.code) || res.error.status === 404 || res.error.status === 400) {
-                        console.warn(`[executeSync] Erro fatal detectado (${res.error.code}). Removendo item da fila para evitar travamento.`);
                         const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                         const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
                         localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
-                        if (newQueue.length > 0) processOfflineQueue(isRecovery);
-                        return;
+                        return true; // Continua para o próximo
                     }
-
-                    return; // Mantém na fila se for erro de rede temporário
+                    return false; // Erro de rede/temporário: para processamento
                 }
 
-                console.log(`[executeSync] Sucesso! Atualizando IDs locais se necessário.`);
-
-                // Se foi um INSERT, precisamos trocar o ID temporário pelo real em todo o app
+                // 3. Sucesso: Mapear IDs temporários se necessário
                 if (action === 'INSERT' && res.data && String(id).startsWith('temp_')) {
                     const realId = res.data.id;
-
-                    // 1. Atualiza no state
-                    state[stateKey] = state[stateKey].map(i => String(i.id) === String(id) ? res.data : i);
+                    state[stateKey] = (state[stateKey] || []).map(i => String(i.id) === String(id) ? res.data : i);
                     localStorage.setItem(`cache_${table}`, JSON.stringify(state[stateKey]));
 
-                    // 2. Atualiza outros itens na fila que dependam desse ID (ex: um UPDATE logo após o INSERT)
                     const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                     const updatedQueue = queue.map(q => {
                         if (q.table === table && String(q.id) === String(id)) q.id = realId;
                         return q;
                     });
                     localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updatedQueue));
-
-                    // 3. Mantém o destaque visual se o item estiver selecionado
-                    if (String(state.highlightedItemId) === String(id)) {
-                        state.highlightedItemId = realId;
-                    }
-
-                    console.log(`[executeSync] ID mapeado: ${id} -> ${realId}`);
+                    if (String(state.highlightedItemId) === String(id)) state.highlightedItemId = realId;
                 }
 
-                // Remove o item processado da fila
+                // 4. Remover da fila e atualizar snapshots subsequentes
                 const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                 const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
-
-                // Atualiza o originalSnapshot de outros itens pendentes para o mesmo registro
-                // Isso evita conflitos falsos em edições consecutivas offline
-                const updatedQueue = newQueue.map(q => {
+                const finalQueue = newQueue.map(q => {
                     if (q.table === table && String(q.id) === String(id) && q.action === 'UPDATE') {
-                        console.log(`[executeSync] Sincronizando originalSnapshot para item subsequente na fila (${q.timestamp})`);
                         q.originalSnapshot = res.data;
                     }
                     return q;
                 });
+                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(finalQueue));
 
-                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updatedQueue));
-
-                if (updatedQueue.length > 0) {
-                    processOfflineQueue(isRecovery);
-                } else {
-                    if (isRecovery) {
-                        showConnStatus('online-recovered');
-                        await refreshAllData();
-                    }
-                    // Removido updateHomeList() para evitar realce duplo - já foi atualizado no smartSave
+                if (finalQueue.length === 0 && isRecovery) {
+                    showConnStatus('online-recovered');
+                    await refreshAllData();
                 }
+                return true; // Continua loop
             } catch (err) {
-                console.error("[executeSync] Exceção na sincronização:", err);
+                console.error("[executeSync] Exceção:", err);
+                return false;
             }
         }
 
@@ -704,46 +661,38 @@
         }
 
         window.resolveConflict = async (decision, item, serverRecord) => {
-            const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-            const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
-            localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
+            const targetScreen = item.table === 'agenda' ? 'home' : (item.table === 'perfis' ? 'users' : item.table);
 
             if (decision === 'descartar') {
+                const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
+                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
+
                 const stateKey = item.table === 'agenda' ? 'events' : item.table;
                 if (serverRecord) {
-                    const currentList = [...state[stateKey]];
+                    const currentList = [...(state[stateKey] || [])];
                     const idx = currentList.findIndex(i => String(i.id) === String(serverRecord.id));
                     if (idx !== -1) currentList[idx] = serverRecord;
                     state[stateKey] = currentList;
                     localStorage.setItem(`cache_${item.table}`, JSON.stringify(currentList));
-
-                    // Destacar o registro atualizado
                     state.highlightedItemId = serverRecord.id;
                 } else {
-                    state[stateKey] = state[stateKey].filter(i => String(i.id) !== String(item.id));
+                    state[stateKey] = (state[stateKey] || []).filter(i => String(i.id) !== String(item.id));
                     localStorage.setItem(`cache_${item.table}`, JSON.stringify(state[stateKey]));
                 }
-
                 closeModal();
-
-                // Atualizar a UI imediatamente antes de navegar
-                const targetScreen = item.table === 'agenda' ? 'home' : (item.table === 'perfis' ? 'users' : item.table);
-
-                if (item.table === 'agenda') {
-                    if (window.updateHomeList) window.updateHomeList();
-                } else {
-                    if (window.updateManagerListUI) window.updateManagerListUI(item.table);
-                }
-
-                scheduleRender();
-
-                if (newQueue.length > 0) processOfflineQueue();
-
+                processOfflineQueue();
                 window.navigateTo(targetScreen);
             } else {
+                // Gravar: atualiza o snapshot original para bater com o servidor e permitir o overwrite
+                const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                const updatedQueue = queue.map(q => {
+                    if (q.timestamp === item.timestamp) q.originalSnapshot = serverRecord;
+                    return q;
+                });
+                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updatedQueue));
                 closeModal();
-                await executeSync(item);
-                const targetScreen = item.table === 'agenda' ? 'home' : (item.table === 'perfis' ? 'users' : item.table);
+                processOfflineQueue();
                 window.navigateTo(targetScreen);
             }
         };
