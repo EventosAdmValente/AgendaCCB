@@ -530,7 +530,7 @@
             isProcessingQueue = true;
 
             try {
-                // Pequeno delay para garantir estabilidade da conexão
+                if (isRecovery) showConnStatus('online-recovered');
                 await new Promise(resolve => setTimeout(resolve, 500));
 
                 while (navigator.onLine) {
@@ -556,6 +556,10 @@
 
                     const success = await executeSync(item, isRecovery);
                     if (!success) break; // Erro de rede: para e aguarda próxima oportunidade
+                }
+
+                if (isRecovery && navigator.onLine) {
+                    await refreshAllData();
                 }
             } finally {
                 isProcessingQueue = false;
@@ -624,11 +628,6 @@
                     return q;
                 });
                 localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(finalQueue));
-
-                if (finalQueue.length === 0 && isRecovery) {
-                    showConnStatus('online-recovered');
-                    await refreshAllData();
-                }
                 return true; // Continua loop
             } catch (err) {
                 console.error("[executeSync] Exceção:", err);
