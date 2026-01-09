@@ -1468,7 +1468,7 @@
                             <button onclick="window.navigateTo('home')" class="p-1 hover:bg-white/10 rounded-full"><i data-lucide="arrow-left"></i></button>
                             <h1 class="font-bold uppercase tracking-wide text-sm">${title}</h1>
                         </div>
-                        <button onclick="window.resetAllFilters(); window.navigateTo('home')" class="p-2 hover:bg-white/10 rounded"><i data-lucide="home" class="w-5 h-5"></i></button>
+                        <button onclick="window.navigateTo('home')" class="p-2 hover:bg-white/10 rounded"><i data-lucide="home" class="w-5 h-5"></i></button>
                     </div>
                     <div class="p-4 flex flex-col gap-4 flex-1 overflow-hidden max-w-xl mx-auto w-full">
                         <div class="relative">
@@ -1501,9 +1501,12 @@
             if (!app) return;
             app.innerHTML = `
                 <div class="flex flex-col h-full bg-slate-100">
-                    <div class="bg-navy text-white p-4 flex items-center gap-3 shadow-lg">
-                        <button onclick="window.navigateTo('home')" class="p-1 hover:bg-white/10 rounded-full"><i data-lucide="arrow-left"></i></button>
-                        <h1 class="font-bold uppercase tracking-wide text-sm">Sobre</h1>
+                    <div class="bg-navy text-white p-4 flex justify-between items-center shadow-lg z-10">
+                        <div class="flex items-center gap-3">
+                            <button onclick="window.navigateTo('home')" class="p-1 hover:bg-white/10 rounded-full"><i data-lucide="arrow-left"></i></button>
+                            <h1 class="font-bold uppercase tracking-wide text-sm">Sobre</h1>
+                        </div>
+                        <button onclick="window.navigateTo('home')" class="p-2 hover:bg-white/10 rounded"><i data-lucide="home" class="w-5 h-5"></i></button>
                     </div>
                     <div class="p-8 flex flex-col items-center text-center flex-1 justify-center">
                         <div class="w-20 h-20 bg-navy rounded-3xl flex items-center justify-center shadow-lg mb-6"><i data-lucide="calendar" class="w-10 h-10 text-white"></i></div>
@@ -1526,9 +1529,12 @@
 
             app.innerHTML = `
                 <div class="flex flex-col h-full bg-slate-100">
-                    <div class="bg-navy text-white p-4 flex items-center gap-3 shadow-lg">
-                        <button onclick="window.navigateTo('home')" class="p-1 hover:bg-white/10 rounded-full"><i data-lucide="arrow-left"></i></button>
-                        <h1 class="font-bold uppercase tracking-wide text-sm">Opções</h1>
+                    <div class="bg-navy text-white p-4 flex justify-between items-center shadow-lg z-10">
+                        <div class="flex items-center gap-3">
+                            <button onclick="window.navigateTo('home')" class="p-1 hover:bg-white/10 rounded-full"><i data-lucide="arrow-left"></i></button>
+                            <h1 class="font-bold uppercase tracking-wide text-sm">Opções</h1>
+                        </div>
+                        <button onclick="window.navigateTo('home')" class="p-2 hover:bg-white/10 rounded"><i data-lucide="home" class="w-5 h-5"></i></button>
                     </div>
                     <div class="p-4 flex flex-col gap-6 max-w-xl mx-auto w-full overflow-y-auto scrollbar-none">
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
