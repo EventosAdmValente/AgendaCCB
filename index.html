@@ -450,6 +450,9 @@
                     const current = [...(state[stateKey] || [])];
                     if (current.find(item => String(item.id) === String(payload.new.id))) return;
 
+                    // Verifica se a alteração veio do próprio usuário ou de outro
+                    const isFromCurrentUser = state.user && payload.new.alterado_por === state.user.id;
+
                     // Tenta encontrar um registro temporário que corresponda a este novo registro real
                     const tempItem = current.find(item => String(item.id).startsWith('temp_') && isSameRecord(item, payload.new, table));
 
@@ -461,16 +464,23 @@
                     }
 
                     debouncedSave(table, state[stateKey]);
-                    requestUIUpdate(table);
+                    // Só atualiza a UI se a alteração veio de outro usuário (evita preenchimento duplo)
+                    if (!isFromCurrentUser) requestUIUpdate(table);
                 })
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, async (payload) => {
                     const current = [...(state[stateKey] || [])];
                     state[stateKey] = current.map(item => String(item.id) === String(payload.new.id) ? payload.new : item);
                     debouncedSave(table, state[stateKey]);
 
-                    if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
-                    const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
-                    if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
+                    // Verifica se a alteração veio do próprio usuário ou de outro
+                    const isFromCurrentUser = state.user && payload.new.alterado_por === state.user.id;
+
+                    // Só atualiza a UI se a alteração veio de outro usuário (evita preenchimento duplo)
+                    if (!isFromCurrentUser) {
+                        if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                        const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
+                        if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
+                    }
 
                     if (table === 'perfis' && state.user && payload.new.id === state.user.id) {
                         const isMasterAdmin = (state.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase());
@@ -662,7 +672,7 @@
                         showConnStatus('online-recovered');
                         await refreshAllData();
                     }
-                    if (window.updateHomeList) window.updateHomeList();
+                    // Removido updateHomeList() para evitar realce duplo - já foi atualizado no smartSave
                 }
             } catch (err) {
                 console.error("[executeSync] Exceção na sincronização:", err);
@@ -745,7 +755,7 @@
             const finalId = id || tempId;
             const stateKey = table === 'agenda' ? 'events' : table;
 
-            if (state.user) data.alterado_por = state.user.id;
+            if (state.user && data) data.alterado_por = state.user.id;
 
             let originalSnapshot = null;
             if (action === 'UPDATE' && id) {
@@ -1037,7 +1047,7 @@
             if (state.highlightedItemId) {
                 setTimeout(() => {
                     const el = document.getElementById(`item-${state.highlightedItemId}`);
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (el) el.scrollIntoView({ behavior: 'auto', block: 'center' });
                 }, 100);
             }
         };
@@ -1125,7 +1135,7 @@
             }).join('');
             renderIcons();
             if (state.highlightedItemId) {
-                setTimeout(() => { const el = document.getElementById(`item-${state.highlightedItemId}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100);
+                setTimeout(() => { const el = document.getElementById(`item-${state.highlightedItemId}`); if (el) el.scrollIntoView({ behavior: 'auto', block: 'center' }); }, 100);
             }
         };
 
@@ -2339,15 +2349,19 @@
             handleLocationStaffSelection: (fieldId, name) => {
                 const cache = window.__location_modal_cache;
                 cache.item[fieldId.replace('loc-', '').replace(/-/g, '_')] = name;
+                // Salvar o fieldId para fazer scroll após recriar o modal
+                cache.lastFieldId = fieldId;
                 window.openRowModal('locations', cache.id, cache.item);
 
-                // Restaurar a posição de rolagem após o modal ser recriado
+                // Fazer scroll até o campo que foi alterado para mantê-lo visível
                 setTimeout(() => {
-                    const scrollContainer = document.querySelector('.overflow-y-auto.scrollbar-none');
-                    if (scrollContainer && cache.scrollPosition !== undefined) {
-                        scrollContainer.scrollTop = cache.scrollPosition;
+                    const fieldElement = document.getElementById(fieldId);
+                    // O input está dentro de um botão, então pegamos o botão pai para scroll
+                    const targetElement = fieldElement?.closest('button') || fieldElement?.parentElement;
+                    if (targetElement) {
+                        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
-                }, 50);
+                }, 150);
             },
             openPermissionPicker: (coll, id, currentVal) => {
                 const options = [
