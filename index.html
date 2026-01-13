@@ -2242,7 +2242,7 @@
                 window.activeReportType = 'events';
                 const events = getFilteredEvents();
                 const filterDesc = getFilterDescription('home');
-                const itemsPerPage = 21; // Keeps 21 to ensure A4 safety
+                const itemsPerPage = 32; // Increased to 32 to match Locations report and fill A4 page
                 const totalPages = Math.ceil(events.length / itemsPerPage) || 1;
 
                 let pagesHtml = '';
@@ -2384,7 +2384,15 @@
                     }
                 }
 
-                return filtered.sort((a, b) => (a.localidade || '').localeCompare(b.localidade || ''));
+                return filtered.sort((a, b) => {
+                    const s1 = (a.adm || '').localeCompare(b.adm || '');
+                    if (s1 !== 0) return s1;
+                    const s2 = (a.setor || '').localeCompare(b.setor || '');
+                    if (s2 !== 0) return s2;
+                    const s3 = (a.cidade || '').localeCompare(b.cidade || '');
+                    if (s3 !== 0) return s3;
+                    return (a.localidade || '').localeCompare(b.localidade || '');
+                });
             },
             openLocationsReportPreview: () => {
                 window.activeReportType = 'locations';
@@ -2397,16 +2405,57 @@
                 for (let i = 0; i < totalPages; i++) {
                     const pageItems = items.slice(i * itemsPerPage, (i + 1) * itemsPerPage);
 
+                    const admSpans = [];
+                    let d = 0;
+                    while (d < pageItems.length) {
+                        let count = 1;
+                        while (d + count < pageItems.length && (pageItems[d].adm || '') === (pageItems[d + count].adm || '')) count++;
+                        for (let j = 0; j < count; j++) admSpans.push(j === 0 ? count : 0);
+                        d += count;
+                    }
+
+                    const setorSpans = [];
+                    let s = 0;
+                    while (s < pageItems.length) {
+                        let count = 1;
+                        while (
+                            s + count < pageItems.length &&
+                            (pageItems[s].setor || '') === (pageItems[s + count].setor || '') &&
+                            (pageItems[s].adm || '') === (pageItems[s + count].adm || '')
+                        ) count++;
+                        for (let j = 0; j < count; j++) setorSpans.push(j === 0 ? count : 0);
+                        s += count;
+                    }
+
+                    const citySpans = [];
+                    let c = 0;
+                    while (c < pageItems.length) {
+                        let count = 1;
+                        while (
+                            c + count < pageItems.length &&
+                            (pageItems[c].cidade || '') === (pageItems[c + count].cidade || '') &&
+                            (pageItems[c].setor || '') === (pageItems[c + count].setor || '') &&
+                            (pageItems[c].adm || '') === (pageItems[c + count].adm || '')
+                        ) count++;
+                        for (let j = 0; j < count; j++) citySpans.push(j === 0 ? count : 0);
+                        c += count;
+                    }
+
                     const tableRows = pageItems.map((l, index) => {
                         const globalIndex = (i * itemsPerPage) + index;
-                        const isZebra = globalIndex % 2 !== 0;
+                        const isZebra = globalIndex % 2 !== 0; // Keep zebra for non-merged cells if needed, or row based
+                        // With merging, zebra usually looks better on the lowest level or per row. Keeping row based.
+
+                        const admSpan = admSpans[index];
+                        const setorSpan = setorSpans[index];
+                        const citySpan = citySpans[index];
 
                         return `
                              <tr class="border-b border-slate-200">
-                                <td class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-black text-navy align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} truncate max-w-[150px]">${l.localidade || '-'}</td>
-                                <td class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} truncate max-w-[100px] text-center">${l.cidade || '-'}</td>
-                                <td class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} text-center">${l.setor || '-'}</td>
-                                <td class="py-1 px-1 md:py-1 md:px-2 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} text-center">${l.adm || '-'}</td>
+                                ${admSpan > 0 ? `<td rowspan="${admSpan}" class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle bg-white text-center">${l.adm || '-'}</td>` : ''}
+                                ${setorSpan > 0 ? `<td rowspan="${setorSpan}" class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle bg-white text-center">${l.setor || '-'}</td>` : ''}
+                                ${citySpan > 0 ? `<td rowspan="${citySpan}" class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle bg-white text-center truncate max-w-[100px]">${l.cidade || '-'}</td>` : ''}
+                                <td class="py-1 px-1 md:py-1 md:px-2 text-[8px] md:text-[11px] font-black text-navy align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} truncate max-w-[150px]">${l.localidade || '-'}</td>
                             </tr>
                         `;
                     }).join('');
@@ -2414,7 +2463,7 @@
                     pagesHtml += `
                         <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[auto] md:min-h-[297mm] p-1.5 md:p-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
                              <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center">
-                                <h2 class="text-base md:text-lg font-black text-navy uppercase tracking-tighter">Relatório de Localidades</h2>
+                                <h2 class="text-sm md:text-base font-black text-navy uppercase tracking-tighter">Relatório de Localidades</h2>
                                 <p class="text-[6px] md:text-[8px] font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1">${filterDesc}</p>
                             </div>
 
@@ -2422,10 +2471,10 @@
                                 <table class="w-full border-collapse min-w-[300px]">
                                     <thead>
                                         <tr class="bg-navy text-white text-[8px] md:text-[10px] uppercase tracking-widest">
-                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Localidade</th>
-                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Cidade</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">ADM</th>
                                             <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Setor</th>
-                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center align-middle">ADM</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Cidade</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center align-middle">Localidade</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -2484,20 +2533,114 @@
                 let filterDesc = "";
 
                 if (window.activeReportType === 'locations') {
-                    title = "Relatório de Localidades";
+                    title = "RELATÓRIO DE LOCALIDADES";
                     filterDesc = getFilterDescription('locations');
                     const items = window.getFilteredLocations();
+                    const itemsPerPage = 32;
+                    const totalPages = Math.ceil(items.length / itemsPerPage) || 1;
 
-                    tableConfig = {
-                        head: [['Localidade', 'Cidade', 'Setor', 'ADM']],
-                        body: items.map(l => [l.localidade || '', l.cidade || '', l.setor || '', l.adm || '']),
-                        columnStyles: {
-                            0: { cellWidth: 70, halign: 'left', fontStyle: 'bold' },
-                            1: { cellWidth: 'auto', halign: 'center' },
-                            2: { cellWidth: 30, halign: 'center' },
-                            3: { cellWidth: 30, halign: 'center' }
+                    for (let i = 0; i < totalPages; i++) {
+                        if (i > 0) doc.addPage();
+                        const pageItems = items.slice(i * itemsPerPage, (i + 1) * itemsPerPage);
+
+                        const admSpans = [];
+                        let d = 0;
+                        while (d < pageItems.length) {
+                            let count = 1;
+                            while (d + count < pageItems.length && (pageItems[d].adm || '') === (pageItems[d + count].adm || '')) count++;
+                            for (let j = 0; j < count; j++) admSpans.push(j === 0 ? count : 0);
+                            d += count;
                         }
-                    };
+
+                        const setorSpans = [];
+                        let s = 0;
+                        while (s < pageItems.length) {
+                            let count = 1;
+                            while (
+                                s + count < pageItems.length &&
+                                (pageItems[s].setor || '') === (pageItems[s + count].setor || '') &&
+                                (pageItems[s].adm || '') === (pageItems[s + count].adm || '')
+                            ) count++;
+                            for (let j = 0; j < count; j++) setorSpans.push(j === 0 ? count : 0);
+                            s += count;
+                        }
+
+                        const citySpans = [];
+                        let c = 0;
+                        while (c < pageItems.length) {
+                            let count = 1;
+                            while (
+                                c + count < pageItems.length &&
+                                (pageItems[c].cidade || '') === (pageItems[c + count].cidade || '') &&
+                                (pageItems[c].setor || '') === (pageItems[c + count].setor || '') &&
+                                (pageItems[c].adm || '') === (pageItems[c + count].adm || '')
+                            ) count++;
+                            for (let j = 0; j < count; j++) citySpans.push(j === 0 ? count : 0);
+                            c += count;
+                        }
+
+                        doc.autoTable({
+                            startY: 40,
+                            theme: 'grid',
+                            styles: { valign: 'middle', fontSize: 8.5, lineColor: [226, 232, 240], lineWidth: 0.25 },
+                            headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontSize: 9.5, fontStyle: 'bold', halign: 'center', lineWidth: 0.1, lineColor: [255, 255, 255] },
+                            alternateRowStyles: { fillColor: [248, 250, 252] },
+                            margin: { top: 40, left: 15, right: 15 },
+                            head: [['ADM', 'SETOR', 'CIDADE', 'LOCALIDADE']],
+                            body: pageItems.map(l => [l.adm || '-', l.setor || '-', l.cidade || '-', l.localidade || '-']),
+                            columnStyles: {
+                                0: { cellWidth: 30, halign: 'center' },
+                                1: { cellWidth: 30, halign: 'center' },
+                                2: { cellWidth: 'auto', halign: 'center' },
+                                3: { cellWidth: 70, halign: 'left', fontStyle: 'bold' }
+                            },
+                            didParseCell: (data) => {
+                                if (data.section === 'body') {
+                                    if (data.column.index === 0) {
+                                        const span = admSpans[data.row.index];
+                                        if (span > 1) data.cell.rowSpan = span;
+                                        data.cell.styles.fillColor = [255, 255, 255];
+                                    }
+                                    if (data.column.index === 1) {
+                                        const span = setorSpans[data.row.index];
+                                        if (span > 1) data.cell.rowSpan = span;
+                                        data.cell.styles.fillColor = [255, 255, 255];
+                                    }
+                                    if (data.column.index === 2) {
+                                        const span = citySpans[data.row.index];
+                                        if (span > 1) data.cell.rowSpan = span;
+                                        data.cell.styles.fillColor = [255, 255, 255];
+                                    }
+                                }
+                            },
+                            didDrawPage: (data) => {
+                                doc.setFontSize(11);
+                                doc.setTextColor(0, 51, 102);
+                                doc.setFont("helvetica", "bold");
+                                const titleWidth = doc.getTextWidth(title);
+                                doc.text(title, (pageWidth - titleWidth) / 2, 22);
+
+                                doc.setFontSize(7);
+                                doc.setTextColor(120, 120, 120);
+                                doc.setFont("helvetica", "normal");
+                                const subtitle = filterDesc.toUpperCase();
+                                const subtitleWidth = doc.getTextWidth(subtitle);
+                                doc.text(subtitle, (pageWidth - subtitleWidth) / 2, 30);
+
+                                doc.setDrawColor(0, 51, 102);
+                                doc.setLineWidth(0.5);
+                                doc.line(15, 33, pageWidth - 15, 33);
+
+                                doc.setFontSize(8);
+                                doc.setTextColor(150, 150, 150);
+                                const footerText = `Gerado em: ${new Date().toLocaleString('pt-BR')}  |  Página ${i + 1}`;
+                                const footerWidth = doc.getTextWidth(footerText);
+                                doc.text(footerText, (pageWidth - footerWidth) / 2, 287);
+                            }
+                        });
+                    }
+                    doc.save(`relatorio_${window.activeReportType || 'agenda'}_${new Date().toISOString().split('T')[0]}.pdf`);
+                    return;
                 } else {
                     filterDesc = getFilterDescription('home');
                     const events = getFilteredEvents();
@@ -2557,13 +2700,13 @@
                 doc.autoTable({
                     startY: 40,
                     theme: 'grid',
-                    styles: { valign: 'middle', fontSize: 8.5 },
-                    headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontSize: 9.5, fontStyle: 'bold', halign: 'center', lineWidth: 0.3, lineColor: [255, 255, 255] },
+                    styles: { valign: 'middle', fontSize: 8.5, lineColor: [226, 232, 240], lineWidth: 0.25 },
+                    headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontSize: 9.5, fontStyle: 'bold', halign: 'center', lineWidth: 0.1, lineColor: [255, 255, 255] },
                     alternateRowStyles: { fillColor: [248, 250, 252] },
                     margin: { top: 40, left: 15, right: 15 },
                     ...tableConfig,
                     didDrawPage: (data) => {
-                        doc.setFontSize(16);
+                        doc.setFontSize(window.activeReportType === 'locations' ? 11 : 16);
                         doc.setTextColor(0, 51, 102);
                         doc.setFont("helvetica", "bold");
                         const titleWidth = doc.getTextWidth(title);
@@ -2601,7 +2744,7 @@
                         useCORS: true,
                         logging: false,
                         backgroundColor: '#ffffff',
-                        windowWidth: 1000
+                        windowWidth: 800
                     });
 
                     const link = document.createElement('a');
