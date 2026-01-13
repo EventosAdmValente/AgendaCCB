@@ -1514,6 +1514,9 @@
                                     <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
                                     ${state.advancedFilter.active ? '<span class="absolute -top-1 -right-1 w-3 h-3 bg-orange-custom rounded-full border-2 border-white"></span>' : ''}
                                 </button>
+                                <button onclick="window.openLocationsReportPreview()" class="w-11 h-11 bg-navy border border-navy rounded-xl flex items-center justify-center text-white shadow-sm active:scale-95 transition-all shrink-0">
+                                    <i data-lucide="printer" class="w-5 h-5"></i>
+                                </button>
                             ` : ''}
                         </div>
                         <div id="manager-list-stats" class="flex justify-end pr-1 -mt-2"></div>
@@ -2236,6 +2239,7 @@
             },
             openDateRangePicker: (t) => { state.viewDate = new Date((state.advancedFilter.period[t] || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar(t === 'start' ? 'adv_start' : 'adv_end'); },
             openReportPreview: () => {
+                window.activeReportType = 'events';
                 const events = getFilteredEvents();
                 const filterDesc = getFilterDescription('home');
                 const itemsPerPage = 21; // Keeps 21 to ensure A4 safety
@@ -2245,7 +2249,6 @@
                 for (let i = 0; i < totalPages; i++) {
                     const pageEvents = events.slice(i * itemsPerPage, (i + 1) * itemsPerPage);
 
-                    // Pre-calculate spans for this page
                     const dateSpans = [];
                     let d = 0;
                     while (d < pageEvents.length) {
@@ -2270,7 +2273,6 @@
                         const att = state.attendants.find(a => a.id === e.attendant_id);
                         const globalIndex = (i * itemsPerPage) + index;
                         const isZebra = globalIndex % 2 !== 0;
-
                         const dateSpan = dateSpans[index];
                         const timeSpan = timeSpans[index];
 
@@ -2287,8 +2289,7 @@
 
                     pagesHtml += `
                         <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[auto] md:min-h-[297mm] p-1.5 md:p-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
-                            <!-- Repetir cabeçalho em cada página -->
-                            <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center">
+                             <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center">
                                 <h2 class="text-base md:text-lg font-black text-navy uppercase tracking-tighter">Agenda CCB</h2>
                                 <p class="text-[6px] md:text-[8px] font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1">${filterDesc}</p>
                             </div>
@@ -2351,77 +2352,220 @@
                 `);
                 renderIcons();
             },
+            getFilteredLocations: () => {
+                let filtered = [...state.locations];
+                const term = (state.managerSearchTerm || '').toLowerCase();
+                const af = state.advancedFilter;
+
+                // Search Term Check
+                if (term) {
+                    filtered = filtered.filter(l => {
+                        const locName = (l.localidade || '').toLowerCase();
+                        const admVal = (l.adm || '').toLowerCase();
+                        const setorVal = (l.setor || '').toLowerCase();
+                        const cidadeVal = (l.cidade || '').toLowerCase();
+                        return locName.includes(term) || admVal.includes(term) || setorVal.includes(term) || cidadeVal.includes(term);
+                    });
+                }
+
+                // Advanced Filter Check
+                if (af.active && state.currentScreen === 'locations') {
+                    if (af.adm.enabled && af.adm.value) filtered = filtered.filter(l => (l.adm || '').toLowerCase() === af.adm.value.toLowerCase());
+                    if (af.setor.enabled && af.setor.value) filtered = filtered.filter(l => (l.setor || '').toLowerCase() === af.setor.value.toLowerCase());
+                    if (af.cidade.enabled && af.cidade.value) filtered = filtered.filter(l => (l.cidade || '').toLowerCase() === af.cidade.value.toLowerCase());
+                    if (af.location.enabled && af.location.id) filtered = filtered.filter(l => l.id === af.location.id);
+                    if (af.attendant.enabled && af.attendant.id) {
+                        const att = state.attendants.find(a => a.id === af.attendant.id);
+                        if (att) {
+                            const norm = (s) => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+                            const attName = norm(att.name);
+                            filtered = filtered.filter(l => [l.anciao_1, l.anciao_2, l.anciao_3, l.diacono_1, l.diacono_2, l.diacono_3, l.com_1, l.com_2, l.cjm].some(name => name && norm(name) === attName));
+                        }
+                    }
+                }
+
+                return filtered.sort((a, b) => (a.localidade || '').localeCompare(b.localidade || ''));
+            },
+            openLocationsReportPreview: () => {
+                window.activeReportType = 'locations';
+                const items = window.getFilteredLocations();
+                const filterDesc = getFilterDescription('locations');
+                const itemsPerPage = 32;
+                const totalPages = Math.ceil(items.length / itemsPerPage) || 1;
+
+                let pagesHtml = '';
+                for (let i = 0; i < totalPages; i++) {
+                    const pageItems = items.slice(i * itemsPerPage, (i + 1) * itemsPerPage);
+
+                    const tableRows = pageItems.map((l, index) => {
+                        const globalIndex = (i * itemsPerPage) + index;
+                        const isZebra = globalIndex % 2 !== 0;
+
+                        return `
+                             <tr class="border-b border-slate-200">
+                                <td class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-black text-navy align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} truncate max-w-[150px]">${l.localidade || '-'}</td>
+                                <td class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} truncate max-w-[100px] text-center">${l.cidade || '-'}</td>
+                                <td class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} text-center">${l.setor || '-'}</td>
+                                <td class="py-1 px-1 md:py-1 md:px-2 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} text-center">${l.adm || '-'}</td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    pagesHtml += `
+                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[auto] md:min-h-[297mm] p-1.5 md:p-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
+                             <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center">
+                                <h2 class="text-base md:text-lg font-black text-navy uppercase tracking-tighter">Relatório de Localidades</h2>
+                                <p class="text-[6px] md:text-[8px] font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1">${filterDesc}</p>
+                            </div>
+
+                            <div class="w-full overflow-x-auto border border-slate-200 rounded-lg shadow-sm flex-1">
+                                <table class="w-full border-collapse min-w-[300px]">
+                                    <thead>
+                                        <tr class="bg-navy text-white text-[8px] md:text-[10px] uppercase tracking-widest">
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Localidade</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Cidade</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Setor</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center align-middle">ADM</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${tableRows || '<tr><td colspan="4" class="p-8 text-center text-slate-300 italic font-medium align-middle">Nenhuma localidade encontrada.</td></tr>'}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                             <div class="mt-4 md:mt-8 pt-4 md:pt-6 text-[8px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between border-t border-slate-100">
+                                <span>Gerado: ${new Date().toLocaleDateString('pt-BR')}</span>
+                                <span>Pág ${i + 1}/${totalPages}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                showModal(`
+                    <div class="bg-slate-500/20 backdrop-blur-md rounded-xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]">
+                        <div class="p-4 flex justify-between items-center border-b border-white/10 bg-navy text-white shrink-0">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="map-pin" class="w-5 h-5 text-orange-custom"></i>
+                                <h3 class="text-lg font-black tracking-tight uppercase">Relatório de Localidades</h3>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <span class="text-[10px] font-bold text-white/40 uppercase tracking-widest hidden md:inline-block">${totalPages} ${totalPages > 1 ? 'Páginas' : 'Página'}</span>
+                                <button onclick="window.closeModal()" class="text-white/50 hover:text-white p-1 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto p-2 md:p-8 scrollbar-hide flex flex-col items-center bg-slate-600/10 gap-10">
+                            ${pagesHtml}
+                        </div>
+
+                        <div class="p-6 border-t border-white/10 bg-navy grid grid-cols-2 gap-4 shrink-0">
+                            <button onclick="window.downloadPDF()" class="py-4 bg-white text-navy rounded-xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 hover:bg-slate-50">
+                                <i data-lucide="file-down" class="w-5 h-5 text-red-500"></i> PDF
+                            </button>
+                            <button onclick="window.downloadPNG()" class="py-4 bg-orange-custom text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 hover:brightness-110">
+                                <i data-lucide="image" class="w-5 h-5"></i> PNG
+                            </button>
+                        </div>
+                    </div>
+                    <style>
+                        .scrollbar-hide::-webkit-scrollbar { display: none; }
+                        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+                    </style>
+                `);
+                renderIcons();
+            },
             downloadPDF: () => {
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF('p', 'mm', 'a4');
-                const events = getFilteredEvents();
-                const filterDesc = getFilterDescription('home');
                 const pageWidth = doc.internal.pageSize.getWidth();
+                let tableConfig = {};
+                let title = "Agenda CCB";
+                let filterDesc = "";
 
-                const head = [['Data', 'Hora', 'Evento', 'Localidade', 'Atendente']];
-                const body = events.map(e => {
-                    const type = state.types.find(t => t.id === e.type_id);
-                    const loc = state.locations.find(l => l.id === e.location_id);
-                    const att = state.attendants.find(a => a.id === e.attendant_id);
-                    return [formatDate(e.date), e.time, type?.name || '', loc?.localidade || '', att?.name || ''];
-                });
+                if (window.activeReportType === 'locations') {
+                    title = "Relatório de Localidades";
+                    filterDesc = getFilterDescription('locations');
+                    const items = window.getFilteredLocations();
 
-                // Pre-calculate spans for PDF (Full list)
-                const dateSpans = [];
-                let d = 0;
-                while (d < events.length) {
-                    let count = 1;
-                    while (d + count < events.length && formatDate(events[d].date) === formatDate(events[d + count].date)) count++;
-                    for (let j = 0; j < count; j++) dateSpans.push(j === 0 ? count : 0);
-                    d += count;
-                    d += count;
-                }
-                const timeSpans = [];
-                let t = 0;
-                while (t < events.length) {
-                    let count = 1;
-                    while (t + count < events.length && events[t].time === events[t + count].time) count++;
-                    for (let j = 0; j < count; j++) timeSpans.push(j === 0 ? count : 0);
-                    t += count;
+                    tableConfig = {
+                        head: [['Localidade', 'Cidade', 'Setor', 'ADM']],
+                        body: items.map(l => [l.localidade || '', l.cidade || '', l.setor || '', l.adm || '']),
+                        columnStyles: {
+                            0: { cellWidth: 70, halign: 'left', fontStyle: 'bold' },
+                            1: { cellWidth: 'auto', halign: 'center' },
+                            2: { cellWidth: 30, halign: 'center' },
+                            3: { cellWidth: 30, halign: 'center' }
+                        }
+                    };
+                } else {
+                    filterDesc = getFilterDescription('home');
+                    const events = getFilteredEvents();
+
+                    const head = [['Data', 'Hora', 'Evento', 'Localidade', 'Atendente']];
+                    const body = events.map(e => {
+                        const type = state.types.find(t => t.id === e.type_id);
+                        const loc = state.locations.find(l => l.id === e.location_id);
+                        const att = state.attendants.find(a => a.id === e.attendant_id);
+                        return [formatDate(e.date), e.time, type?.name || '', loc?.localidade || '', att?.name || ''];
+                    });
+
+                    const dateSpans = [];
+                    let d = 0;
+                    while (d < events.length) {
+                        let count = 1;
+                        while (d + count < events.length && formatDate(events[d].date) === formatDate(events[d + count].date)) count++;
+                        for (let j = 0; j < count; j++) dateSpans.push(j === 0 ? count : 0);
+                        d += count;
+                    }
+                    const timeSpans = [];
+                    let t = 0;
+                    while (t < events.length) {
+                        let count = 1;
+                        while (t + count < events.length && events[t].time === events[t + count].time) count++;
+                        for (let j = 0; j < count; j++) timeSpans.push(j === 0 ? count : 0);
+                        t += count;
+                    }
+
+                    tableConfig = {
+                        head: head,
+                        body: body,
+                        columnStyles: {
+                            0: { cellWidth: 25, halign: 'center' },
+                            1: { cellWidth: 15, halign: 'center' },
+                            2: { cellWidth: 'auto' },
+                            3: { cellWidth: 'auto' },
+                            4: { cellWidth: 'auto' }
+                        },
+                        didParseCell: (data) => {
+                            if (data.section === 'body') {
+                                if (data.column.index === 0) {
+                                    const span = dateSpans[data.row.index];
+                                    if (span > 1) data.cell.rowSpan = span;
+                                    data.cell.styles.fillColor = [255, 255, 255];
+                                }
+                                if (data.column.index === 1) {
+                                    const span = timeSpans[data.row.index];
+                                    if (span > 1) data.cell.rowSpan = span;
+                                    data.cell.styles.fillColor = [255, 255, 255];
+                                }
+                            }
+                        }
+                    };
                 }
 
                 doc.autoTable({
-                    head: head,
-                    body: body,
                     startY: 40,
                     theme: 'grid',
                     styles: { valign: 'middle', fontSize: 8.5 },
                     headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontSize: 9.5, fontStyle: 'bold', halign: 'center', lineWidth: 0.3, lineColor: [255, 255, 255] },
-                    columnStyles: {
-                        0: { cellWidth: 25, halign: 'center' },
-                        1: { cellWidth: 15, halign: 'center' },
-                        2: { cellWidth: 'auto' },
-                        3: { cellWidth: 'auto' },
-                        4: { cellWidth: 'auto' }
-                    },
                     alternateRowStyles: { fillColor: [248, 250, 252] },
                     margin: { top: 40, left: 15, right: 15 },
-                    didParseCell: (data) => {
-                        if (data.section === 'body') {
-                            if (data.column.index === 0) {
-                                const span = dateSpans[data.row.index];
-                                if (span > 1) data.cell.rowSpan = span;
-                                data.cell.styles.fillColor = [255, 255, 255]; // Always white
-                            }
-                            if (data.column.index === 1) {
-                                const span = timeSpans[data.row.index];
-                                if (span > 1) data.cell.rowSpan = span;
-                                data.cell.styles.fillColor = [255, 255, 255]; // Always white
-                            }
-                        }
-                    },
+                    ...tableConfig,
                     didDrawPage: (data) => {
-                        // Header only on first page? No, usually all. But Title only on first page in autotable auto-flow
-                        // Let's draw title on all pages for consistency with user request
                         doc.setFontSize(16);
                         doc.setTextColor(0, 51, 102);
                         doc.setFont("helvetica", "bold");
-                        const title = "Agenda CCB";
                         const titleWidth = doc.getTextWidth(title);
                         doc.text(title, (pageWidth - titleWidth) / 2, 22);
 
@@ -2432,12 +2576,10 @@
                         const subtitleWidth = doc.getTextWidth(subtitle);
                         doc.text(subtitle, (pageWidth - subtitleWidth) / 2, 30);
 
-                        // Line
-                        doc.setDrawColor(0, 51, 102); // Navy
+                        doc.setDrawColor(0, 51, 102);
                         doc.setLineWidth(0.5);
                         doc.line(15, 33, pageWidth - 15, 33);
 
-                        // Footer
                         doc.setFontSize(8);
                         doc.setTextColor(150, 150, 150);
                         const footerText = `Gerado em: ${new Date().toLocaleString('pt-BR')}  |  Página ${data.pageNumber}`;
@@ -2446,7 +2588,7 @@
                     }
                 });
 
-                doc.save(`relatorio_agenda_${new Date().toISOString().split('T')[0]}.pdf`);
+                doc.save(`relatorio_${window.activeReportType || 'agenda'}_${new Date().toISOString().split('T')[0]}.pdf`);
             },
             downloadPNG: async () => {
                 const pages = document.querySelectorAll('.report-page');
@@ -2463,11 +2605,10 @@
                     });
 
                     const link = document.createElement('a');
-                    link.download = `relatorio_agenda_pag_${i + 1}_${new Date().toISOString().split('T')[0]}.png`;
+                    link.download = `relatorio_${window.activeReportType || 'agenda'}_pag_${i + 1}_${new Date().toISOString().split('T')[0]}.png`;
                     link.href = canvas.toDataURL('image/png');
                     link.click();
 
-                    // Small delay between downloads to prevent browser blocking or race conditions
                     await new Promise(r => setTimeout(r, 500));
                 }
             },
