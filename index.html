@@ -2276,11 +2276,11 @@
 
                         return `
                             <tr class="border-b border-slate-200">
-                                ${dateSpan > 0 ? `<td rowspan="${dateSpan}" class="p-1 md:p-3 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${formatDate(e.date)}</td>` : ''}
-                                ${timeSpan > 0 ? `<td rowspan="${timeSpan}" class="p-1 md:p-3 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${e.time}</td>` : ''}
-                                <td class="p-1 md:p-3 border-r border-slate-200 text-[8px] md:text-[11px] font-bold text-navy ${isZebra ? 'bg-slate-50' : 'bg-white'}">${type?.name || ''}</td>
-                                <td class="p-1 md:p-3 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${loc?.localidade || ''}</td>
-                                <td class="p-1 md:p-3 text-[8px] md:text-[11px] font-medium text-slate-600 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${att?.name || ''}</td>
+                                ${dateSpan > 0 ? `<td rowspan="${dateSpan}" class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white h-auto">${formatDate(e.date)}</td>` : ''}
+                                ${timeSpan > 0 ? `<td rowspan="${timeSpan}" class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white h-auto">${e.time}</td>` : ''}
+                                <td class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-bold text-navy align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} h-auto">${type?.name || ''}</td>
+                                <td class="py-1 px-1 md:py-1 md:px-2 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} h-auto">${loc?.localidade || ''}</td>
+                                <td class="py-1 px-1 md:py-1 md:px-2 text-[8px] md:text-[11px] font-medium text-slate-600 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'} h-auto">${att?.name || ''}</td>
                             </tr>
                         `;
                     }).join('');
@@ -2288,24 +2288,24 @@
                     pagesHtml += `
                         <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[auto] md:min-h-[297mm] p-1.5 md:p-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
                             <!-- Repetir cabeçalho em cada página -->
-                            <div class="mb-4 md:mb-8 border-b-2 border-navy pb-4 md:pb-6 text-center">
-                                <h2 class="text-lg md:text-xl font-black text-navy uppercase tracking-tighter">Agenda CCB</h2>
-                                <p class="text-[10px] md:text-xs font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1 md:mt-2">${filterDesc}</p>
+                            <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center">
+                                <h2 class="text-base md:text-lg font-black text-navy uppercase tracking-tighter">Agenda CCB</h2>
+                                <p class="text-[6px] md:text-[8px] font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1">${filterDesc}</p>
                             </div>
 
                             <div class="w-full overflow-x-auto border border-slate-200 rounded-lg shadow-sm flex-1">
                                 <table class="w-full border-collapse min-w-[300px]">
                                     <thead>
                                         <tr class="bg-navy text-white text-[8px] md:text-[10px] uppercase tracking-widest">
-                                            <th class="p-1 md:p-3 text-center border-r border-white">Data</th>
-                                            <th class="p-1 md:p-3 text-center border-r border-white">Hora</th>
-                                            <th class="p-1 md:p-3 text-center border-r border-white">Evento</th>
-                                            <th class="p-1 md:p-3 text-center border-r border-white">Localidade</th>
-                                            <th class="p-1 md:p-3 text-center">Atendente</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Data</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Hora</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Evento</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Localidade</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center align-middle">Atendente</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${tableRows || '<tr><td colspan="5" class="p-12 text-center text-slate-300 italic font-medium">Nenhum evento encontrado.</td></tr>'}
+                                        ${tableRows || '<tr><td colspan="5" class="p-8 text-center text-slate-300 italic font-medium align-middle">Nenhum evento encontrado.</td></tr>'}
                                     </tbody>
                                 </table>
                             </div>
@@ -2374,6 +2374,7 @@
                     while (d + count < events.length && formatDate(events[d].date) === formatDate(events[d + count].date)) count++;
                     for (let j = 0; j < count; j++) dateSpans.push(j === 0 ? count : 0);
                     d += count;
+                    d += count;
                 }
                 const timeSpans = [];
                 let t = 0;
@@ -2390,7 +2391,7 @@
                     startY: 40,
                     theme: 'grid',
                     styles: { valign: 'middle', fontSize: 8.5 },
-                    headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontSize: 9.5, fontStyle: 'bold', halign: 'center' },
+                    headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontSize: 9.5, fontStyle: 'bold', halign: 'center', lineWidth: 0.3, lineColor: [255, 255, 255] },
                     columnStyles: {
                         0: { cellWidth: 25, halign: 'center' },
                         1: { cellWidth: 15, halign: 'center' },
@@ -2417,19 +2418,24 @@
                     didDrawPage: (data) => {
                         // Header only on first page? No, usually all. But Title only on first page in autotable auto-flow
                         // Let's draw title on all pages for consistency with user request
-                        doc.setFontSize(22);
+                        doc.setFontSize(16);
                         doc.setTextColor(0, 51, 102);
                         doc.setFont("helvetica", "bold");
                         const title = "Agenda CCB";
                         const titleWidth = doc.getTextWidth(title);
                         doc.text(title, (pageWidth - titleWidth) / 2, 22);
 
-                        doc.setFontSize(10);
+                        doc.setFontSize(7);
                         doc.setTextColor(120, 120, 120);
                         doc.setFont("helvetica", "normal");
                         const subtitle = filterDesc.toUpperCase();
                         const subtitleWidth = doc.getTextWidth(subtitle);
                         doc.text(subtitle, (pageWidth - subtitleWidth) / 2, 30);
+
+                        // Line
+                        doc.setDrawColor(0, 51, 102); // Navy
+                        doc.setLineWidth(0.5);
+                        doc.line(15, 33, pageWidth - 15, 33);
 
                         // Footer
                         doc.setFontSize(8);
