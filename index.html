@@ -2238,7 +2238,7 @@
             openReportPreview: () => {
                 const events = getFilteredEvents();
                 const filterDesc = getFilterDescription('home');
-                const itemsPerPage = 21; // Reduced to 21 to fit A4 page without cutoff
+                const itemsPerPage = 21; // Keeps 21 to ensure A4 safety
                 const totalPages = Math.ceil(events.length / itemsPerPage) || 1;
 
                 let pagesHtml = '';
@@ -2276,32 +2276,32 @@
 
                         return `
                             <tr class="border-b border-slate-200">
-                                ${dateSpan > 0 ? `<td rowspan="${dateSpan}" class="p-3 border-r border-slate-200 text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${formatDate(e.date)}</td>` : ''}
-                                ${timeSpan > 0 ? `<td rowspan="${timeSpan}" class="p-3 border-r border-slate-200 text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${e.time}</td>` : ''}
-                                <td class="p-3 border-r border-slate-200 text-[11px] font-bold text-navy ${isZebra ? 'bg-slate-50' : 'bg-white'}">${type?.name || ''}</td>
-                                <td class="p-3 border-r border-slate-200 text-[11px] font-medium text-slate-700 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${loc?.localidade || ''}</td>
-                                <td class="p-3 text-[11px] font-medium text-slate-600 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${att?.name || ''}</td>
+                                ${dateSpan > 0 ? `<td rowspan="${dateSpan}" class="p-1.5 md:p-3 border-r border-slate-200 text-[9px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${formatDate(e.date)}</td>` : ''}
+                                ${timeSpan > 0 ? `<td rowspan="${timeSpan}" class="p-1.5 md:p-3 border-r border-slate-200 text-[9px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${e.time}</td>` : ''}
+                                <td class="p-1.5 md:p-3 border-r border-slate-200 text-[9px] md:text-[11px] font-bold text-navy ${isZebra ? 'bg-slate-50' : 'bg-white'}">${type?.name || ''}</td>
+                                <td class="p-1.5 md:p-3 border-r border-slate-200 text-[9px] md:text-[11px] font-medium text-slate-700 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${loc?.localidade || ''}</td>
+                                <td class="p-1.5 md:p-3 text-[9px] md:text-[11px] font-medium text-slate-600 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${att?.name || ''}</td>
                             </tr>
                         `;
                     }).join('');
 
                     pagesHtml += `
-                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] p-[15mm] md:p-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
+                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[auto] md:min-h-[297mm] p-4 md:p-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
                             <!-- Repetir cabeçalho em cada página -->
-                            <div class="mb-8 border-b-2 border-navy pb-6 text-center">
-                                <h2 class="text-xl font-black text-navy uppercase tracking-tighter">Agenda CCB</h2>
-                                <p class="text-xs font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-2">${filterDesc}</p>
+                            <div class="mb-4 md:mb-8 border-b-2 border-navy pb-4 md:pb-6 text-center">
+                                <h2 class="text-lg md:text-xl font-black text-navy uppercase tracking-tighter">Agenda CCB</h2>
+                                <p class="text-[10px] md:text-xs font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1 md:mt-2">${filterDesc}</p>
                             </div>
 
                             <div class="w-full overflow-hidden border border-slate-200 rounded-lg shadow-sm flex-1">
                                 <table class="w-full border-collapse">
                                     <thead>
-                                        <tr class="bg-navy text-white text-[10px] uppercase tracking-widest">
-                                            <th class="p-3 text-center border-r border-white">Data</th>
-                                            <th class="p-3 text-center border-r border-white">Hora</th>
-                                            <th class="p-3 text-center border-r border-white">Evento</th>
-                                            <th class="p-3 text-center border-r border-white">Localidade</th>
-                                            <th class="p-3 text-center">Atendente</th>
+                                        <tr class="bg-navy text-white text-[9px] md:text-[10px] uppercase tracking-widest">
+                                            <th class="p-1.5 md:p-3 text-center border-r border-white">Data</th>
+                                            <th class="p-1.5 md:p-3 text-center border-r border-white">Hora</th>
+                                            <th class="p-1.5 md:p-3 text-center border-r border-white">Evento</th>
+                                            <th class="p-1.5 md:p-3 text-center border-r border-white">Localidade</th>
+                                            <th class="p-1.5 md:p-3 text-center">Atendente</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -2310,9 +2310,9 @@
                                 </table>
                             </div>
                             
-                            <div class="mt-8 pt-6 text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between border-t border-slate-100">
-                                <span>Gerado em: ${new Date().toLocaleString('pt-BR')}</span>
-                                <span>Página ${i + 1} de ${totalPages} <span class="mx-2">|</span> ${events.length} registros</span>
+                            <div class="mt-4 md:mt-8 pt-4 md:pt-6 text-[9px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between border-t border-slate-100">
+                                <span>Gerado: ${new Date().toLocaleDateString('pt-BR')}</span>
+                                <span>Pág ${i + 1}/${totalPages}</span>
                             </div>
                         </div>
                     `;
@@ -2331,7 +2331,7 @@
                             </div>
                         </div>
 
-                        <div class="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-hide flex flex-col items-center bg-slate-600/10 gap-10">
+                        <div class="flex-1 overflow-y-auto p-2 md:p-8 scrollbar-hide flex flex-col items-center bg-slate-600/10 gap-10">
                             ${pagesHtml}
                         </div>
 
