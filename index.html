@@ -809,15 +809,6 @@
             clockTempHour: '08',
             clockTempMinute: '00',
             originalEventSnapshot: null,
-            reportFilter: {
-                table: 'agenda',
-                type: { enabled: false, id: 'all' },
-                location: { enabled: false, id: 'all' },
-                attendant: { enabled: false, id: 'all' },
-                adm: { enabled: false, id: 'all' },
-                setor: { enabled: false, id: 'all' },
-                cidade: { enabled: false, id: 'all' }
-            },
             masterEventFilter: localStorage.getItem('masterEventFilter') || 'ativos'
         };
 
@@ -1196,7 +1187,7 @@
                             <button onclick="window.startOpenAgenda()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> AGENDA</button>
                             <button onclick="window.resetAllFilters()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="list" class="w-3.5 h-3.5"></i> TODOS</button>
                             <button onclick="window.openFastFilterModal()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="filter" class="w-3.5 h-3.5"></i> FILTRO</button>
-                            <button onclick="window.openPDFPreview()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> EXPORTAR</button>
+                            <button onclick="window.openReportPreview()" class="flex-1 flex items-center justify-center gap-1.5 h-9 bg-navy text-white text-[9px] font-bold rounded shadow uppercase px-1"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> RELATÓRIO</button>
                         </div>
                         <div class="flex gap-2">
                             <div class="relative flex-1">
@@ -2244,162 +2235,235 @@
                 window.scrollToAdvSection(tar);
             },
             openDateRangePicker: (t) => { state.viewDate = new Date((state.advancedFilter.period[t] || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar(t === 'start' ? 'adv_start' : 'adv_end'); },
-            openPDFPreview: () => window.renderReportCriteriaModal(),
-            renderReportCriteriaModal: () => {
-                const rf = state.reportFilter;
-                const isAgenda = rf.table === 'agenda';
+            openReportPreview: () => {
+                const events = getFilteredEvents();
+                const filterDesc = getFilterDescription('home');
+                const itemsPerPage = 21; // Reduced to 21 to fit A4 page without cutoff
+                const totalPages = Math.ceil(events.length / itemsPerPage) || 1;
 
-                // Helper to get labels
-                const getLabel = (k, id) => {
-                    if (id === 'all') return 'Todos';
-                    if (k === 'type') return state.types.find(t => t.id === id)?.name || 'Desconhecido';
-                    if (k === 'location') return state.locations.find(l => l.id === id)?.localidade || 'Desconhecido';
-                    if (k === 'attendant') return state.attendants.find(a => a.id === id)?.name || 'Desconhecido';
-                    if (k === 'adm' || k === 'setor' || k === 'cidade') return id;
-                    return '';
-                };
+                let pagesHtml = '';
+                for (let i = 0; i < totalPages; i++) {
+                    const pageEvents = events.slice(i * itemsPerPage, (i + 1) * itemsPerPage);
 
-                // Helper to render row
-                const renderRow = (key, label, collection) => {
-                    const isEnabled = rf[key].enabled;
-                    const currentId = rf[key].id; // 'all' or ID/Value
-                    const currentLabel = getLabel(key, currentId);
+                    // Pre-calculate spans for this page
+                    const dateSpans = [];
+                    let d = 0;
+                    while (d < pageEvents.length) {
+                        let count = 1;
+                        while (d + count < pageEvents.length && formatDate(pageEvents[d].date) === formatDate(pageEvents[d + count].date)) count++;
+                        for (let j = 0; j < count; j++) dateSpans.push(j === 0 ? count : 0);
+                        d += count;
+                    }
 
-                    return `
-                        <div class="flex items-center gap-3 p-4 bg-white hover:bg-slate-50 transition-all border-b border-slate-100 last:border-b-0">
-                            <label class="relative inline-flex items-center cursor-pointer shrink-0">
-                                <input type="checkbox" class="sr-only peer" ${isEnabled ? 'checked' : ''} onchange="window.toggleReportCriteria('${key}')">
-                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-navy"></div>
-                            </label>
+                    const timeSpans = [];
+                    let t = 0;
+                    while (t < pageEvents.length) {
+                        let count = 1;
+                        while (t + count < pageEvents.length && pageEvents[t].time === pageEvents[t + count].time) count++;
+                        for (let j = 0; j < count; j++) timeSpans.push(j === 0 ? count : 0);
+                        t += count;
+                    }
+
+                    const tableRows = pageEvents.map((e, index) => {
+                        const type = state.types.find(t => t.id === e.type_id);
+                        const loc = state.locations.find(l => l.id === e.location_id);
+                        const att = state.attendants.find(a => a.id === e.attendant_id);
+                        const globalIndex = (i * itemsPerPage) + index;
+                        const isZebra = globalIndex % 2 !== 0;
+
+                        const dateSpan = dateSpans[index];
+                        const timeSpan = timeSpans[index];
+
+                        return `
+                            <tr class="border-b border-slate-200">
+                                ${dateSpan > 0 ? `<td rowspan="${dateSpan}" class="p-3 border-r border-slate-200 text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${formatDate(e.date)}</td>` : ''}
+                                ${timeSpan > 0 ? `<td rowspan="${timeSpan}" class="p-3 border-r border-slate-200 text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${e.time}</td>` : ''}
+                                <td class="p-3 border-r border-slate-200 text-[11px] font-bold text-navy ${isZebra ? 'bg-slate-50' : 'bg-white'}">${type?.name || ''}</td>
+                                <td class="p-3 border-r border-slate-200 text-[11px] font-medium text-slate-700 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${loc?.localidade || ''}</td>
+                                <td class="p-3 text-[11px] font-medium text-slate-600 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${att?.name || ''}</td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    pagesHtml += `
+                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] p-[15mm] md:p-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
+                            <!-- Repetir cabeçalho em cada página -->
+                            <div class="mb-8 border-b-2 border-navy pb-6 text-center">
+                                <h2 class="text-xl font-black text-navy uppercase tracking-tighter">Agenda CCB</h2>
+                                <p class="text-xs font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-2">${filterDesc}</p>
+                            </div>
+
+                            <div class="w-full overflow-hidden border border-slate-200 rounded-lg shadow-sm flex-1">
+                                <table class="w-full border-collapse">
+                                    <thead>
+                                        <tr class="bg-navy text-white text-[10px] uppercase tracking-widest">
+                                            <th class="p-3 text-center border-r border-white">Data</th>
+                                            <th class="p-3 text-center border-r border-white">Hora</th>
+                                            <th class="p-3 text-center border-r border-white">Evento</th>
+                                            <th class="p-3 text-center border-r border-white">Localidade</th>
+                                            <th class="p-3 text-center">Atendente</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${tableRows || '<tr><td colspan="5" class="p-12 text-center text-slate-300 italic font-medium">Nenhum evento encontrado.</td></tr>'}
+                                    </tbody>
+                                </table>
+                            </div>
                             
-                            <div class="flex-1 min-w-0 ${isEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}">
-                                <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">${label}</div>
-                                <button onclick="window.openReportSelector('${key}', '${collection}')" class="w-full text-left font-bold text-navy text-sm flex justify-between items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 shadow-sm active:bg-slate-100 transition-colors">
-                                    <span class="truncate">${currentLabel}</span>
-                                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
-                                </button>
+                            <div class="mt-8 pt-6 text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between border-t border-slate-100">
+                                <span>Gerado em: ${new Date().toLocaleString('pt-BR')}</span>
+                                <span>Página ${i + 1} de ${totalPages} <span class="mx-2">|</span> ${events.length} registros</span>
                             </div>
                         </div>
-                   `;
-                };
-
-                const fieldsHtml = isAgenda ? `
-                    ${renderRow('type', 'Filtrar por Evento', 'types')}
-                    ${renderRow('location', 'Filtrar por Localidade', 'locations')}
-                    ${renderRow('attendant', 'Filtrar por Atendente', 'attendants')}
-                ` : `
-                    ${renderRow('adm', 'Filtrar por ADM', 'locations')}
-                    ${renderRow('setor', 'Filtrar por Setor', 'locations')}
-                    ${renderRow('cidade', 'Filtrar por Cidade', 'locations')}
-                `;
+                    `;
+                }
 
                 showModal(`
-                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-                        <div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white shadow-sm z-10 shrink-0">
-                            <div class="flex items-center gap-2 text-navy">
-                                <i data-lucide="file-text" class="w-5 h-5"></i>
-                                <h3 class="text-lg font-black tracking-tight uppercase">Critérios para Relatório</h3>
+                    <div class="bg-slate-500/20 backdrop-blur-md rounded-xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]">
+                        <div class="p-4 flex justify-between items-center border-b border-white/10 bg-navy text-white shrink-0">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="file-text" class="w-5 h-5 text-orange-custom"></i>
+                                <h3 class="text-lg font-black tracking-tight uppercase">Visualização do Relatório</h3>
                             </div>
-                            <button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+                            <div class="flex items-center gap-4">
+                                <span class="text-[10px] font-bold text-white/40 uppercase tracking-widest hidden md:inline-block">${totalPages} ${totalPages > 1 ? 'Páginas' : 'Página'}</span>
+                                <button onclick="window.closeModal()" class="text-white/50 hover:text-white p-1 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+                            </div>
                         </div>
-                        
-                        <div class="p-4 bg-slate-50 border-b border-slate-100 shrink-0">
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Tabela de Dados</label>
-                            <button onclick="window.toggleReportTable()" class="w-full bg-white border border-slate-200 rounded-xl p-3 flex justify-between items-center shadow-sm active:scale-[0.99] transition-all">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-lg ${isAgenda ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'} flex items-center justify-center">
-                                        <i data-lucide="${isAgenda ? 'calendar' : 'map-pin'}" class="w-4 h-4"></i>
-                                    </div>
-                                    <div class="text-left">
-                                        <div class="text-xs font-bold text-navy uppercase tracking-wide">${isAgenda ? 'Eventos (Agenda)' : 'Localidades'}</div>
-                                    </div>
-                                </div>
-                                <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+
+                        <div class="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-hide flex flex-col items-center bg-slate-600/10 gap-10">
+                            ${pagesHtml}
+                        </div>
+
+                        <div class="p-6 border-t border-white/10 bg-navy grid grid-cols-2 gap-4 shrink-0">
+                            <button onclick="window.downloadPDF()" class="py-4 bg-white text-navy rounded-xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 hover:bg-slate-50">
+                                <i data-lucide="file-down" class="w-5 h-5 text-red-500"></i> Exportar em PDF
+                            </button>
+                            <button onclick="window.downloadPNG()" class="py-4 bg-orange-custom text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 hover:brightness-110">
+                                <i data-lucide="image" class="w-5 h-5"></i> Exportar em PNG
                             </button>
                         </div>
-                        
-                        <div class="flex flex-col overflow-y-auto scrollbar-none bg-white divide-y divide-slate-50">
-                            ${fieldsHtml}
-                        </div>
-                        
-                        <div class="p-4 border-t border-slate-50 bg-white grid grid-cols-2 gap-3 shrink-0">
-                            <button onclick="window.closeModal()" class="py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all">Cancelar</button>
-                            <button class="py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Preview</button>
-                        </div>
                     </div>
+                    <style>
+                        .scrollbar-hide::-webkit-scrollbar { display: none; }
+                        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+                    </style>
                 `);
                 renderIcons();
             },
-            toggleReportTable: () => {
-                const rf = state.reportFilter;
-                rf.table = rf.table === 'agenda' ? 'locations' : 'agenda';
-                // Reset dynamic filters when switching tables
-                if (rf.table === 'agenda') {
-                    rf.adm.enabled = false; rf.setor.enabled = false; rf.cidade.enabled = false;
-                } else {
-                    rf.type.enabled = false; rf.location.enabled = false; rf.attendant.enabled = false;
-                }
-                window.renderReportCriteriaModal();
-            },
-            toggleReportCriteria: (key) => {
-                const rf = state.reportFilter;
-                rf[key].enabled = !rf[key].enabled;
-                if (!rf[key].enabled) rf[key].id = 'all';
-                window.renderReportCriteriaModal();
-            },
-            openReportSelector: (key, collection) => {
-                let items = [];
-                if (collection === 'locations' && (key === 'adm' || key === 'setor' || key === 'cidade')) {
-                    // Extract distinct values for localidade fields
-                    const rawValues = new Set(state.locations.map(l => l[key]).filter(v => v));
-                    items = [{ id: 'all', name: 'Todos' }, ...[...rawValues].sort().map(v => ({ id: v, name: v }))];
-                } else {
-                    items = [{ id: 'all', name: 'Todos', localidade: 'Todas', adm: 'Todos' }, ...state[collection]];
-                }
+            downloadPDF: () => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('p', 'mm', 'a4');
+                const events = getFilteredEvents();
+                const filterDesc = getFilterDescription('home');
+                const pageWidth = doc.internal.pageSize.getWidth();
 
-                const renderItems = (list) => list.map(i => {
-                    const name = i.name || i.localidade || 'Sem Nome';
-                    const isSelected = state.reportFilter[key].id === i.id;
-                    return `
-                        <button onclick="window.selectReportCriteria('${key}', '${i.id.replace(/'/g, "\\'")}')" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100">
-                            <span class="group-hover:text-navy transition-colors font-bold text-sm leading-tight">${name}</span>
-                            ${isSelected ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0 ml-2"></i>' : ''}
-                        </button>
-                    `;
-                }).join('');
-
-                showModal(`
-                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
-                        <div class="p-5 flex justify-between items-center bg-white border-b border-slate-50 shrink-0">
-                            <div class="flex items-center gap-3 text-navy">
-                                <i data-lucide="list" class="w-5 h-5"></i>
-                                <h3 class="font-bold text-lg">Selecionar Opção</h3>
-                            </div>
-                            <button onclick="window.renderReportCriteriaModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
-                        </div>
-                        <div class="px-5 py-4 shrink-0">
-                            <div class="relative group">
-                                <input id="repPickerSearch" type="text" placeholder="Filtrar..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium">
-                                <i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i>
-                            </div>
-                        </div>
-                        <div id="repPickerList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none">
-                            ${renderItems(items)}
-                        </div>
-                    </div>
-                `);
-
-                document.getElementById('repPickerSearch')?.addEventListener('input', (e) => {
-                    const term = e.target.value.toLowerCase();
-                    const filtered = items.filter(i => (i.name || i.localidade || '').toLowerCase().includes(term));
-                    document.getElementById('repPickerList').innerHTML = renderItems(filtered);
-                    renderIcons();
+                const head = [['Data', 'Hora', 'Evento', 'Localidade', 'Atendente']];
+                const body = events.map(e => {
+                    const type = state.types.find(t => t.id === e.type_id);
+                    const loc = state.locations.find(l => l.id === e.location_id);
+                    const att = state.attendants.find(a => a.id === e.attendant_id);
+                    return [formatDate(e.date), e.time, type?.name || '', loc?.localidade || '', att?.name || ''];
                 });
-                renderIcons();
+
+                // Pre-calculate spans for PDF (Full list)
+                const dateSpans = [];
+                let d = 0;
+                while (d < events.length) {
+                    let count = 1;
+                    while (d + count < events.length && formatDate(events[d].date) === formatDate(events[d + count].date)) count++;
+                    for (let j = 0; j < count; j++) dateSpans.push(j === 0 ? count : 0);
+                    d += count;
+                }
+                const timeSpans = [];
+                let t = 0;
+                while (t < events.length) {
+                    let count = 1;
+                    while (t + count < events.length && events[t].time === events[t + count].time) count++;
+                    for (let j = 0; j < count; j++) timeSpans.push(j === 0 ? count : 0);
+                    t += count;
+                }
+
+                doc.autoTable({
+                    head: head,
+                    body: body,
+                    startY: 40,
+                    theme: 'grid',
+                    styles: { valign: 'middle', fontSize: 8.5 },
+                    headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontSize: 9.5, fontStyle: 'bold', halign: 'center' },
+                    columnStyles: {
+                        0: { cellWidth: 25, halign: 'center' },
+                        1: { cellWidth: 15, halign: 'center' },
+                        2: { cellWidth: 'auto' },
+                        3: { cellWidth: 'auto' },
+                        4: { cellWidth: 'auto' }
+                    },
+                    alternateRowStyles: { fillColor: [248, 250, 252] },
+                    margin: { top: 40, left: 15, right: 15 },
+                    didParseCell: (data) => {
+                        if (data.section === 'body') {
+                            if (data.column.index === 0) {
+                                const span = dateSpans[data.row.index];
+                                if (span > 1) data.cell.rowSpan = span;
+                                data.cell.styles.fillColor = [255, 255, 255]; // Always white
+                            }
+                            if (data.column.index === 1) {
+                                const span = timeSpans[data.row.index];
+                                if (span > 1) data.cell.rowSpan = span;
+                                data.cell.styles.fillColor = [255, 255, 255]; // Always white
+                            }
+                        }
+                    },
+                    didDrawPage: (data) => {
+                        // Header only on first page? No, usually all. But Title only on first page in autotable auto-flow
+                        // Let's draw title on all pages for consistency with user request
+                        doc.setFontSize(22);
+                        doc.setTextColor(0, 51, 102);
+                        doc.setFont("helvetica", "bold");
+                        const title = "Agenda CCB";
+                        const titleWidth = doc.getTextWidth(title);
+                        doc.text(title, (pageWidth - titleWidth) / 2, 22);
+
+                        doc.setFontSize(10);
+                        doc.setTextColor(120, 120, 120);
+                        doc.setFont("helvetica", "normal");
+                        const subtitle = filterDesc.toUpperCase();
+                        const subtitleWidth = doc.getTextWidth(subtitle);
+                        doc.text(subtitle, (pageWidth - subtitleWidth) / 2, 30);
+
+                        // Footer
+                        doc.setFontSize(8);
+                        doc.setTextColor(150, 150, 150);
+                        const footerText = `Gerado em: ${new Date().toLocaleString('pt-BR')}  |  Página ${data.pageNumber}`;
+                        const footerWidth = doc.getTextWidth(footerText);
+                        doc.text(footerText, (pageWidth - footerWidth) / 2, 287);
+                    }
+                });
+
+                doc.save(`relatorio_agenda_${new Date().toISOString().split('T')[0]}.pdf`);
             },
-            selectReportCriteria: (key, id) => {
-                state.reportFilter[key].id = id;
-                window.renderReportCriteriaModal();
+            downloadPNG: async () => {
+                const pages = document.querySelectorAll('.report-page');
+                if (!pages || pages.length === 0) return;
+
+                for (let i = 0; i < pages.length; i++) {
+                    const page = pages[i];
+                    const canvas = await html2canvas(page, {
+                        scale: 3,
+                        useCORS: true,
+                        logging: false,
+                        backgroundColor: '#ffffff',
+                        windowWidth: 1000
+                    });
+
+                    const link = document.createElement('a');
+                    link.download = `relatorio_agenda_pag_${i + 1}_${new Date().toISOString().split('T')[0]}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+
+                    // Small delay between downloads to prevent browser blocking or race conditions
+                    await new Promise(r => setTimeout(r, 500));
+                }
             },
             startCreateEvent: () => { state.editingEventId = null; state.formTempDate = new Date().toISOString().split('T')[0]; state.formTempTime = '08:00'; state.formTempLoc = ''; state.formTempType = ''; state.formTempAtt = ''; state.formTempIrmaos = ''; state.formTempIrmas = ''; state.formErrors = []; state.originalEventSnapshot = null; state.highlightedItemId = null; navigateTo('event-form'); },
             openEditEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); if (ev) { state.editingEventId = id; state.formTempDate = ev.date; state.formTempTime = ev.time; state.formTempLoc = ev.location_id; state.formTempType = ev.type_id; state.formTempAtt = ev.attendant_id || ''; state.formTempIrmaos = ev.irmaos || ''; state.formTempIrmas = ev.irmas || ''; state.formErrors = []; state.originalEventSnapshot = JSON.parse(JSON.stringify(ev)); state.highlightedItemId = null; navigateTo('event-form'); } },
