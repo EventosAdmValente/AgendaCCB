@@ -2276,32 +2276,32 @@
 
                         return `
                             <tr class="border-b border-slate-200">
-                                ${dateSpan > 0 ? `<td rowspan="${dateSpan}" class="p-1.5 md:p-3 border-r border-slate-200 text-[9px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${formatDate(e.date)}</td>` : ''}
-                                ${timeSpan > 0 ? `<td rowspan="${timeSpan}" class="p-1.5 md:p-3 border-r border-slate-200 text-[9px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${e.time}</td>` : ''}
-                                <td class="p-1.5 md:p-3 border-r border-slate-200 text-[9px] md:text-[11px] font-bold text-navy ${isZebra ? 'bg-slate-50' : 'bg-white'}">${type?.name || ''}</td>
-                                <td class="p-1.5 md:p-3 border-r border-slate-200 text-[9px] md:text-[11px] font-medium text-slate-700 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${loc?.localidade || ''}</td>
-                                <td class="p-1.5 md:p-3 text-[9px] md:text-[11px] font-medium text-slate-600 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${att?.name || ''}</td>
+                                ${dateSpan > 0 ? `<td rowspan="${dateSpan}" class="p-1 md:p-3 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${formatDate(e.date)}</td>` : ''}
+                                ${timeSpan > 0 ? `<td rowspan="${timeSpan}" class="p-1 md:p-3 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white">${e.time}</td>` : ''}
+                                <td class="p-1 md:p-3 border-r border-slate-200 text-[8px] md:text-[11px] font-bold text-navy ${isZebra ? 'bg-slate-50' : 'bg-white'}">${type?.name || ''}</td>
+                                <td class="p-1 md:p-3 border-r border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${loc?.localidade || ''}</td>
+                                <td class="p-1 md:p-3 text-[8px] md:text-[11px] font-medium text-slate-600 ${isZebra ? 'bg-slate-50' : 'bg-white'}">${att?.name || ''}</td>
                             </tr>
                         `;
                     }).join('');
 
                     pagesHtml += `
-                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[auto] md:min-h-[297mm] p-4 md:p-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
+                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[auto] md:min-h-[297mm] p-1.5 md:p-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
                             <!-- Repetir cabeçalho em cada página -->
                             <div class="mb-4 md:mb-8 border-b-2 border-navy pb-4 md:pb-6 text-center">
                                 <h2 class="text-lg md:text-xl font-black text-navy uppercase tracking-tighter">Agenda CCB</h2>
                                 <p class="text-[10px] md:text-xs font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1 md:mt-2">${filterDesc}</p>
                             </div>
 
-                            <div class="w-full overflow-hidden border border-slate-200 rounded-lg shadow-sm flex-1">
-                                <table class="w-full border-collapse">
+                            <div class="w-full overflow-x-auto border border-slate-200 rounded-lg shadow-sm flex-1">
+                                <table class="w-full border-collapse min-w-[300px]">
                                     <thead>
-                                        <tr class="bg-navy text-white text-[9px] md:text-[10px] uppercase tracking-widest">
-                                            <th class="p-1.5 md:p-3 text-center border-r border-white">Data</th>
-                                            <th class="p-1.5 md:p-3 text-center border-r border-white">Hora</th>
-                                            <th class="p-1.5 md:p-3 text-center border-r border-white">Evento</th>
-                                            <th class="p-1.5 md:p-3 text-center border-r border-white">Localidade</th>
-                                            <th class="p-1.5 md:p-3 text-center">Atendente</th>
+                                        <tr class="bg-navy text-white text-[8px] md:text-[10px] uppercase tracking-widest">
+                                            <th class="p-1 md:p-3 text-center border-r border-white">Data</th>
+                                            <th class="p-1 md:p-3 text-center border-r border-white">Hora</th>
+                                            <th class="p-1 md:p-3 text-center border-r border-white">Evento</th>
+                                            <th class="p-1 md:p-3 text-center border-r border-white">Localidade</th>
+                                            <th class="p-1 md:p-3 text-center">Atendente</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -2310,7 +2310,7 @@
                                 </table>
                             </div>
                             
-                            <div class="mt-4 md:mt-8 pt-4 md:pt-6 text-[9px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between border-t border-slate-100">
+                            <div class="mt-4 md:mt-8 pt-4 md:pt-6 text-[8px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between border-t border-slate-100">
                                 <span>Gerado: ${new Date().toLocaleDateString('pt-BR')}</span>
                                 <span>Pág ${i + 1}/${totalPages}</span>
                             </div>
@@ -2337,10 +2337,10 @@
 
                         <div class="p-6 border-t border-white/10 bg-navy grid grid-cols-2 gap-4 shrink-0">
                             <button onclick="window.downloadPDF()" class="py-4 bg-white text-navy rounded-xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 hover:bg-slate-50">
-                                <i data-lucide="file-down" class="w-5 h-5 text-red-500"></i> Exportar em PDF
+                                <i data-lucide="file-down" class="w-5 h-5 text-red-500"></i> PDF
                             </button>
                             <button onclick="window.downloadPNG()" class="py-4 bg-orange-custom text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 hover:brightness-110">
-                                <i data-lucide="image" class="w-5 h-5"></i> Exportar em PNG
+                                <i data-lucide="image" class="w-5 h-5"></i> PNG
                             </button>
                         </div>
                     </div>
