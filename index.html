@@ -2262,7 +2262,14 @@
                     let t = 0;
                     while (t < pageEvents.length) {
                         let count = 1;
-                        while (t + count < pageEvents.length && pageEvents[t].time === pageEvents[t + count].time) count++;
+                        const startsAtDateTop = (dateSpans[t] > 0);
+                        while (
+                            t + count < pageEvents.length &&
+                            pageEvents[t].time === pageEvents[t + count].time
+                        ) {
+                            if (!startsAtDateTop && formatDate(pageEvents[t].date) !== formatDate(pageEvents[t + count].date)) break;
+                            count++;
+                        }
                         for (let j = 0; j < count; j++) timeSpans.push(j === 0 ? count : 0);
                         t += count;
                     }
@@ -2665,7 +2672,14 @@
                     let t = 0;
                     while (t < events.length) {
                         let count = 1;
-                        while (t + count < events.length && events[t].time === events[t + count].time) count++;
+                        const startsAtDateTop = (dateSpans[t] > 0);
+                        while (
+                            t + count < events.length &&
+                            events[t].time === events[t + count].time
+                        ) {
+                            if (!startsAtDateTop && formatDate(events[t].date) !== formatDate(events[t + count].date)) break;
+                            count++;
+                        }
                         for (let j = 0; j < count; j++) timeSpans.push(j === 0 ? count : 0);
                         t += count;
                     }
