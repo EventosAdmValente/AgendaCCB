@@ -2356,7 +2356,7 @@
                     }).join('');
 
                     pagesHtml += `
-                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] h-[297mm] md:min-h-[297mm] md:h-auto overflow-hidden md:overflow-visible p-1.5 md:pt-[13mm] md:px-[10mm] md:pb-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
+                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] max-h-[297mm] md:max-h-none md:h-auto overflow-hidden md:overflow-visible p-1.5 md:pt-[13mm] md:px-[10mm] md:pb-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
                              <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center shrink-0">
                                 <h2 class="text-base md:text-lg font-black text-navy uppercase tracking-tighter">Agenda CCB</h2>
                                 <p class="text-[6px] md:text-[8px] font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1">${filterDesc}</p>
@@ -2539,7 +2539,7 @@
                     }).join('');
 
                     pagesHtml += `
-                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] h-[297mm] md:min-h-[297mm] md:h-auto overflow-hidden md:overflow-visible p-1.5 md:pt-[10mm] md:px-[10mm] md:pb-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
+                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] max-h-[297mm] md:max-h-none md:h-auto overflow-hidden md:overflow-visible p-1.5 md:pt-[10mm] md:px-[10mm] md:pb-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
                              <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center shrink-0">
                                 <h2 class="text-sm md:text-base font-black text-navy uppercase tracking-tighter">Relatório de Localidades</h2>
                                 <p class="text-[6px] md:text-[8px] font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1">${filterDesc}</p>
