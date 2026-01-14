@@ -1179,7 +1179,10 @@
                     <div id="nav-menu-placeholder">${renderNavMenu()}</div>
                     <div class="bg-navy text-white p-4 sticky top-0 z-10 shadow-lg flex justify-between items-center">
                         <button onclick="window.openMenu()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="menu" class="w-7 h-7"></i></button>
-                        <h1 class="text-lg font-bold uppercase tracking-wide">Agenda CCB</h1>
+                        <div class="flex flex-col items-center">
+                            <h1 class="text-lg font-bold uppercase tracking-wide leading-none">Agenda CCB</h1>
+                            ${state.masterEventFilter !== 'todos' ? `<span class="text-[9px] font-bold uppercase tracking-widest text-slate-300 mt-0.5">vendo eventos ${state.masterEventFilter}</span>` : ''}
+                        </div>
                         <button onclick="window.navigateTo('home')" class="p-1 hover:bg-white/10 rounded"><i data-lucide="home" class="w-7 h-7"></i></button>
                     </div>
                     <div class="flex flex-col flex-1 overflow-hidden p-4 gap-4 max-w-xl mx-auto w-full overflow-y-auto scrollbar-none">
@@ -1515,7 +1518,7 @@
                                     ${state.advancedFilter.active ? '<span class="absolute -top-1 -right-1 w-3 h-3 bg-orange-custom rounded-full border-2 border-white"></span>' : ''}
                                 </button>
                                 <button onclick="window.openLocationsReportPreview()" class="flex items-center justify-center gap-2 h-11 bg-navy text-white text-[10px] font-bold rounded-xl shadow-sm uppercase px-4 active:scale-95 transition-all shrink-0">
-                                    <i data-lucide="file-text" class="w-4 h-4"></i> RELATÓRIO
+                                    <i data-lucide="file-text" class="w-4 h-4"></i> 
                                 </button>
                             ` : ''}
                         </div>
@@ -1679,8 +1682,16 @@
             else if (mode === 'adv_end') currentSelected = state.advancedFilter.period.end || '';
             else if (mode === 'feriado_picker') currentSelected = document.getElementById('feriado-date-val')?.value || '';
 
+            let calendarEvents = state.events;
+            if (state.masterEventFilter !== 'todos') {
+                calendarEvents = calendarEvents.filter(e => {
+                    const isPast = isEventPast(e.date, e.time);
+                    return state.masterEventFilter === 'ativos' ? !isPast : isPast;
+                });
+            }
+
             const eventDots = {};
-            state.events.forEach((e) => {
+            calendarEvents.forEach((e) => {
                 const datePart = e.date.substring(0, 7);
                 if (datePart === `${year}-${String(month + 1).padStart(2, '0')}`) eventDots[e.date] = (eventDots[e.date] || 0) + 1;
             });
@@ -1706,7 +1717,7 @@
             let contentHtml = `<div class="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md flex flex-col max-h-[95vh]"><div class="p-3 flex justify-between items-center border-b border-slate-50 bg-white shrink-0"><div class="flex items-center gap-2 text-navy"><i data-lucide="calendar" class="w-4 h-4"></i><h3 class="text-base font-black tracking-tight uppercase">${title}</h3></div><button onclick="${(mode === 'adv_start' || mode === 'adv_end') ? 'window.renderAdvancedFilterModal()' : mode === 'feriado_picker' ? 'window.returnToFeriadoModal()' : 'window.closeModal()'}" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-3 overflow-y-auto scrollbar-none"><div class="flex justify-between items-center mb-3 px-1"><button onclick="window.changeMonth(-1, '${mode}')" class="p-1.5 text-navy hover:bg-slate-50 rounded-full"><i data-lucide="chevron-left" class="w-5 h-5"></i></button><div class="flex gap-2 font-black text-[14px] uppercase tracking-widest text-navy"><button onclick="window.openMonthPicker('${mode}')" class="hover:text-orange-custom">${monthNames[month]}</button><button onclick="window.openYearPicker('${mode}')" class="hover:text-orange-custom">${year}</button></div><button onclick="window.changeMonth(1, '${mode}')" class="p-1.5 text-navy hover:bg-slate-50 rounded-full"><i data-lucide="chevron-right" class="w-5 h-5"></i></button></div><div class="grid grid-cols-7 text-center text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2"><span class="text-red-500">D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span></div><div class="grid grid-cols-7 gap-y-1.5 text-center items-center justify-items-center">${days.map(d => { if (!d) return '<div></div>'; const fullDate = fmt(d); const isToday = fullDate === new Date().toISOString().split('T')[0]; const isHoliday = state.externalHolidays.some((h) => h.date === fullDate) || state.feriados.some((f) => f.data === fullDate); return `<div class="flex flex-col items-center gap-0.5"><button onclick="window.selectCalendarDate('${fullDate}', '${mode}')" class="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all relative ${fullDate === currentSelected ? 'bg-navy text-white shadow-md' : isToday ? 'text-green-600 border border-green-100' : (new Date(year, month, d).getDay() === 0 || isHoliday) ? 'text-red-500' : 'text-slate-600 hover:bg-slate-50'}">${d}</button><div class="flex gap-0.5 h-1.5 items-center justify-center">${(eventDots[fullDate] || 0) > 0 ? Array(Math.min(eventDots[fullDate], 4)).fill(0).map(() => `<span class="w-1 h-1 rounded-full ${fullDate === currentSelected ? 'bg-orange-custom' : 'bg-navy'}"></span>`).join('') : ''}</div></div>`; }).join('')}</div></div>${holidayLegendItems ? `<div class="px-4 py-2 border-t border-slate-50 bg-slate-50/40 shrink-0"><div class="flex flex-wrap gap-y-1 text-[11px] items-center">${holidayLegendItems}</div></div>` : ''}`;
 
             if (mode === 'filter' && state.selectedDate) {
-                const dayEvents = state.events.filter((e) => e.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
+                const dayEvents = calendarEvents.filter((e) => e.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
                 contentHtml += `<div class="flex flex-col border-t border-slate-100 shrink-0"><div class="px-4 py-1.5 flex justify-between items-center bg-slate-50/50"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">EVENTOS: ${formatDate(state.selectedDate)}</span></div><div class="flex flex-col divide-y divide-slate-100 max-h-[160px] overflow-y-auto scrollbar-none bg-white">${dayEvents.length === 0 ? '<div class="text-center text-slate-300 py-6 text-[10px] font-medium italic">Nenhum evento programado</div>' : dayEvents.map((e) => {
                     const loc = state.locations.find((l) => l.id === e.location_id)?.localidade || '';
                     const att = state.attendants.find((a) => a.id === e.attendant_id)?.name || '';
@@ -2345,13 +2356,13 @@
                     }).join('');
 
                     pagesHtml += `
-                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] p-1.5 md:pt-[13mm] md:px-[10mm] md:pb-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
-                             <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center">
+                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] h-[297mm] md:min-h-[297mm] md:h-auto overflow-hidden md:overflow-visible p-1.5 md:pt-[13mm] md:px-[10mm] md:pb-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
+                             <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center shrink-0">
                                 <h2 class="text-base md:text-lg font-black text-navy uppercase tracking-tighter">Agenda CCB</h2>
                                 <p class="text-[6px] md:text-[8px] font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1">${filterDesc}</p>
                             </div>
 
-                            <div class="w-full border border-slate-200 rounded-lg shadow-sm">
+                            <div class="w-full border border-slate-200 rounded-lg shadow-sm flex-1 md:flex-none overflow-y-auto md:overflow-visible min-h-0 md:min-h-[auto] relative scrollbar-hide">
                                 <table class="w-full border-collapse">
                                     <thead>
                                         <tr class="bg-navy text-white text-[8px] md:text-[10px] uppercase tracking-widest">
@@ -2368,7 +2379,7 @@
                                 </table>
                             </div>
                             
-                            <div class="mt-4 md:mt-8 pt-4 md:pt-6 text-[8px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between border-t border-slate-100">
+                            <div class="mt-4 md:mt-8 pt-4 md:pt-6 text-[8px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between border-t border-slate-100 shrink-0">
                                 <span>Gerado: ${new Date().toLocaleDateString('pt-BR')}</span>
                                 <span>Pág ${i + 1}/${totalPages}</span>
                             </div>
@@ -2528,13 +2539,13 @@
                     }).join('');
 
                     pagesHtml += `
-                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] p-1.5 md:pt-[10mm] md:px-[10mm] md:pb-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
-                             <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center">
+                        <div class="report-page bg-white shadow-2xl w-full max-w-[210mm] h-[297mm] md:min-h-[297mm] md:h-auto overflow-hidden md:overflow-visible p-1.5 md:pt-[10mm] md:px-[10mm] md:pb-[20mm] flex flex-col mx-auto mb-10 last:mb-0" data-page="${i + 1}">
+                             <div class="mb-3 md:mb-6 border-b-2 border-navy pb-3 md:pb-4 text-center shrink-0">
                                 <h2 class="text-sm md:text-base font-black text-navy uppercase tracking-tighter">Relatório de Localidades</h2>
                                 <p class="text-[6px] md:text-[8px] font-bold text-slate-400 opacity-80 uppercase tracking-[0.2em] mt-1">${filterDesc}</p>
                             </div>
 
-                            <div class="w-full border border-slate-200 rounded-lg shadow-sm">
+                            <div class="w-full border border-slate-200 rounded-lg shadow-sm flex-1 md:flex-none overflow-y-auto md:overflow-visible min-h-0 md:min-h-[auto] relative scrollbar-hide">
                                 <table class="w-full border-collapse">
                                     <thead>
                                         <tr class="bg-navy text-white text-[8px] md:text-[10px] uppercase tracking-widest">
@@ -2550,7 +2561,7 @@
                                 </table>
                             </div>
                             
-                             <div class="mt-4 md:mt-8 pt-4 md:pt-6 text-[8px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between border-t border-slate-100">
+                             <div class="mt-4 md:mt-8 pt-4 md:pt-6 text-[8px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between border-t border-slate-100 shrink-0">
                                 <span>Gerado: ${new Date().toLocaleDateString('pt-BR')}</span>
                                 <span>Pág ${i + 1}/${totalPages}</span>
                             </div>
