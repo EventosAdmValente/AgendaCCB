@@ -2120,7 +2120,29 @@
 
         function renderFFRow(l, v, t, c) {
             const isS = c === t;
-            return `<div class="flex flex-col gap-1.5 p-3 rounded-2xl border-2 transition-all h-full ${isS ? 'border-orange-custom bg-orange-50/30' : 'border-slate-100 bg-slate-50/50'}" onclick="window.state.ffTemp.selected = '${t}'; window.renderFastFilterUI();"><div class="flex justify-between items-center px-1"><span class="text-[9px] font-black uppercase tracking-tight ${isS ? 'text-orange-custom' : 'text-slate-400'}">${l}</span><div class="flex gap-2"><button onclick="event.stopPropagation(); window.shiftFF('${t}', -1)" class="p-1 hover:bg-white rounded-full text-navy shadow-sm border border-slate-200 bg-white"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button><button onclick="event.stopPropagation(); window.shiftFF('${t}', 1)" class="p-1 hover:bg-white rounded-full text-navy shadow-sm border border-slate-200 bg-white"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button></div></div><div class="text-[11px] font-bold text-navy px-1 leading-tight">${v}</div></div>`;
+            const currentDate = state.ffTemp.baseDates[t];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const compareDate = new Date(currentDate);
+            compareDate.setHours(0, 0, 0, 0);
+
+            // Determinar se os botões devem ser desabilitados
+            let disableLeft = false;
+            let disableRight = false;
+
+            if (state.masterEventFilter === 'ativos') {
+                // Ativos: não pode voltar para o passado
+                disableLeft = compareDate <= today;
+            } else if (state.masterEventFilter === 'inativos') {
+                // Inativos: não pode avançar para o futuro
+                disableRight = compareDate >= today;
+            }
+            // Se 'todos', ambos ficam habilitados
+
+            const leftBtnClass = disableLeft ? 'p-1 rounded-full shadow-sm border border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed opacity-50' : 'p-1 hover:bg-white rounded-full text-navy shadow-sm border border-slate-200 bg-white';
+            const rightBtnClass = disableRight ? 'p-1 rounded-full shadow-sm border border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed opacity-50' : 'p-1 hover:bg-white rounded-full text-navy shadow-sm border border-slate-200 bg-white';
+
+            return `<div class="flex flex-col gap-1.5 p-3 rounded-2xl border-2 transition-all h-full ${isS ? 'border-orange-custom bg-orange-50/30' : 'border-slate-100 bg-slate-50/50'}" onclick="window.state.ffTemp.selected = '${t}'; window.renderFastFilterUI();"><div class="flex justify-between items-center px-1"><span class="text-[9px] font-black uppercase tracking-tight ${isS ? 'text-orange-custom' : 'text-slate-400'}">${l}</span><div class="flex gap-2"><button onclick="event.stopPropagation(); window.shiftFF('${t}', -1)" class="${leftBtnClass}" ${disableLeft ? 'disabled' : ''}><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button><button onclick="event.stopPropagation(); window.shiftFF('${t}', 1)" class="${rightBtnClass}" ${disableRight ? 'disabled' : ''}><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button></div></div><div class="text-[11px] font-bold text-navy px-1 leading-tight">${v}</div></div>`;
         }
 
         function renderFastFilterUI() {
@@ -2204,7 +2226,41 @@
             returnToFeriadoModal: () => { const c = window.__feriado_modal_cache; window.openRowModal('feriados', c.safeId, c.item); },
             renderFastFilterUI,
             openFastFilterModal: () => { state.searchTerm = ''; if (document.getElementById('homeSearch')) document.getElementById('homeSearch').value = ''; state.ffTemp.baseDates = { today: new Date(), week: new Date(), month: new Date(), year: new Date() }; renderFastFilterUI(); },
-            shiftFF: (t, o) => { const d = new Date(state.ffTemp.baseDates[t]); if (t === 'today') d.setDate(d.getDate() + o); else if (t === 'week') d.setDate(d.getDate() + (o * 7)); else if (t === 'month') d.setMonth(d.getMonth() + o); else if (t === 'year') d.setFullYear(d.getFullYear() + o); state.ffTemp.baseDates[t] = d; state.ffTemp.selected = t; renderFastFilterUI(); },
+            shiftFF: (t, o) => {
+                // Validação baseada no filtro mestre
+                const currentDate = new Date(state.ffTemp.baseDates[t]);
+                currentDate.setHours(0, 0, 0, 0);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                // Calcular a nova data
+                const d = new Date(state.ffTemp.baseDates[t]);
+                if (t === 'today') d.setDate(d.getDate() + o);
+                else if (t === 'week') d.setDate(d.getDate() + (o * 7));
+                else if (t === 'month') d.setMonth(d.getMonth() + o);
+                else if (t === 'year') d.setFullYear(d.getFullYear() + o);
+
+                const newDate = new Date(d);
+                newDate.setHours(0, 0, 0, 0);
+
+                // Aplicar restrições baseadas no filtro mestre
+                if (state.masterEventFilter === 'ativos') {
+                    // Ativos: não pode voltar para o passado
+                    if (o === -1 && newDate < today) {
+                        return; // Bloqueia navegação para o passado
+                    }
+                } else if (state.masterEventFilter === 'inativos') {
+                    // Inativos: não pode avançar para o futuro
+                    if (o === 1 && newDate > today) {
+                        return; // Bloqueia navegação para o futuro
+                    }
+                }
+                // Se 'todos', permite qualquer navegação
+
+                state.ffTemp.baseDates[t] = d;
+                state.ffTemp.selected = t;
+                renderFastFilterUI();
+            },
             applyNewFastFilter: () => { const b = new Date(state.ffTemp.baseDates[state.ffTemp.selected]); let st = '', en = '', la = ''; const f = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; if (state.ffTemp.selected === 'today') { st = en = f(b); let w = b.toLocaleDateString('pt-BR', { weekday: 'long' }); la = `${w.charAt(0).toUpperCase() + w.slice(1)}, dia ${fBR(b)}`; } else if (state.ffTemp.selected === 'week') { const d1 = new Date(b); d1.setDate(b.getDate() - b.getDay()); const d2 = new Date(d1); d2.setDate(d1.getDate() + 6); st = f(d1); en = f(d2); la = `Semana ${fBR(d1)} a ${fBR(d2)}`; } else if (state.ffTemp.selected === 'month') { const d1 = new Date(b.getFullYear(), b.getMonth(), 1); const d2 = new Date(b.getFullYear(), b.getMonth() + 1, 0); st = f(d1); en = f(d2); la = `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][b.getMonth()]} / ${b.getFullYear()}`; } else if (state.ffTemp.selected === 'year') { st = `${b.getFullYear()}-01-01`; en = `${b.getFullYear()}-12-31`; la = `Ano de ${b.getFullYear()}`; } state.selectedDate = null; state.advancedFilter.active = false; state.fastFilter = { active: true, dateStart: st, dateEnd: en, label: la }; closeModal(); window.updateHomeList(); },
             toggleAdvFilterSection: (sec) => { const af = state.advancedFilter; af[sec].enabled = !af[sec].enabled; af.validationErrors = af.validationErrors.filter(e => e !== sec); if (sec === 'adm' && !af.adm.enabled) { af.adm.value = ''; af.setor.enabled = false; af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'setor' && !af.setor.enabled) { af.setor.value = ''; af.cidade.enabled = false; af.cidade.value = ''; af.location.id = ''; } else if (sec === 'cidade' && !af.cidade.enabled) { af.cidade.value = ''; af.location.id = ''; } window.renderAdvancedFilterModal(); if (af[sec].enabled) window.scrollToAdvSection(sec); },
             handleAdvFilterSelect: (f, v) => {
