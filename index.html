@@ -789,7 +789,7 @@
             },
             selectedDate: null,
             viewDate: new Date(),
-            formTempDate: '', formTempTime: '08:00', formTempLoc: '', formTempType: '', formTempAtt: '',
+            formTempDate: '', formTempTime: '08:00', formTempLoc: '', formTempType: '', formTempAtt: '', formTempAtt2: '',
             formTempIrmaos: '', formTempIrmas: '',
             isLoading: true,
             advancedFilter: {
@@ -924,6 +924,7 @@
                 const type = state.types.find((t) => t.id === e.type_id);
                 const loc = state.locations.find((l) => l.id === e.location_id);
                 const att = state.attendants.find((a) => a.id === e.attendant_id);
+                const att2 = state.attendants.find((a) => a.id === e.attendant2_id);
                 const isPast = isEventPast(e.date, e.time);
                 const isHighlighted = state.highlightedItemId === e.id;
 
@@ -933,6 +934,12 @@
                 const hasStats = isBatismo || isSantaCeia;
                 const total = (e.irmaos || 0) + (e.irmas || 0);
                 const isTemp = String(e.id).startsWith('temp_');
+
+                // Formatar exibição dos atendentes
+                let attendantDisplay = att?.name || '';
+                if (att2?.name) {
+                    attendantDisplay = `${att?.name || ''} / ${att2.name}`;
+                }
 
                 return `
                                     <li id="item-${e.id}" onclick="${state.isAdmin ? `window.openEditEvent('${e.id}')` : ''}" class="relative p-3 transition-all ${isHighlighted ? 'bg-yellow-50 ring-2 ring-yellow-400 ring-inset z-10 highlight-item' : state.isAdmin ? 'active:bg-slate-50' : ''} ${isPast && !isHighlighted ? 'bg-slate-50/50 grayscale-[0.5] opacity-70' : ''}">
@@ -962,17 +969,17 @@
                                                 <div class="text-[12.15px] font-semibold text-slate-600 mt-1 leading-tight">${formatDate(e.date)} - ${e.time}</div>
                                                 <div class="flex flex-col gap-1 mt-1 leading-tight">
                                                     <div class="text-[12.15px] text-slate-600 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3 shrink-0"></i> <span class="whitespace-normal">${loc?.localidade || ''}</span></div>
-                                                    <div class="text-[12.15px] text-slate-600 flex items-center gap-1"><i data-lucide="user" class="w-3 h-3 shrink-0"></i> <span class="whitespace-normal">${att?.name || ''}</span></div>
+                                                    ${attendantDisplay ? `<div class="text-[12.15px] text-slate-600 flex items-center gap-1"><i data-lucide="user" class="w-3 h-3 shrink-0"></i> <span class="whitespace-normal">${attendantDisplay}</span></div>` : ''}
                                                 </div>
                                             </div>
                                         </div>
                                     </li>
-                                `;
+                `;
             }).join('')}
                         </ul>
                     `}
-                </div>
-            `;
+                </div >
+                `;
 
             const labelEl = document.getElementById('home-filter-label');
             if (labelEl) {
@@ -1141,7 +1148,7 @@
                             <button onclick="window.showLoginModal()" class="bg-navy text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Fazer Login</button>
                         </div>
                     </div>
-                    <div id="nav-menu-placeholder">${renderNavMenu()}</div>
+                <div id="nav-menu-placeholder">${renderNavMenu()}</div>
                 `;
                 renderIcons();
                 return;
@@ -1168,7 +1175,7 @@
                             <button onclick="window.handleLogout()" class="mt-8 px-8 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="log-out" class="w-4 h-4 text-white"></i> Logout</button>
                         </div>
                     </div>
-                    <div id="nav-menu-placeholder">${renderNavMenu()}</div>
+                <div id="nav-menu-placeholder">${renderNavMenu()}</div>
                 `;
                 renderIcons();
                 return;
@@ -1205,8 +1212,8 @@
                         <div id="event-list-container" class="flex flex-col gap-2 flex-1 min-h-0"></div>
                     </div>
                     ${state.isAdmin ? `<button onclick="window.startCreateEvent()" class="fixed bottom-6 right-6 w-14 h-14 bg-orange-custom text-white rounded-full shadow-xl flex items-center justify-center z-50 border-2 border-white/20"><i data-lucide="plus" class="w-8 h-8"></i></button>` : ''}
-                </div>
-            `;
+                </div >
+                `;
 
             document.getElementById('homeSearch')?.addEventListener('input', (e) => { state.searchTerm = e.target.value; });
             window.updateHomeList();
@@ -1243,7 +1250,7 @@
                     filtered = filtered.filter((e) => e.type_id === af.type.id);
                 }
                 if (af.attendant.enabled && af.attendant.id) {
-                    filtered = filtered.filter((e) => e.attendant_id === af.attendant.id);
+                    filtered = filtered.filter((e) => e.attendant_id === af.attendant.id || e.attendant2_id === af.attendant.id);
                 }
                 if (af.adm.enabled && af.adm.value) {
                     const validLocs = state.locations.filter((l) => l.adm === af.adm.value).map((l) => l.id);
@@ -1275,7 +1282,8 @@
                     const locObj = state.locations.find((l) => l.id === e.location_id);
                     const loc = (locObj?.localidade || '').toLowerCase();
                     const termAtt = state.attendants.find((a) => a.id === e.attendant_id)?.name?.toLowerCase() || '';
-                    return typeName.includes(term) || typeSigla.includes(term) || loc.includes(term) || termAtt.includes(term);
+                    const termAtt2 = state.attendants.find((a) => a.id === e.attendant2_id)?.name?.toLowerCase() || '';
+                    return typeName.includes(term) || typeSigla.includes(term) || loc.includes(term) || termAtt.includes(term) || termAtt2.includes(term);
                 });
             }
 
@@ -1404,6 +1412,7 @@
                 if (String(state.formTempLoc) !== String(snap.location_id)) hasChanges = true;
                 if (String(state.formTempType) !== String(snap.type_id)) hasChanges = true;
                 if (String(state.formTempAtt || '') !== String(snap.attendant_id || '')) hasChanges = true;
+                if (String(state.formTempAtt2 || '') !== String(snap.attendant2_id || '')) hasChanges = true;
                 if (currentIrmaos !== (snap.irmaos || 0)) hasChanges = true;
                 if (currentIrmas !== (snap.irmas || 0)) hasChanges = true;
             } else if (!isEditing) {
@@ -1453,6 +1462,13 @@
                                 <button onclick="window.openSelectPicker('attendants', 'Atendente', 'formTempAtt')" class="flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
                                     <i data-lucide="users" class="w-4 h-4 opacity-50"></i>
                                     <span>${state.attendants.find((a) => a.id === state.formTempAtt)?.name || 'Selecionar Atendente'}</span>
+                                </button>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Atendente 2 <span class="text-slate-300 font-bold normal-case">(opcional)</span></label>
+                                <button onclick="window.openSelectPicker('attendants', 'Atendente 2', 'formTempAtt2')" class="flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
+                                    <i data-lucide="users" class="w-4 h-4 opacity-50"></i>
+                                    <span>${state.attendants.find((a) => a.id === state.formTempAtt2)?.name || 'Selecionar Atendente 2'}</span>
                                 </button>
                             </div>
                             <div class="${showCounters ? '' : 'hidden'} grid grid-cols-2 gap-3 transition-all duration-300">
@@ -2339,10 +2355,17 @@
                         const type = state.types.find(t => t.id === e.type_id);
                         const loc = state.locations.find(l => l.id === e.location_id);
                         const att = state.attendants.find(a => a.id === e.attendant_id);
+                        const att2 = state.attendants.find(a => a.id === e.attendant2_id);
                         const globalIndex = (i * itemsPerPage) + index;
                         const isZebra = globalIndex % 2 !== 0;
                         const dateSpan = dateSpans[index];
                         const timeSpan = timeSpans[index];
+
+                        // Formatar exibição dos atendentes
+                        let attendantDisplay = att?.name || '';
+                        if (att2?.name) {
+                            attendantDisplay = `${att?.name || ''} / ${att2.name}`;
+                        }
 
                         return `
                             <tr>
@@ -2350,7 +2373,7 @@
                                 ${timeSpan > 0 ? `<td rowspan="${timeSpan}" class="py-1 px-1 md:py-1 md:px-2 border-r border-b border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white" style="vertical-align: middle;">${e.time}</td>` : ''}
                                 <td class="py-1 px-1 md:py-1 md:px-2 border-r border-b border-slate-200 text-[8px] md:text-[11px] font-bold text-navy align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${type?.name || ''}</td>
                                 <td class="py-1 px-1 md:py-1 md:px-2 border-r border-b border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${loc?.localidade || ''}</td>
-                                <td class="py-1 px-1 md:py-1 md:px-2 border-b border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-600 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${att?.name || ''}</td>
+                                <td class="py-1 px-1 md:py-1 md:px-2 border-b border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-600 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${attendantDisplay}</td>
                             </tr>
                         `;
                     }).join('');
@@ -2738,7 +2761,15 @@
                         const type = state.types.find(t => t.id === e.type_id);
                         const loc = state.locations.find(l => l.id === e.location_id);
                         const att = state.attendants.find(a => a.id === e.attendant_id);
-                        return [formatDate(e.date), e.time, type?.name || '', loc?.localidade || '', att?.name || ''];
+                        const att2 = state.attendants.find(a => a.id === e.attendant2_id);
+
+                        // Formatar exibição dos atendentes
+                        let attendantDisplay = att?.name || '';
+                        if (att2?.name) {
+                            attendantDisplay = `${att?.name || ''} / ${att2.name}`;
+                        }
+
+                        return [formatDate(e.date), e.time, type?.name || '', loc?.localidade || '', attendantDisplay];
                     });
 
                     const dateSpans = [];
@@ -2887,8 +2918,8 @@
                     }
                 }
             },
-            startCreateEvent: () => { state.editingEventId = null; state.formTempDate = new Date().toISOString().split('T')[0]; state.formTempTime = '08:00'; state.formTempLoc = ''; state.formTempType = ''; state.formTempAtt = ''; state.formTempIrmaos = ''; state.formTempIrmas = ''; state.formErrors = []; state.originalEventSnapshot = null; state.highlightedItemId = null; navigateTo('event-form'); },
-            openEditEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); if (ev) { state.editingEventId = id; state.formTempDate = ev.date; state.formTempTime = ev.time; state.formTempLoc = ev.location_id; state.formTempType = ev.type_id; state.formTempAtt = ev.attendant_id || ''; state.formTempIrmaos = ev.irmaos || ''; state.formTempIrmas = ev.irmas || ''; state.formErrors = []; state.originalEventSnapshot = JSON.parse(JSON.stringify(ev)); state.highlightedItemId = null; navigateTo('event-form'); } },
+            startCreateEvent: () => { state.editingEventId = null; state.formTempDate = new Date().toISOString().split('T')[0]; state.formTempTime = '08:00'; state.formTempLoc = ''; state.formTempType = ''; state.formTempAtt = ''; state.formTempAtt2 = ''; state.formTempIrmaos = ''; state.formTempIrmas = ''; state.formErrors = []; state.originalEventSnapshot = null; state.highlightedItemId = null; navigateTo('event-form'); },
+            openEditEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); if (ev) { state.editingEventId = id; state.formTempDate = ev.date; state.formTempTime = ev.time; state.formTempLoc = ev.location_id; state.formTempType = ev.type_id; state.formTempAtt = ev.attendant_id || ''; state.formTempAtt2 = ev.attendant2_id || ''; state.formTempIrmaos = ev.irmaos || ''; state.formTempIrmas = ev.irmas || ''; state.formErrors = []; state.originalEventSnapshot = JSON.parse(JSON.stringify(ev)); state.highlightedItemId = null; navigateTo('event-form'); } },
             openTimePickerModal: () => { const [h, m] = (state.formTempTime || '08:00').split(':'); state.clockTempHour = h; state.clockTempMinute = m; state.clockMode = 'hour'; showModal(''); renderClockUI(); },
             selectClockValue: (v) => { if (state.clockMode === 'hour') { state.clockTempHour = v.padStart(2, '0'); state.clockMode = 'minute'; } else state.clockTempMinute = v.padStart(2, '0'); renderClockUI(); },
             confirmClockTime: () => { state.formTempTime = `${state.clockTempHour}:${state.clockTempMinute}`; closeModal(); },
@@ -2914,7 +2945,7 @@
                 }
                 if (coll === 'attendants') {
                     let quemAtende = '';
-                    if (pr === 'formTempAtt' && state.formTempType) {
+                    if ((pr === 'formTempAtt' || pr === 'formTempAtt2') && state.formTempType) {
                         const selType = state.types.find(t => t.id === state.formTempType);
                         quemAtende = selType?.quem_atende || '';
                     } else if (pr === 'adv_attendant' && state.advancedFilter.type.enabled && state.advancedFilter.type.id) {
@@ -2964,7 +2995,7 @@
                     if (!state.formTempLoc) errs.push('loc');
                     if (!state.formTempType) errs.push('type');
                     if (errs.length > 0) { state.formErrors = errs; return; }
-                    const eventData = { date: state.formTempDate, time: state.formTempTime, location_id: state.formTempLoc, type_id: state.formTempType, attendant_id: state.formTempAtt || null, irmaos: parseInt(document.getElementById('event-irmaos')?.value || '0'), irmas: parseInt(document.getElementById('event-irmas')?.value || '0') };
+                    const eventData = { date: state.formTempDate, time: state.formTempTime, location_id: state.formTempLoc, type_id: state.formTempType, attendant_id: state.formTempAtt || null, attendant2_id: state.formTempAtt2 || null, irmaos: parseInt(document.getElementById('event-irmaos')?.value || '0'), irmas: parseInt(document.getElementById('event-irmas')?.value || '0') };
                     const duplicate = state.events.find(e => e.date === eventData.date && e.time === eventData.time && e.location_id === eventData.location_id && e.type_id === eventData.type_id && String(e.id) !== String(state.editingEventId));
                     if (duplicate) { showEventDuplicateModal(duplicate); return; }
                     const action = state.editingEventId ? 'UPDATE' : 'INSERT';
