@@ -1892,6 +1892,16 @@
                 ${/* Moved Name Field here for Locations */ ''}
                 <div class="flex flex-col gap-1"><label class="text-[10px] font-black text-slate-400 uppercase ml-1">${ctx.name}</label><input id="row-name" type="text" class="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy transition-colors" value="${mainV}" placeholder="Digite aqui..."></div>
                 
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Eventos possíveis</label>
+                    <button onclick="window.openEventosPossiveisPicker('${safeId}')" 
+                            class="w-full flex justify-between items-center p-3 border border-slate-200 rounded-xl text-sm font-semibold text-navy bg-white focus:ring-2 focus:ring-navy/10 text-left min-h-[50px]">
+                        <span class="break-words flex-1">${item.eventos_que_pode_ter || 'Selecionar...'}</span>
+                        <input type="hidden" id="loc-eventos-possiveis" value="${item.eventos_que_pode_ter || ''}">
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 shrink-0"></i>
+                    </button>
+                </div>
+                
                 <div class="border-t border-slate-100 my-2 pt-2">
                     <span class="text-[10px] font-black text-orange-custom uppercase tracking-widest block mb-2">Anciães</span>
                     <div class="flex flex-col gap-3">
@@ -1959,6 +1969,7 @@
                 p.adm = document.getElementById('loc-adm')?.value.trim();
                 p.setor = document.getElementById('loc-setor')?.value.trim();
                 p.cidade = document.getElementById('loc-cidade')?.value.trim();
+                p.eventos_que_pode_ter = document.getElementById('loc-eventos-possiveis')?.value.trim() || null;
 
                 // New Ministry Fields
                 p.anciao_1 = document.getElementById('loc-anciao-1')?.value || null;
@@ -2999,6 +3010,17 @@
                     const uniqueNames = [...new Set(items.map(l => l.localidade).filter(Boolean))].sort();
                     items = uniqueNames.map(name => ({ id: name, localidade: name }));
                 }
+
+                // Filtro de Tipos de Eventos por Localidade (Form Cadastro Evento)
+                if (coll === 'types' && pr === 'formTempType' && state.formTempLoc) {
+                    const loc = state.locations.find(l => String(l.id) === String(state.formTempLoc));
+                    const allowed = loc?.eventos_que_pode_ter || '';
+                    if (allowed && allowed !== 'Todos') {
+                        const sigList = allowed.split('/').map(s => s.trim().toUpperCase());
+                        items = items.filter(t => sigList.includes((t.sigla || '').toUpperCase()));
+                    }
+                }
+
                 if (coll === 'attendants') {
                     let quemAtende = '';
                     if ((pr === 'formTempAtt' || pr === 'formTempAtt2') && state.formTempType) {
@@ -3317,6 +3339,127 @@
             closeQuemAtendePicker: () => {
                 const cache = window.__type_modal_cache;
                 window.openRowModal('types', cache.id, cache.item);
+            },
+            openEventosPossiveisPicker: (id) => {
+                // Verificar se já existe cache (ao reabrir o modal)
+                let currentVal = '';
+                if (window.__location_modal_cache && window.__location_modal_cache.id === id) {
+                    // Usar valor do cache (já atualizado pelas seleções)
+                    currentVal = window.__location_modal_cache.item.eventos_que_pode_ter || '';
+                } else {
+                    // Primeira vez abrindo - capturar valores atuais do formulário
+                    const adm = document.getElementById('loc-adm')?.value || '';
+                    const setor = document.getElementById('loc-setor')?.value || '';
+                    const cidade = document.getElementById('loc-cidade')?.value || '';
+                    const localidade = document.getElementById('row-name')?.value || '';
+                    currentVal = document.getElementById('loc-eventos-possiveis')?.value || '';
+
+                    // Salvar no cache
+                    window.__location_modal_cache = {
+                        id,
+                        item: {
+                            adm, setor, cidade, localidade,
+                            eventos_que_pode_ter: currentVal,
+                            anciao_1: document.getElementById('loc-anciao-1')?.value || '',
+                            anciao_2: document.getElementById('loc-anciao-2')?.value || '',
+                            anciao_3: document.getElementById('loc-anciao-3')?.value || '',
+                            diacono_1: document.getElementById('loc-diacono-1')?.value || '',
+                            diacono_2: document.getElementById('loc-diacono-2')?.value || '',
+                            diacono_3: document.getElementById('loc-diacono-3')?.value || '',
+                            com_1: document.getElementById('loc-com-1')?.value || '',
+                            com_2: document.getElementById('loc-com-2')?.value || '',
+                            cjm: document.getElementById('loc-cjm')?.value || ''
+                        }
+                    };
+                }
+
+                // Obter lista de tipos de eventos
+                const tipos = [...state.types].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                // Verificar quais siglas já estão selecionadas
+                const selectedSiglas = currentVal === 'Todos' ? ['Todos'] : (currentVal ? currentVal.split('/').map(s => s.trim()) : []);
+
+                showModal(`
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+                        <div class="p-5 flex justify-between items-center bg-white border-b border-slate-50 shrink-0">
+                            <div class="flex items-center gap-3 text-navy">
+                                <i data-lucide="calendar-check" class="w-5 h-5"></i>
+                                <h3 class="font-bold text-lg">Eventos Possíveis</h3>
+                            </div>
+                            <button onclick="window.returnToLocationModal()" class="text-slate-400 p-1">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="flex-1 overflow-y-auto scrollbar-none">
+                            <!-- Opção "Todos" -->
+                            <button onclick="window.handleEventosPossiveisSelection('Todos', 'Todos')" 
+                                    class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100">
+                                <div class="flex flex-col">
+                                    <span class="font-bold text-sm text-navy">Todos os Eventos</span>
+                                    <span class="text-[10px] text-slate-400 font-medium">Permite todos os tipos</span>
+                                </div>
+                                ${selectedSiglas.includes('Todos') ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom"></i>' : ''}
+                            </button>
+                            
+                            <!-- Lista de tipos de eventos -->
+                            ${tipos.map(tipo => `
+                                <button onclick="window.handleEventosPossiveisSelection('${tipo.sigla}', '${tipo.name.replace(/'/g, "\\'")}')" 
+                                        class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100">
+                                    <div class="flex flex-col">
+                                        <span class="font-bold text-sm text-navy">${tipo.name}</span>
+                                        <span class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">${tipo.sigla}</span>
+                                    </div>
+                                    ${selectedSiglas.includes(tipo.sigla) ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom"></i>' : ''}
+                                </button>
+                            `).join('')}
+                        </div>
+                        
+                        <div class="p-4 border-t border-slate-50 flex gap-3 shrink-0">
+                            <button onclick="window.handleEventosPossiveisSelection('', 'limpar')" 
+                                    class="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Limpar
+                            </button>
+                            <button onclick="window.returnToLocationModal()" 
+                                    class="flex-1 bg-navy text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4"></i> Concluir
+                            </button>
+                        </div>
+                    </div>
+                `);
+                renderIcons();
+            },
+            handleEventosPossiveisSelection: (sigla, action) => {
+                const cache = window.__location_modal_cache;
+                let currentVal = cache.item.eventos_que_pode_ter || '';
+
+                if (action === 'limpar') {
+                    // Limpar tudo
+                    cache.item.eventos_que_pode_ter = '';
+                } else if (sigla === 'Todos') {
+                    // Selecionar "Todos" (sobrescreve tudo)
+                    cache.item.eventos_que_pode_ter = 'Todos';
+                } else {
+                    // Toggle de sigla individual
+                    const siglas = currentVal === 'Todos' ? [] : (currentVal ? currentVal.split('/').map(s => s.trim()) : []);
+
+                    if (siglas.includes(sigla)) {
+                        // Remover sigla
+                        const newSiglas = siglas.filter(s => s !== sigla);
+                        cache.item.eventos_que_pode_ter = newSiglas.join('/');
+                    } else {
+                        // Adicionar sigla
+                        siglas.push(sigla);
+                        cache.item.eventos_que_pode_ter = siglas.join('/');
+                    }
+                }
+
+                // Reabrir o modal de eventos possíveis para mostrar a atualização
+                window.openEventosPossiveisPicker(cache.id);
+            },
+            returnToLocationModal: () => {
+                const cache = window.__location_modal_cache;
+                window.openRowModal('locations', cache.id, cache.item);
             },
         });
 
