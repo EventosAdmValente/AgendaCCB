@@ -3189,7 +3189,7 @@
                 const currentComum = document.getElementById('row-comum')?.value;
                 window.__attendant_modal_cache = { id, item: { name: name, ministerio: currentMin, comum: currentComum } };
 
-                const options = ['Ancião', 'Diácono', 'Coop. Oficial', 'Coop. Jovens'];
+                const options = ['Ancião', 'Diácono', 'Coop. Oficial', 'Coop. Jovens', 'Enc. Regional'];
                 showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50 shrink-0"><div class="flex items-center gap-3 text-navy"><i data-lucide="shield-check" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar Ministério</h3></div><button onclick="window.closeAttendantMinistryPicker()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-2 flex flex-col">
                     ${options.map(o => `
                         <button onclick="window.handleAttendantMinistrySelection('${o}')" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100">
@@ -3231,7 +3231,7 @@
                 const currentVal = document.getElementById('row-quem-atende')?.value || '';
                 window.__type_modal_cache = { id, item: { name, sigla, quem_atende: currentVal } };
 
-                const allOptions = ['Ancião', 'Diácono', 'Coop. Oficial', 'Coop. Jovens'];
+                const allOptions = ['Ancião', 'Diácono', 'Coop. Oficial', 'Coop. Jovens', 'Enc. Regional'];
                 const selected = currentVal.split(/[/]+/).map(s => s.trim()).filter(Boolean);
                 const options = allOptions.filter(o => !selected.includes(o));
 
@@ -3409,7 +3409,7 @@
                 console.log("[Visibility] App invisível às:", new Date(lastHiddenTime).toLocaleTimeString());
             } else if (document.visibilityState === 'visible' && lastHiddenTime > 0) {
                 const now = Date.now();
-                const diffMinutes = (now - lastHiddenTime) / 1000 / 60;
+                const diffMinutes = (now - lastHiddenTime) / 2000 / 60;
                 console.log(`[Visibility] App visível novamente. Ficou invisível por ${diffMinutes.toFixed(2)} minutos.`);
 
                 if (diffMinutes >= 1) {
