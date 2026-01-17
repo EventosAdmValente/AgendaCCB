@@ -405,8 +405,9 @@
             const channelName = `public:${table}`;
 
             if (activeChannels.has(channelName)) {
-                console.log(`[setupListener] Canal ${channelName} já está ativo. Mantendo.`);
-                return;
+                const oldChannel = activeChannels.get(channelName);
+                supabaseClient.removeChannel(oldChannel);
+                activeChannels.delete(channelName);
             }
 
 
@@ -448,9 +449,6 @@
                     const current = [...(state[stateKey] || [])];
                     if (current.find(item => String(item.id) === String(payload.new.id))) return;
 
-                    // Verifica se a alteração veio do próprio usuário ou de outro
-                    const isFromCurrentUser = state.user && payload.new.alterado_por === state.user.id;
-
                     // Tenta encontrar um registro temporário que corresponda a este novo registro real
                     const tempItem = current.find(item => String(item.id).startsWith('temp_') && isSameRecord(item, payload.new, table));
 
@@ -462,23 +460,17 @@
                     }
 
                     debouncedSave(table, state[stateKey]);
-                    // Atualiza a UI se for de outro usuário OU se acabamos de substituir um item temporário pelo real
-                    if (!isFromCurrentUser || tempItem) requestUIUpdate(table);
+                    requestUIUpdate(table);
                 })
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, async (payload) => {
                     const current = [...(state[stateKey] || [])];
                     state[stateKey] = current.map(item => String(item.id) === String(payload.new.id) ? payload.new : item);
                     debouncedSave(table, state[stateKey]);
 
-                    // Verifica se a alteração veio do próprio usuário ou de outro
-                    const isFromCurrentUser = state.user && payload.new.alterado_por === state.user.id;
-
-                    // Só atualiza a UI se a alteração veio de outro usuário (evita preenchimento duplo)
-                    if (!isFromCurrentUser) {
-                        if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
-                        const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
-                        if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
-                    }
+                    // Atualiza a UI para refletir as mudanças
+                    if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                    const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
+                    if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
 
                     if (table === 'perfis' && state.user && payload.new.id === state.user.id) {
                         const isMasterAdmin = (state.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase());
@@ -504,7 +496,26 @@
                     const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
                     if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
                 })
-                .subscribe();
+                .subscribe((status) => {
+                    console.log(`[Realtime] ${table} - Status: ${status}`);
+                    if (status === 'SUBSCRIBED') {
+                        console.log(`✅ [Realtime] Monitorando tabela: ${table}`);
+                    }
+                    if (status === 'CHANNEL_ERROR') {
+                        console.error(`❌ [Realtime] Erro no canal ${table}, tentando reconectar em 5s...`);
+                        setTimeout(() => {
+                            console.log(`🔄 [Realtime] Reconectando ${table}...`);
+                            setupListener(table, stateKey);
+                        }, 5000);
+                    }
+                    if (status === 'TIMED_OUT') {
+                        console.error(`⏱️ [Realtime] Timeout no canal ${table}, tentando reconectar em 5s...`);
+                        setTimeout(() => {
+                            console.log(`🔄 [Realtime] Reconectando ${table}...`);
+                            setupListener(table, stateKey);
+                        }, 5000);
+                    }
+                });
 
             activeChannels.set(channelName, channel);
         };
@@ -615,11 +626,6 @@
                     });
                     localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updatedQueue));
                     if (String(state.highlightedItemId) === String(id)) state.highlightedItemId = realId;
-
-                    // Atualiza UI para garantir que o ID real seja renderizado
-                    if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
-                    const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
-                    if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
                 }
 
                 // 4. Remover da fila e atualizar snapshots subsequentes
