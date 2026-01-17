@@ -463,8 +463,8 @@
                     }
 
                     debouncedSave(table, state[stateKey]);
-                    // Só atualiza a UI se a alteração veio de outro usuário (evita preenchimento duplo)
-                    if (!isFromCurrentUser) requestUIUpdate(table);
+                    // Atualiza a UI se for de outro usuário OU se acabamos de substituir um item temporário pelo real
+                    if (!isFromCurrentUser || tempItem) requestUIUpdate(table);
                 })
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, async (payload) => {
                     const current = [...(state[stateKey] || [])];
@@ -616,6 +616,11 @@
                     });
                     localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updatedQueue));
                     if (String(state.highlightedItemId) === String(id)) state.highlightedItemId = realId;
+
+                    // Atualiza UI para garantir que o ID real seja renderizado
+                    if (state.currentScreen === 'home' && table === 'agenda') window.updateHomeList();
+                    const screenMap = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'feriados': 'feriados', 'perfis': 'users' };
+                    if (state.currentScreen === screenMap[table]) window.updateManagerListUI(table);
                 }
 
                 // 4. Remover da fila e atualizar snapshots subsequentes
