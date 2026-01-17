@@ -348,73 +348,29 @@
 
         // Monitora quando o app volta a ficar visível (mobile-friendly)
         let lastVisibleTime = Date.now();
-        document.addEventListener("visibilitychange", async () => {
+        const handleFocusOrVisible = async () => {
             if (document.visibilityState === "hidden") {
                 lastVisibleTime = Date.now();
                 console.log("[App] App ficou invisível");
-            } else if (document.visibilityState === "visible") {
-                const now = Date.now();
-                const minutesHidden = (now - lastVisibleTime) / 1000 / 60; // Corrigido: 1000 não 2000
-                console.log(`[App] App visível novamente após ${minutesHidden.toFixed(2)} minutos`);
-
-                try {
-                    // "Hard reset" para destravar qualquer tentativa de sincronização que ficou "pendurada"
-                    // enquanto o celular estava suspenso ou em rede instável.
-                    isProcessingQueue = false;
-
-                    // Aumentado para 2 segundos: Mais tempo para rede mobile se estabilizar
-                    await new Promise(r => setTimeout(r, 2000));
-
-                    console.log("[App] Verificando e renovando sessão...");
-                    // Aumentado timeout para 12s
-                    const { data: refreshData, error: refreshError } = await withTimeout(supabaseClient.auth.refreshSession(), 12000).catch(e => ({ error: e }));
-                    let session = refreshData?.session;
-
-                    if (refreshError) {
-                        console.warn("[App] Erro no refresh ou timeout, tentando recuperar sessão atual...", refreshError);
-                        const { data: sessionData } = await supabaseClient.auth.getSession();
-                        session = sessionData?.session;
-                    }
-
-                    const isSessionActive = !!session;
-
-                    if (isSessionActive) {
-                        // Força o cliente REST a atualizar os headers internos com o novo token
-                        await supabaseClient.auth.setSession({
-                            access_token: session.access_token,
-                            refresh_token: session.refresh_token
-                        });
-                        console.log("[App] Sessão validada e propagada para o cliente.");
-                    }
-
-                    // Cleanup and Re-subscribe Realtime
-                    console.log("[Realtime] Reiniciando canais após volta ao foco...");
-                    cleanupListeners();
-                    if (isSessionActive) {
-                        setupAllListeners();
-                        if (window.refreshAllData) refreshAllData();
-
-                        console.log("[App] Disparando redespacho da fila de sincronização...");
-                        if (navigator.onLine && window.processOfflineQueue) {
-                            processOfflineQueue(true);
-                        }
-                    }
-
-                    const isRealtimeActive = supabaseClient.realtime && supabaseClient.realtime.isConnected();
-                    console.log(`[App] Status Final - Sessão: ${isSessionActive}, Realtime: ${isRealtimeActive}`);
-
-                    if (!isSessionActive && minutesHidden >= 2) {
-                        if (navigator.onLine) {
-                            console.log("[App] Sessão perdida definitivamente. Recarregando...");
-                            window.location.reload();
-                        } else {
-                            if (window.loadFromCache) window.loadFromCache();
-                            showConnStatus('offline');
-                        }
-                    }
-                } catch (e) { console.error("[App] Erro crítico na volta ao foco:", e); }
+                return;
             }
-        });
+
+            // Flag radical: voltamos do foco
+            state.returnedFromFocus = true;
+
+            const minutesHidden = (Date.now() - lastVisibleTime) / 1000 / 60;
+            console.log(`[App] App visível novamente após ${minutesHidden.toFixed(2)} minutos`);
+
+            // Se houver pendências na fila ao voltar do foco, recarrega IMEDIATAMENTE
+            const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+            if (queue.length > 0) {
+                console.log("[App] Pendências detectadas no retorno do foco. Forçando recarregamento...");
+                window.location.reload();
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleFocusOrVisible);
+        window.addEventListener("focus", handleFocusOrVisible);
 
         window.loadFromCache = () => {
             console.log("[App] Carregando dados do cache local...");
@@ -429,12 +385,6 @@
             scheduleRender();
         };
 
-        function cleanupListeners() {
-            activeChannels.forEach((channel, name) => {
-                supabaseClient.removeChannel(channel);
-            });
-            activeChannels.clear();
-        }
 
         const setupListener = (table, stateKey) => {
             const channelName = `public:${table}`;
@@ -537,18 +487,22 @@
                         console.log(`✅ [Realtime] Monitorando tabela: ${table}`);
                     }
                     if (status === 'CHANNEL_ERROR') {
-                        console.error(`❌ [Realtime] Erro no canal ${table}, tentando reconectar em 5s...`);
+                        console.error(`❌ [Realtime] Erro no canal ${table}, tentando reconectar em 3s...`);
                         setTimeout(() => {
-                            console.log(`🔄 [Realtime] Reconectando ${table}...`);
-                            setupListener(table, stateKey);
-                        }, 5000);
+                            if (navigator.onLine) {
+                                console.log(`🔄 [Realtime] Reconectando ${table}...`);
+                                setupListener(table, stateKey);
+                            }
+                        }, 3000);
                     }
                     if (status === 'TIMED_OUT') {
-                        console.error(`⏱️ [Realtime] Timeout no canal ${table}, tentando reconectar em 5s...`);
+                        console.error(`⏱️ [Realtime] Timeout no canal ${table}, tentando reconectar em 3s...`);
                         setTimeout(() => {
-                            console.log(`🔄 [Realtime] Reconectando ${table}...`);
-                            setupListener(table, stateKey);
-                        }, 5000);
+                            if (navigator.onLine) {
+                                console.log(`🔄 [Realtime] Reconectando ${table}...`);
+                                setupListener(table, stateKey);
+                            }
+                        }, 3000);
                     }
                 });
 
@@ -668,18 +622,26 @@
             try {
                 console.log(`[executeSync] Sincronizando ${action} para ${table}...`);
 
-                // 1. Verificação proativa da sessão com Timeout
+                // 1. Verificação proativa da sessão com Timeout e renovação forçada
                 let { data: { session }, error: sessionError } = await withTimeout(supabaseClient.auth.getSession(), 5000).catch(() => ({ data: { session: null } }));
-                if (!session) {
-                    const { data: refreshData } = await withTimeout(supabaseClient.auth.refreshSession(), 8000).catch(() => ({ data: { session: null } }));
-                    session = refreshData?.session;
+                if (!session || sessionError) {
+                    console.log("[executeSync] Sessão inválida ou expirada. Tentando renovar...");
+                    const refresh = await withTimeout(supabaseClient.auth.refreshSession(), 8000).catch(() => ({ data: { session: null } }));
+                    session = refresh.data?.session;
                 }
+
                 if (!session) {
-                    console.warn("[executeSync] Sem sessão válida para sincronizar.");
+                    console.warn("[executeSync] Não foi possível obter uma sessão válida.");
                     return false;
                 }
 
-                // 2. Executa a operação com Timeout
+                // 2. Garantir que o canal está de pé se estivermos online
+                if (navigator.onLine && (!supabaseClient.realtime || !supabaseClient.realtime.isConnected())) {
+                    console.log("[executeSync] Socket desconectado. Forçando conexão antes do envio...");
+                    supabaseClient.realtime.connect();
+                }
+
+                // 3. Executa a operação com Timeout e lógica de retentativa para erros de rede
                 let res;
                 const dbOp = async () => {
                     if (action === 'INSERT') return supabaseClient.from(table).insert(cleanData).select().single();
@@ -687,26 +649,37 @@
                     if (action === 'DELETE') return supabaseClient.from(table).delete().eq('id', id);
                 };
 
-                res = await withTimeout(dbOp(), 12000).catch(err => ({ error: { message: 'Timeout/Network Error', details: err } }));
+                res = await withTimeout(dbOp(), 15000).catch(err => {
+                    return { error: { message: 'Network Failure/Timeout', details: err, status: 0 } };
+                });
 
                 if (res && res.error) {
                     console.error(`[executeSync] Erro Supabase em ${table} (${action}):`, res.error);
-                    console.log(`[executeSync] Detalhes do erro: Status=${res.error.status}, Code=${res.error.code}, Msg=${res.error.message}`);
 
+                    // Se erro de autorização (401), limpa login e para.
                     if (res.error.status === 401) {
-                        console.warn("[executeSync] Erro 401 detectado. Tentando renovar sessão uma última vez...");
-                        await supabaseClient.auth.refreshSession();
+                        console.error("[executeSync] Erro 401: Usuário deslogado ou token inválido.");
+                        return false;
                     }
 
-                    // Erros Fatais (Remover da fila)
+                    // Se erro de rede/timeout (status 0 ou sem status), tenta reconectar para a próxima tentativa
+                    if (!res.error.status || res.error.status === 0 || res.error.message?.includes('Timeout')) {
+                        console.warn("[executeSync] Erro de rede detectado. Forçando reconexão do socket.");
+                        if (supabaseClient.realtime) supabaseClient.realtime.disconnect();
+                        setTimeout(() => supabaseClient.realtime.connect(), 500);
+                        return false;
+                    }
+
+                    // Erros Fatais de validação/banco (Remover da fila para não travar o resto)
                     const fatalErrors = ['42703', 'PGRST204', '23505', '23502', '23503'];
                     if (fatalErrors.includes(res.error.code) || res.error.status === 404 || res.error.status === 400) {
+                        console.warn("[executeSync] Erro fatal detectado. Removendo item inválido da fila.");
                         const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
                         const newQueue = queue.filter(q => q.timestamp !== item.timestamp);
                         localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(newQueue));
-                        return true; // Continua para o próximo
+                        return true;
                     }
-                    return false; // Erro de rede/temporário: para processamento
+                    return false;
                 }
 
                 // 3. Sucesso: Mapear IDs temporários se necessário
@@ -847,10 +820,18 @@
             queue.push({ table, action, data, id: finalId, timestamp: Date.now(), originalSnapshot });
             localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
 
-            // 3. DISPARAR SINCRONIZAÇÃO EM SEGUNDO PLANO (sem esperar pelo retorno)
-            console.log("[smartSave] Disparando sincronização em segundo plano...");
-            if (navigator.onLine) processOfflineQueue(false);
-            else showConnStatus('offline');
+            // 3. DISPARAR SINCRONIZAÇÃO EM SEGUNDO PLANO
+            console.log("[smartSave] Disparando sincronização...");
+
+            // Lógica Radical: se acabamos de voltar do foco e tentamos salvar, recarregamos para garantir conexão
+            if (state.returnedFromFocus) {
+                state.returnedFromFocus = false;
+                console.log("[smartSave] Salvamento detectado após retorno de foco. Forçando recarregamento de limpeza...");
+                setTimeout(() => window.location.reload(), 100);
+            } else {
+                if (navigator.onLine) processOfflineQueue(false);
+                else showConnStatus('offline');
+            }
 
             return { success: true, offline: true, tempId };
         };
@@ -915,7 +896,8 @@
             clockTempHour: '08',
             clockTempMinute: '00',
             originalEventSnapshot: null,
-            masterEventFilter: localStorage.getItem('masterEventFilter') || 'ativos'
+            masterEventFilter: localStorage.getItem('masterEventFilter') || 'ativos',
+            returnedFromFocus: false
         };
 
         const state = new Proxy(INITIAL_STATE, {
@@ -3668,25 +3650,14 @@
 
                 if (state.isAuthorized) {
                     await refreshAllData();
-                    cleanupListeners();
-                    setupListener('types', 'types');
-                    setupListener('locations', 'locations');
-                    setupListener('attendants', 'attendants');
-                    setupListener('agenda', 'events');
-                    setupListener('feriados', 'feriados');
-                    setupListener('perfis', 'perfis');
+                    setupAllListeners();
                 }
                 if (event === 'SIGNED_IN') closeModal();
                 scheduleRender();
             });
 
             if (state.isAuthorized) {
-                setupListener('types', 'types');
-                setupListener('locations', 'locations');
-                setupListener('attendants', 'attendants');
-                setupListener('agenda', 'events');
-                setupListener('feriados', 'feriados');
-                setupListener('perfis', 'perfis');
+                setupAllListeners();
             }
 
             loadExternalHolidays(new Date().getFullYear());
