@@ -994,7 +994,7 @@
                 }
 
                 return `
-                                    <li id="item-${e.id}" onclick="${state.isAdmin ? `window.openEditEvent('${e.id}')` : ''}" class="relative p-3 transition-all ${isHighlighted ? 'bg-yellow-50 ring-2 ring-yellow-400 ring-inset z-10 highlight-item' : state.isAdmin ? 'active:bg-slate-50' : ''} ${isPast && !isHighlighted ? 'bg-slate-50/50 grayscale-[0.5] opacity-70' : ''}">
+                                    <li id="item-${e.id}" onclick="${state.isAdmin ? `window.handleEventTap('${e.id}')` : ''}" class="relative p-3 transition-all ${isHighlighted ? 'bg-yellow-50 ring-2 ring-yellow-400 ring-inset z-10 highlight-item' : state.isAdmin ? 'active:bg-slate-50' : ''} ${isPast && !isHighlighted ? 'bg-slate-50/50 grayscale-[0.5] opacity-70' : ''}">
                                         
                                         <div class="absolute top-3 right-3 flex flex-col items-end gap-1.5 z-10">
                                             <div class="flex items-center gap-1.5">
@@ -2298,7 +2298,19 @@
             }
         }
 
+        let lastTapTime = 0;
+        let lastTapId = null;
+
         Object.assign(window, {
+            handleEventTap: (id) => {
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTapTime;
+                if (tapLength < 300 && lastTapId === id) {
+                    window.openEditEvent(id);
+                }
+                lastTapTime = currentTime;
+                lastTapId = id;
+            },
             renderApp, scheduleRender, navigateTo, openMenu, closeMenu, closeModal, showModal,
             handleLogout: () => {
                 state.isLoading = true;
