@@ -347,19 +347,14 @@
         }
 
         // Monitora quando o app volta a ficar visível (mobile-friendly)
-        let lastVisibleTime = Date.now();
         const handleFocusOrVisible = async () => {
             if (document.visibilityState === "hidden") {
-                lastVisibleTime = Date.now();
                 console.log("[App] App ficou invisível");
                 return;
             }
 
             // Flag radical: voltamos do foco
             state.returnedFromFocus = true;
-
-            const minutesHidden = (Date.now() - lastVisibleTime) / 1000 / 60;
-            console.log(`[App] App visível novamente após ${minutesHidden.toFixed(2)} minutos`);
 
             // Se houver pendências na fila ao voltar do foco, recarrega IMEDIATAMENTE
             const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
@@ -371,19 +366,6 @@
 
         document.addEventListener("visibilitychange", handleFocusOrVisible);
         window.addEventListener("focus", handleFocusOrVisible);
-
-        window.loadFromCache = () => {
-            console.log("[App] Carregando dados do cache local...");
-            const tables = { 'types': 'types', 'locations': 'locations', 'attendants': 'attendants', 'agenda': 'events', 'feriados': 'feriados', 'perfis': 'perfis' };
-            Object.entries(tables).forEach(([table, key]) => {
-                try {
-                    const cached = localStorage.getItem(`cache_${table}`);
-                    if (cached) state[key] = JSON.parse(cached);
-                } catch (e) { }
-            });
-            state.isLoading = false;
-            scheduleRender();
-        };
 
 
         const setupListener = (table, stateKey) => {
@@ -2266,6 +2248,12 @@
 
         async function refreshAllData() {
             if (!state.isAuthorized || !navigator.onLine) return;
+
+            // Se houver itens na fila de sincronização, evitamos o refresh dessas tabelas específicas
+            // para não sobrescrever mudanças locais que ainda não chegaram ao servidor.
+            const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+            const pendingTables = new Set(queue.map(q => q.table));
+
             const tables = {
                 'types': 'types',
                 'locations': 'locations',
@@ -2275,19 +2263,27 @@
                 'perfis': 'perfis'
             };
 
-            // Passo 1: Carregamento paralelo das tabelas
             try {
                 const promises = Object.entries(tables).map(async ([table, key]) => {
+                    if (pendingTables.has(table)) {
+                        console.log(`[refreshAllData] Adiantando fetch da tabela "${table}" porque há itens pendentes na fila.`);
+                        return;
+                    }
+
                     const { data, error } = await supabaseClient.from(table).select('*');
                     if (!error && data) {
                         state[key] = data;
                         localStorage.setItem(`cache_${table}`, JSON.stringify(data));
+                    } else if (error) {
+                        console.error(`[refreshAllData] Erro ao carregar ${table}:`, error);
                     }
                 });
                 await Promise.all(promises);
                 scheduleRender();
                 if (window.updateHomeList) window.updateHomeList();
-            } catch (e) { }
+            } catch (e) {
+                console.error("[refreshAllData] Erro crítico no refresh paralelo:", e);
+            }
         }
 
         function showConnStatus(status) {
@@ -3677,9 +3673,6 @@
         window.addEventListener('appinstalled', (evt) => {
             setTimeout(() => { closeModal(); showLoginModal(true); }, 8000);
         });
-
-        // Removida função visibilitychange duplicada que causava recarregamentos prematuros no mobile
-        // A função principal está nas linhas 358-405 e já gerencia sessão e Realtime corretamente
 
         init();
     </script>
