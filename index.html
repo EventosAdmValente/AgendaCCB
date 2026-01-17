@@ -331,27 +331,19 @@
         // Gerenciamento de canais com proteção contra duplicidade
         const activeChannels = new Map();
 
-        async function setupRealtime(tableName) {
-            // Se já existe um canal para essa tabela, removemos antes de criar outro
-            if (activeChannels.has(tableName)) {
-                await supabaseClient.removeChannel(activeChannels.get(tableName));
-            }
+        // Centraliza a criação de todos os listeners do Realtime
+        function setupAllListeners() {
+            console.log("[Realtime] Iniciando subscrição de todos os canais...");
+            const listeners = [
+                { table: 'agenda', stateKey: 'events' },
+                { table: 'types', stateKey: 'types' },
+                { table: 'locations', stateKey: 'locations' },
+                { table: 'attendants', stateKey: 'attendants' },
+                { table: 'feriados', stateKey: 'feriados' },
+                { table: 'perfis', stateKey: 'perfis' }
+            ];
 
-            const channel = supabaseClient
-                .channel(`public:${tableName}`)
-                .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
-                    console.log(`Mudança em ${tableName}:`, payload);
-                    // Sua função de atualizar a UI aqui
-                })
-                .subscribe((status) => {
-                    if (status === 'SUBSCRIBED') console.log(`Monitorando: ${tableName}`);
-                    if (status === 'CHANNEL_ERROR') {
-                        console.error('Erro no Realtime, tentando reconectar...');
-                        setTimeout(() => setupRealtime(tableName), 5000);
-                    }
-                });
-
-            activeChannels.set(tableName, channel);
+            listeners.forEach(l => setupListener(l.table, l.stateKey));
         }
 
         // Monitora quando o app volta a ficar visível (mobile-friendly)
@@ -366,38 +358,61 @@
                 console.log(`[App] App visível novamente após ${minutesHidden.toFixed(2)} minutos`);
 
                 try {
-                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    // "Hard reset" para destravar qualquer tentativa de sincronização que ficou "pendurada"
+                    // enquanto o celular estava suspenso ou em rede instável.
+                    isProcessingQueue = false;
+
+                    // Aumentado para 2 segundos: Mais tempo para rede mobile se estabilizar
+                    await new Promise(r => setTimeout(r, 2000));
+
+                    console.log("[App] Verificando e renovando sessão...");
+                    // Aumentado timeout para 12s
+                    const { data: refreshData, error: refreshError } = await withTimeout(supabaseClient.auth.refreshSession(), 12000).catch(e => ({ error: e }));
+                    let session = refreshData?.session;
+
+                    if (refreshError) {
+                        console.warn("[App] Erro no refresh ou timeout, tentando recuperar sessão atual...", refreshError);
+                        const { data: sessionData } = await supabaseClient.auth.getSession();
+                        session = sessionData?.session;
+                    }
+
                     const isSessionActive = !!session;
-                    const isRealtimeActive = supabaseClient.realtime && supabaseClient.realtime.isConnected();
 
-                    console.log(`[App] Sessão: ${isSessionActive}, Realtime: ${isRealtimeActive}`);
+                    if (isSessionActive) {
+                        // Força o cliente REST a atualizar os headers internos com o novo token
+                        await supabaseClient.auth.setSession({
+                            access_token: session.access_token,
+                            refresh_token: session.refresh_token
+                        });
+                        console.log("[App] Sessão validada e propagada para o cliente.");
+                    }
 
-                    // Verifica se há dados pendentes de sincronização
-                    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-                    const hasPendingSync = queue.length > 0;
+                    // Cleanup and Re-subscribe Realtime
+                    console.log("[Realtime] Reiniciando canais após volta ao foco...");
+                    cleanupListeners();
+                    if (isSessionActive) {
+                        setupAllListeners();
+                        if (window.refreshAllData) refreshAllData();
 
-                    // Só recarrega se sessão/realtime inválidos E não houver dados pendentes E ficou muito tempo fora
-                    if ((!isSessionActive || !isRealtimeActive) && minutesHidden >= 10) {
-                        if (hasPendingSync) {
-                            console.log("[App] Há dados pendentes. Sincronizando antes de recarregar...");
-                            if (navigator.onLine && window.processOfflineQueue) {
-                                await processOfflineQueue(true);
-                            }
+                        console.log("[App] Disparando redespacho da fila de sincronização...");
+                        if (navigator.onLine && window.processOfflineQueue) {
+                            processOfflineQueue(true);
                         }
+                    }
 
+                    const isRealtimeActive = supabaseClient.realtime && supabaseClient.realtime.isConnected();
+                    console.log(`[App] Status Final - Sessão: ${isSessionActive}, Realtime: ${isRealtimeActive}`);
+
+                    if (!isSessionActive && minutesHidden >= 2) {
                         if (navigator.onLine) {
-                            console.log("[App] Recarregando após 10+ minutos de inatividade...");
+                            console.log("[App] Sessão perdida definitivamente. Recarregando...");
                             window.location.reload();
                         } else {
-                            console.log("[App] Offline. Usando cache...");
                             if (window.loadFromCache) window.loadFromCache();
                             showConnStatus('offline');
                         }
-                    } else if (isSessionActive && isRealtimeActive) {
-                        console.log("[App] Tudo OK. Sincronizando dados pendentes...");
-                        if (navigator.onLine && window.processOfflineQueue) processOfflineQueue(true);
                     }
-                } catch (e) { console.error("[App] Erro visibilidade:", e); }
+                } catch (e) { console.error("[App] Erro crítico na volta ao foco:", e); }
             }
         });
 
@@ -540,6 +555,18 @@
             activeChannels.set(channelName, channel);
         };
 
+        // Helper para evitar que chamadas ao Supabase fiquem presas indefinidamente em redes instáveis
+        function withTimeout(promise, ms = 15000) {
+            let timeoutId;
+            const timeoutPromise = new Promise((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error('TIMEOUT_EXCEEDED')), ms);
+            });
+            return Promise.race([
+                promise,
+                timeoutPromise
+            ]).finally(() => clearTimeout(timeoutId));
+        }
+
         function translateAuthError(message) {
             const msg = message.toLowerCase();
             if (msg.includes('invalid login credentials')) return "E-mail ou senha incorretos.";
@@ -556,6 +583,7 @@
 
         let isProcessingQueue = false;
         async function processOfflineQueue(isRecovery = false) {
+            console.log(`[processOfflineQueue] Iniciando... (onLine=${navigator.onLine}, alreadyProcessing=${isProcessingQueue})`);
             if (!navigator.onLine || isProcessingQueue) return;
             isProcessingQueue = true;
 
@@ -565,32 +593,68 @@
 
                 while (navigator.onLine) {
                     const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                    console.log(`[processOfflineQueue] Itens na fila: ${queue.length}`);
                     if (queue.length === 0) break;
 
                     const item = queue[0];
                     const { table, action, id, originalSnapshot } = item;
+                    console.log(`[processOfflineQueue] Processando item: ${action} em ${table} (id=${id})`);
 
-                    // Verificação de Conflito para Updates
+                    // Verificação de Conflito para Updates com Timeout e Retentativas
                     if (action === 'UPDATE' && id && originalSnapshot) {
-                        try {
-                            const { data: serverRecord } = await supabaseClient.from(table).select('*').eq('id', id).single();
-                            const serverString = serverRecord ? JSON.stringify(serverRecord) : null;
-                            const snapshotString = JSON.stringify(originalSnapshot);
+                        let serverRecord = null;
+                        let conflictErr = null;
+                        let retries = 0;
+                        const MAX_RETRIES = 3;
 
-                            if (!serverRecord || (serverString !== snapshotString && serverRecord.alterado_por !== state.user.id)) {
-                                showConflictModal(item, serverRecord);
-                                return; // O processamento para aqui e aguarda resposta do modal
+                        while (retries <= MAX_RETRIES) {
+                            console.log(`[processOfflineQueue] Verificando conflitos para ${table}:${id} (Tentativa ${retries + 1}/${MAX_RETRIES + 1})...`);
+                            const startTime = Date.now();
+
+                            try {
+                                const result = await withTimeout(
+                                    supabaseClient.from(table).select('*').eq('id', id).single(),
+                                    20000
+                                );
+                                serverRecord = result.data;
+                                conflictErr = result.error;
+                                console.log(`[processOfflineQueue] Resposta recebida em ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
+                                break;
+                            } catch (err) {
+                                console.error(`[processOfflineQueue] Tentativa ${retries + 1} falhou/timeout:`, err);
+                                retries++;
+                                if (retries <= MAX_RETRIES) {
+                                    console.log("[processOfflineQueue] Aguardando 2s para nova tentativa...");
+                                    await new Promise(r => setTimeout(r, 2000));
+                                } else {
+                                    conflictErr = err;
+                                }
                             }
-                        } catch (err) { }
+                        }
+
+                        if (conflictErr && (conflictErr.message === 'TIMEOUT_EXCEEDED' || !conflictErr.code)) {
+                            console.warn("[processOfflineQueue] Rede permanentemente instável. Abortando fila.");
+                            break;
+                        }
+
+                        const serverString = serverRecord ? JSON.stringify(serverRecord) : null;
+                        const snapshotString = JSON.stringify(originalSnapshot);
+
+                        if (!serverRecord || (serverString !== snapshotString && serverRecord.alterado_por !== state.user.id)) {
+                            console.log("[processOfflineQueue] Conflito detectado, abrindo modal.");
+                            showConflictModal(item, serverRecord);
+                            return;
+                        }
                     }
 
                     const success = await executeSync(item, isRecovery);
-                    if (!success) break; // Erro de rede: para e aguarda próxima oportunidade
+                    console.log(`[processOfflineQueue] Resultado do executeSync: ${success}`);
+                    if (!success) break;
                 }
-
-                // Removido refreshAllData() - O Realtime já atualiza os dados automaticamente
-                console.log('[processOfflineQueue] Sincronização concluída. Realtime manterá dados atualizados.');
+            } catch (err) {
+                console.error("[processOfflineQueue] Erro fatal na fila:", err);
             } finally {
+                console.log("[processOfflineQueue] Finalizado.");
                 isProcessingQueue = false;
             }
         }
@@ -604,22 +668,35 @@
             try {
                 console.log(`[executeSync] Sincronizando ${action} para ${table}...`);
 
-                // 1. Verificação proativa da sessão
-                let { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-                if (sessionError || !session) {
-                    const { data: refreshData, error: refreshError } = await supabaseClient.auth.refreshSession();
+                // 1. Verificação proativa da sessão com Timeout
+                let { data: { session }, error: sessionError } = await withTimeout(supabaseClient.auth.getSession(), 5000).catch(() => ({ data: { session: null } }));
+                if (!session) {
+                    const { data: refreshData } = await withTimeout(supabaseClient.auth.refreshSession(), 8000).catch(() => ({ data: { session: null } }));
                     session = refreshData?.session;
                 }
-                if (!session) return false;
+                if (!session) {
+                    console.warn("[executeSync] Sem sessão válida para sincronizar.");
+                    return false;
+                }
 
-                // 2. Executa a operação
+                // 2. Executa a operação com Timeout
                 let res;
-                if (action === 'INSERT') res = await supabaseClient.from(table).insert(cleanData).select().single();
-                else if (action === 'UPDATE') res = await supabaseClient.from(table).update(cleanData).eq('id', id).select().single();
-                else if (action === 'DELETE') res = await supabaseClient.from(table).delete().eq('id', id);
+                const dbOp = async () => {
+                    if (action === 'INSERT') return supabaseClient.from(table).insert(cleanData).select().single();
+                    if (action === 'UPDATE') return supabaseClient.from(table).update(cleanData).eq('id', id).select().single();
+                    if (action === 'DELETE') return supabaseClient.from(table).delete().eq('id', id);
+                };
+
+                res = await withTimeout(dbOp(), 12000).catch(err => ({ error: { message: 'Timeout/Network Error', details: err } }));
 
                 if (res && res.error) {
                     console.error(`[executeSync] Erro Supabase em ${table} (${action}):`, res.error);
+                    console.log(`[executeSync] Detalhes do erro: Status=${res.error.status}, Code=${res.error.code}, Msg=${res.error.message}`);
+
+                    if (res.error.status === 401) {
+                        console.warn("[executeSync] Erro 401 detectado. Tentando renovar sessão uma última vez...");
+                        await supabaseClient.auth.refreshSession();
+                    }
 
                     // Erros Fatais (Remover da fila)
                     const fatalErrors = ['42703', 'PGRST204', '23505', '23502', '23503'];
