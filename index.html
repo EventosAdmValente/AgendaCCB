@@ -405,9 +405,8 @@
             const channelName = `public:${table}`;
 
             if (activeChannels.has(channelName)) {
-                const oldChannel = activeChannels.get(channelName);
-                supabaseClient.removeChannel(oldChannel);
-                activeChannels.delete(channelName);
+                console.log(`[setupListener] Canal ${channelName} já está ativo. Mantendo.`);
+                return;
             }
 
 
