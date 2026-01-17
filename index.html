@@ -568,9 +568,8 @@
                     if (!success) break; // Erro de rede: para e aguarda próxima oportunidade
                 }
 
-                if (isRecovery && navigator.onLine) {
-                    await refreshAllData();
-                }
+                // Removido refreshAllData() - O Realtime já atualiza os dados automaticamente
+                console.log('[processOfflineQueue] Sincronização concluída. Realtime manterá dados atualizados.');
             } finally {
                 isProcessingQueue = false;
             }
