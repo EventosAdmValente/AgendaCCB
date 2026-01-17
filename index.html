@@ -985,7 +985,7 @@
                     <div id="home-filter-label" class="font-bold text-navy uppercase flex-1 min-w-0 leading-tight whitespace-normal break-words overflow-visible transition-all duration-200" style="font-size: 13px;">
                         ${getFilterDescription()}
                     </div>
-                    <span class="text-[10px] font-medium text-slate-500 uppercase shrink-0 pt-0.5">${filtered.length} registros</span>
+                    <span class="text-[10px] font-medium text-slate-500 shrink-0 pt-0.5">${filtered.length} Registros</span>
                 </div>
                 <div class="flex-1 bg-white rounded-xl shadow-md overflow-y-auto border border-slate-200 scrollbar-none">
                     ${filtered.length === 0 ? '<div class="p-12 text-center text-slate-400 flex flex-col items-center gap-4"><i data-lucide="calendar-x" class="w-10 h-10 opacity-20"></i><span>Nenhum evento encontrado.</span></div>' : `
@@ -1362,8 +1362,16 @@
 
         function getFilterDescription(context = 'home') {
             if (context === 'home') {
-                if (state.selectedDate) return `Agenda: ${formatDateFull(state.selectedDate)}`;
-                if (state.fastFilter?.active) return state.fastFilter.label || 'Filtro Ativo';
+                if (state.selectedDate) {
+                    const [y, m, d] = state.selectedDate.split('-');
+                    return `EVENTOS: ${d}/${m}/${y.slice(-2)}`;
+                }
+                if (state.fastFilter?.active) {
+                    let label = state.fastFilter.label || 'Filtro Ativo';
+                    // Tenta converter ano de 4 dígitos para 2 se houver uma data no rótulo
+                    label = label.replace(/(\d{2})\/(\d{2})\/(\d{2})(\d{2})/g, '$1/$2/$4');
+                    return label.toUpperCase().replace(/AGENDA/g, 'EVENTOS').replace(/EVENTOS:/g, 'EVENTOS:').trim();
+                }
             }
 
             if (state.advancedFilter.active) {
@@ -1544,22 +1552,25 @@
                             <div class="${showCounters ? '' : 'hidden'} grid grid-cols-2 gap-3 transition-all duration-300">
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Irmãos</label>
-                                    <input id="event-irmaos" type="number" oninput="window.state.formTempIrmaos = this.value" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmaos || ''}" placeholder="0">
+                                    <input id="event-irmaos" type="number" oninput="window.state.formTempIrmaos = this.value; window.scheduleRender();" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmaos || ''}" placeholder="0">
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Irmãs</label>
-                                    <input id="event-irmas" type="number" oninput="window.state.formTempIrmas = this.value" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmas || ''}" placeholder="0">
+                                    <input id="event-irmas" type="number" oninput="window.state.formTempIrmas = this.value; window.scheduleRender();" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmas || ''}" placeholder="0">
                                 </div>
                             </div>
                             
                             <div class="flex flex-col gap-2 mt-2">
                                 ${isEditing ? `
-                                    ${hasChanges ? `
-                                        <button onclick="window.saveEvent()" class="bg-navy text-white p-4 rounded-xl font-black shadow-lg active:scale-[0.98] transition-transform uppercase text-xs tracking-widest">SALVAR ALTERAÇÕES ${!navigator.onLine ? '(OFFLINE)' : ''}</button>
-                                    ` : `
-                                        <button onclick="window.navigateTo('home')" class="bg-slate-100 text-slate-500 p-4 rounded-xl font-black shadow-sm active:scale-[0.98] transition-transform uppercase text-xs tracking-widest border border-slate-200">CANCELAR E VOLTAR</button>
-                                    `}
-                                    <button onclick="window.requestDeleteEvent('${state.editingEventId}')" class="text-red-600 p-3 text-xs font-bold border border-red-100 rounded-lg bg-red-50/30 flex items-center justify-center gap-2 active:bg-red-100 transition-colors uppercase tracking-widest"><i data-lucide="trash-2" class="w-4 h-4"></i> Excluir Evento</button>
+                                    <div class="flex flex-col gap-3">
+                                        ${hasChanges ? `
+                                            <button onclick="window.saveEvent()" class="bg-navy text-white p-4 rounded-xl font-black shadow-lg active:scale-[0.98] transition-transform uppercase text-xs tracking-widest">SALVAR ALTERAÇÕES ${!navigator.onLine ? '(OFFLINE)' : ''}</button>
+                                            <button onclick="window.cancelEventChanges()" class="bg-slate-100 text-slate-500 p-4 rounded-xl font-black shadow-sm active:scale-[0.98] transition-transform uppercase text-xs tracking-widest border border-slate-200">CANCELAR ALTERAÇÕES</button>
+                                        ` : `
+                                            <button onclick="window.navigateTo('home')" class="bg-slate-100 text-slate-500 p-4 rounded-xl font-black shadow-sm active:scale-[0.98] transition-transform uppercase text-xs tracking-widest border border-slate-200">CANCELAR E VOLTAR</button>
+                                            <button onclick="window.requestDeleteEvent('${state.editingEventId}')" class="text-red-600 p-3 text-xs font-bold border border-red-100 rounded-lg bg-red-50/30 flex items-center justify-center gap-2 active:bg-red-100 transition-colors uppercase tracking-widest"><i data-lucide="trash-2" class="w-4 h-4"></i> Excluir Evento</button>
+                                        `}
+                                    </div>
                                 ` : `
                                     <button onclick="window.saveEvent()" class="bg-navy text-white p-4 rounded-xl font-black shadow-lg active:scale-[0.98] transition-transform uppercase text-xs tracking-widest">SALVAR EVENTO ${!navigator.onLine ? '(OFFLINE)' : ''}</button>
                                 `}
@@ -1875,7 +1886,9 @@
             if (f === 'setor') { if (af.adm.enabled && af.adm.value) locs = locs.filter(l => l.adm === af.adm.value); }
             else if (f === 'cidade') { if (af.adm.enabled && af.adm.value) locs = locs.filter(l => l.adm === af.adm.value); if (af.setor.enabled && af.setor.value) locs = locs.filter(l => l.setor === af.setor.value); }
             const values = [...new Set(locs.map((l) => l[f]).filter((v) => v))].sort();
-            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${f.toUpperCase()}</h3></div><button onclick="window.renderAdvancedFilterModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div id="distinctItemsList" class="flex-1 overflow-y-auto px-2 pb-4 pt-2 scrollbar-none">${values.length === 0 ? '<div class="p-8 text-center text-slate-300 italic text-sm">Nenhum dado encontrado.</div>' : values.map(val => `<button onclick="window.handleAdvFilterSelect('${f}', '${val.replace(/'/g, "\\'")}')" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><span class="font-bold text-sm text-navy leading-tight">${val}</span>${af[f].value === val ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0"></i>' : ''}</button>`).join('')}</div></div>`);
+            const clearBtn = `<button onclick="window.handleAdvFilterSelect('${f}', '')" class="w-full p-4 text-left font-bold text-red-500 hover:bg-red-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-red-100"><span class="italic">Limpar Seleção</span><i data-lucide="rotate-ccw" class="w-4 h-4 opacity-30"></i></button>`;
+
+            showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${f.toUpperCase()}</h3></div><button onclick="window.renderAdvancedFilterModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div id="distinctItemsList" class="flex-1 overflow-y-auto px-2 pb-4 pt-2 scrollbar-none">${clearBtn}${values.length === 0 ? '<div class="p-8 text-center text-slate-300 italic text-sm">Nenhum dado encontrado.</div>' : values.map(val => `<button onclick="window.handleAdvFilterSelect('${f}', '${val.replace(/'/g, "\\'")}')" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><span class="font-bold text-sm text-navy leading-tight">${val}</span>${af[f].value === val ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0"></i>' : ''}</button>`).join('')}</div></div>`);
             renderIcons();
         }
 
@@ -2231,18 +2244,20 @@
             const fBR = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
             const todayT = `${bD.today.toLocaleDateString('pt-BR', { weekday: 'long' }).charAt(0).toUpperCase() + bD.today.toLocaleDateString('pt-BR', { weekday: 'long' }).slice(1)}, dia ${fBR(bD.today)}`;
             const dW1 = new Date(bD.week); dW1.setDate(bD.week.getDate() - bD.week.getDay()); const dW2 = new Date(dW1); dW2.setDate(dW1.getDate() + 6);
-            showModal(`<div class="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md flex flex-col"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-gap-2 text-navy"><i data-lucide="filter" class="w-5 h-5 text-orange-custom"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtro</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${renderFFRow('Por dia', todayT, 'today', sel)}${renderFFRow('Semana', fBR(dW1) + ' a ' + fBR(dW2), 'week', sel)}<div class="flex gap-3"><div class="flex-1">${renderFFRow('Mês', `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][bD.month.getMonth()]} / ${bD.month.getFullYear()}`, 'month', sel)}</div><div class="flex-1">${renderFFRow('Ano', bD.year.getFullYear().toString(), 'year', sel)}</div></div></div><div class="p-4 bg-white border-t border-slate-50"><button onclick="window.applyNewFastFilter()" class="w-full bg-navy text-white py-4 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
+            showModal(`<div class="bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md flex flex-col"><div class="p-4 flex justify-between items-center border-b border-slate-50 bg-white"><div class="flex items-gap-2 text-navy"><i data-lucide="filter" class="w-5 h-5 text-orange-custom"></i><h3 class="text-lg font-black tracking-tight uppercase">Filtro Simples</h3></div><button onclick="window.closeModal()" class="text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-6 flex flex-col gap-4">${renderFFRow('Por dia', todayT, 'today', sel)}${renderFFRow('Semana', fBR(dW1) + ' a ' + fBR(dW2), 'week', sel)}<div class="flex gap-3"><div class="flex-1">${renderFFRow('Mês', `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][bD.month.getMonth()]} / ${bD.month.getFullYear()}`, 'month', sel)}</div><div class="flex-1">${renderFFRow('Ano', bD.year.getFullYear().toString(), 'year', sel)}</div></div></div><div class="p-4 bg-white border-t border-slate-50"><button onclick="window.applyNewFastFilter()" class="w-full bg-navy text-white py-4 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><i data-lucide="check" class="w-4 h-4"></i> Aplicar</button></div></div>`);
             renderIcons();
         }
 
         function renderPickerItems(items, coll, isA, tar, prop, currentVal) {
-            if (items.length === 0) return '<div class="p-8 text-center text-slate-300 italic text-sm">Nenhum registro.</div>';
+            const clearBtn = `<button onclick="${isA ? `window.handleAdvSelectorSelect('${tar}', '')` : (tar === 'attendant_comum' ? `window.handleAttendantComumSelection('')` : `window.state.${prop} = ''; window.state.formErrors = window.state.formErrors.filter(e => !'${prop}'.includes(e)); window.closeModal(); window.scheduleRender();`)}" class="w-full p-4 text-left font-bold text-red-500 hover:bg-red-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-red-100"><span class="italic">Limpar Seleção</span><i data-lucide="rotate-ccw" class="w-4 h-4 opacity-30"></i></button>`;
+
+            if (items.length === 0) return clearBtn + '<div class="p-8 text-center text-slate-300 italic text-sm">Nenhum registro.</div>';
             const sorted = [...items].sort((a, b) => ((coll === 'locations' ? a.localidade : (coll === 'perfis' ? a.nome : a.name)) || '').localeCompare((coll === 'locations' ? b.localidade : (coll === 'perfis' ? b.nome : b.name)) || ''));
-            return sorted.map((i) => {
+            return clearBtn + sorted.map((i) => {
                 const name = (coll === 'locations' ? i.localidade : (coll === 'perfis' ? i.nome : i.name)) || '';
                 const sigla = coll === 'types' ? i.sigla : '';
                 const isS = isA ? state.advancedFilter?.[tar]?.id === i.id : (tar === 'attendant_comum' ? currentVal === name : state[prop] === i.id);
-                return `<button onclick="${isA ? `window.handleAdvSelectorSelect('${tar}', '${i.id}')` : (tar === 'attendant_comum' ? `window.handleAttendantComumSelection('${name.replace(/'/g, "\\'")}')` : `window.state.${prop} = '${i.id}'; window.state.formErrors = window.state.formErrors.filter(e => !'${prop}'.includes(e)); window.closeModal();`)}" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><div class="flex flex-col min-w-0 flex-1"><span class="group-hover:text-navy transition-colors font-bold text-sm leading-tight">${name}</span>${sigla ? `<span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">${sigla}</span>` : ''}</div>${isS ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0 ml-2"></i>' : ''}</button>`;
+                return `<button onclick="${isA ? `window.handleAdvSelectorSelect('${tar}', '${i.id}')` : (tar === 'attendant_comum' ? `window.handleAttendantComumSelection('${name.replace(/'/g, "\\'")}')` : `window.state.${prop} = '${i.id}'; window.state.formErrors = window.state.formErrors.filter(e => !'${prop}'.includes(e)); window.closeModal(); window.scheduleRender();`)}" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100"><div class="flex flex-col min-w-0 flex-1"><span class="group-hover:text-navy transition-colors font-bold text-sm leading-tight">${name}</span>${sigla ? `<span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">${sigla}</span>` : ''}</div>${isS ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0 ml-2"></i>' : ''}</button>`;
             }).join('');
         }
 
@@ -2314,7 +2329,7 @@
             selectYear: (y, m) => { const d = new Date(state.viewDate); d.setFullYear(y); state.viewDate = d; if (m === 'adv_period') { state.advancedFilter.period.start = `${y}-01-01`; state.advancedFilter.period.end = `${y}-12-31`; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); } else { if (m === 'filter') state.selectedDate = `${y}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; renderCalendar(m); } },
             openMonthPicker: (m) => { const names = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]; const year = state.viewDate.getFullYear(); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-6 h-6"></i></button><div class="flex items-center justify-center gap-3 w-full mb-6"><button onclick="window.changePickerYear(-1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-left" class="w-6 h-6"></i></button><span class="text-sm font-black text-navy uppercase tracking-widest">${year}</span><button onclick="window.changePickerYear(1, '${m}')" class="p-1.5 hover:bg-slate-50 rounded-xl text-navy"><i data-lucide="chevron-right" class="w-6 h-6"></i></button></div><div class="grid grid-cols-3 gap-3 w-full">${names.map((n, i) => `<button onclick="window.selectMonth(${i}, '${m}')" class="py-4 text-[11px] font-black rounded-xl border transition-all ${state.viewDate.getMonth() === i ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${n.slice(0, 3)}</button>`).join('')}</div></div>`); },
             openYearPicker: (m) => { const currentYear = new Date().getFullYear(); const selectedYear = (m === 'adv_period' && state.advancedFilter.period.start) ? new Date(state.advancedFilter.period.start + 'T00:00:00').getFullYear() : currentYear; state.viewDate = new Date(selectedYear, 0, 1); const years = []; for (let i = currentYear - 30; i < currentYear + 30; i++) years.push(i); showModal(`<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md flex flex-col items-center relative"><button onclick="${m.startsWith('adv_') ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 p-1"><i data-lucide="x" class="w-5 h-5"></i></button><div class="flex items-center justify-center w-full mb-6"><span class="text-sm font-black text-navy uppercase tracking-widest">ANO</span></div><div id="year-scroll-container" class="grid grid-cols-3 gap-3 w-full max-h-[224px] overflow-y-auto scrollbar-none py-2">${years.map(y => `<button id="year-btn-${y}" onclick="window.selectYear(${y}, '${m}')" class="py-4 text-xs font-black rounded-xl border transition-all ${y === selectedYear ? 'bg-navy text-white shadow-md' : 'bg-white text-navy border-slate-100 hover:border-navy/20'}">${y}</button>`).join('')}</div></div>`); setTimeout(() => { const btn = document.getElementById(`year-btn-${selectedYear}`); if (btn) btn.scrollIntoView({ block: 'center' }); }, 10); },
-            selectCalendarDate: (d, m = 'filter') => { if (m === 'filter') { state.selectedDate = d; renderCalendar('filter'); } else if (m === 'picker') { state.formTempDate = d; state.formErrors = state.formErrors.filter(e => e !== 'date'); closeModal(); } else if (m === 'adv_start' || m === 'adv_end') { state.advancedFilter.period[m === 'adv_start' ? 'start' : 'end'] = d; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); window.scrollToAdvSection('period'); } else if (m === 'feriado_picker') { const c = window.__feriado_modal_cache; window.openRowModal('feriados', c.safeId, { ...c.item, data: d }); } },
+            selectCalendarDate: (d, m = 'filter') => { if (m === 'filter') { state.selectedDate = d; renderCalendar('filter'); } else if (m === 'picker') { state.formTempDate = d; state.formErrors = state.formErrors.filter(e => e !== 'date'); closeModal(); scheduleRender(); } else if (m === 'adv_start' || m === 'adv_end') { state.advancedFilter.period[m === 'adv_start' ? 'start' : 'end'] = d; state.advancedFilter.validationErrors = state.advancedFilter.validationErrors.filter(e => e !== 'period'); window.renderAdvancedFilterModal(); window.scrollToAdvSection('period'); } else if (m === 'feriado_picker') { const c = window.__feriado_modal_cache; window.openRowModal('feriados', c.safeId, { ...c.item, data: d }); } },
             applyCalendarAndClose: () => { state.fastFilter = { active: false }; state.advancedFilter.active = false; window.updateHomeList(); closeModal(); },
             openFormDate: () => { state.viewDate = new Date((state.formTempDate || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar('picker'); },
             openFeriadoDatePicker: () => { state.viewDate = new Date((document.getElementById('feriado-date-val')?.value || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar('feriado_picker'); },
@@ -2566,7 +2581,7 @@
                         <div class="p-4 flex justify-between items-center border-b border-white/10 bg-navy text-white shrink-0">
                             <div class="flex items-center gap-2">
                                 <i data-lucide="file-text" class="w-5 h-5 text-orange-custom"></i>
-                                <h3 class="text-lg font-black tracking-tight uppercase">Visualização do Relatório</h3>
+                                <h3 class="text-lg font-black tracking-tight uppercase">Preview do Relatório</h3>
                             </div>
                             <div class="flex items-center gap-4">
                                 <span class="text-[10px] font-bold text-white/40 uppercase tracking-widest hidden md:inline-block">${totalPages} ${totalPages > 1 ? 'Páginas' : 'Página'}</span>
@@ -3073,7 +3088,7 @@
             openEditEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); if (ev) { state.editingEventId = id; state.formTempDate = ev.date; state.formTempTime = ev.time; state.formTempLoc = ev.location_id; state.formTempType = ev.type_id; state.formTempAtt = ev.attendant_id || ''; state.formTempAtt2 = ev.attendant2_id || ''; state.formTempIrmaos = ev.irmaos || ''; state.formTempIrmas = ev.irmas || ''; state.formErrors = []; state.originalEventSnapshot = JSON.parse(JSON.stringify(ev)); state.highlightedItemId = null; navigateTo('event-form'); } },
             openTimePickerModal: () => { const [h, m] = (state.formTempTime || '08:00').split(':'); state.clockTempHour = h; state.clockTempMinute = m; state.clockMode = 'hour'; showModal(''); renderClockUI(); },
             selectClockValue: (v) => { if (state.clockMode === 'hour') { state.clockTempHour = v.padStart(2, '0'); state.clockMode = 'minute'; } else state.clockTempMinute = v.padStart(2, '0'); renderClockUI(); },
-            confirmClockTime: () => { state.formTempTime = `${state.clockTempHour}:${state.clockTempMinute}`; closeModal(); },
+            confirmClockTime: () => { state.formTempTime = `${state.clockTempHour}:${state.clockTempMinute}`; closeModal(); scheduleRender(); },
             openSelectPicker: (coll, tit, pr) => {
                 const norm = (s) => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
                 let items = [...state[coll]];
@@ -3173,6 +3188,20 @@
                 }
             },
             requestDeleteEvent: (id) => { const ev = state.events.find((e) => String(e.id) === String(id)); const type = state.types.find((t) => t.id === ev?.type_id); const loc = state.locations.find((l) => l.id === ev?.location_id); showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative border-t-[8px] border-red-500"><div class="p-8 flex flex-col items-center text-center"><div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-5"><i data-lucide="alert-triangle" class="text-red-500 w-8 h-8"></i></div><h3 class="text-xl font-black text-navy mb-3">Excluir?</h3><p class="text-sm text-slate-500 mb-8 px-2">Deseja excluir este evento?<br><strong class="text-slate-700">${type?.name || ''} em ${loc?.localidade || ''}</strong></p><div class="w-full flex gap-3"><button onclick="window.closeModal()" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold uppercase text-sm">Não</button><button onclick="window.confirmarEDeletar('${id}')" class="flex-1 bg-red-600 py-3 rounded-xl font-black uppercase text-sm">Sim</button></div></div></div>`); },
+            cancelEventChanges: () => {
+                if (!state.originalEventSnapshot) return;
+                const snap = state.originalEventSnapshot;
+                state.formTempDate = snap.date;
+                state.formTempTime = snap.time;
+                state.formTempLoc = snap.location_id;
+                state.formTempType = snap.type_id;
+                state.formTempAtt = snap.attendant_id || '';
+                state.formTempAtt2 = snap.attendant2_id || '';
+                state.formTempIrmaos = snap.irmaos || '';
+                state.formTempIrmas = snap.irmas || '';
+                state.formErrors = [];
+                scheduleRender();
+            },
             confirmarEDeletar,
             locateDuplicate: (id, coll) => { const targetScreen = coll === 'agenda' ? 'home' : (coll === 'perfis' ? 'users' : coll); closeModal(); navigateTo(targetScreen); state.managerSearchTerm = ''; state.searchTerm = ''; state.selectedDate = null; state.fastFilter = { active: false }; state.advancedFilter.active = false; state.highlightedItemId = id; if (targetScreen === 'home') window.updateHomeList(); else if (window.updateManagerListUI) window.updateManagerListUI(coll); },
             showExitConfirmation: () => {
@@ -3353,6 +3382,10 @@
 
                 const options = ['Ancião', 'Diácono', 'Coop. Oficial', 'Coop. Jovens', 'Enc. Regional'];
                 showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50 shrink-0"><div class="flex items-center gap-3 text-navy"><i data-lucide="shield-check" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar Ministério</h3></div><button onclick="window.closeAttendantMinistryPicker()" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="p-2 flex flex-col">
+                    <button onclick="window.handleAttendantMinistrySelection('')" class="w-full p-4 text-left font-bold text-red-500 hover:bg-red-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-red-100">
+                        <span class="italic">Limpar Seleção</span>
+                        <i data-lucide="rotate-ccw" class="w-4 h-4 opacity-30"></i>
+                    </button>
                     ${options.map(o => `
                         <button onclick="window.handleAttendantMinistrySelection('${o}')" class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100">
                             <span class="font-bold text-sm text-navy">${o}</span>
