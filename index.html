@@ -146,39 +146,18 @@
             border-left: 4px solid #f59e0b !important;
         }
 
-        #conn-status {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 100;
-            transition: all 0.3s ease;
-            pointer-events: none;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            border-radius: 99px;
-            font-size: 10px;
-            font-weight: 800;
-            text-transform: uppercase;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            opacity: 0;
-            visibility: hidden;
-        }
+        @keyframes highlight-pulse {
+            0% {
+                transform: scale(1);
+            }
 
-        #conn-status.offline {
-            background: #ef4444;
-            color: white;
-            opacity: 1;
-            visibility: visible;
-        }
+            50% {
+                transform: scale(1.02);
+            }
 
-        #conn-status.online-recovered {
-            background: #10b981;
-            color: white;
-            opacity: 1;
-            visibility: visible;
+            100% {
+                transform: scale(1);
+            }
         }
 
         .sync-toast {
@@ -256,8 +235,6 @@
             <span class="loading-text">Carregando Agenda...</span>
         </div>
     </div>
-
-    <div id="conn-status"></div>
 
     <div id="modal-container"
         class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"></div>
@@ -818,7 +795,11 @@
             return { success: true, offline: true, tempId };
         };
 
-        window.addEventListener('online', () => processOfflineQueue(true));
+        window.addEventListener('online', () => {
+            showConnStatus('online-recovered');
+            processOfflineQueue(true);
+        });
+        window.addEventListener('offline', () => showConnStatus('offline'));
 
         const getCachedProfile = () => {
             try {
@@ -879,7 +860,8 @@
             clockTempMinute: '00',
             originalEventSnapshot: null,
             masterEventFilter: localStorage.getItem('masterEventFilter') || 'ativos',
-            returnedFromFocus: false
+            returnedFromFocus: false,
+            isOffline: !navigator.onLine
         };
 
         const state = new Proxy(INITIAL_STATE, {
@@ -985,7 +967,7 @@
                     <div id="home-filter-label" class="font-bold text-navy uppercase flex-1 min-w-0 leading-tight whitespace-normal break-words overflow-visible transition-all duration-200" style="font-size: 13px;">
                         ${getFilterDescription()}
                     </div>
-                    <span class="text-[10px] font-medium text-slate-500 shrink-0 pt-0.5">${filtered.length} Registros</span>
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest pt-0.5 shrink-0">${filtered.length} REGISTROS</span>
                 </div>
                 <div class="flex-1 bg-white rounded-xl shadow-md overflow-y-auto border border-slate-200 scrollbar-none">
                     ${filtered.length === 0 ? '<div class="p-12 text-center text-slate-400 flex flex-col items-center gap-4"><i data-lucide="calendar-x" class="w-10 h-10 opacity-20"></i><span>Nenhum evento encontrado.</span></div>' : `
@@ -1257,6 +1239,7 @@
                     <div class="bg-navy text-white p-4 sticky top-0 z-10 shadow-lg flex justify-between items-center">
                         <button onclick="window.openMenu()" class="p-1 hover:bg-white/10 rounded"><i data-lucide="menu" class="w-7 h-7"></i></button>
                         <div class="flex flex-col items-center">
+                            ${state.isOffline ? '<span class="text-[10px] font-black text-red-500 uppercase tracking-[0.2em] animate-pulse -mb-0.5">offline</span>' : ''}
                             <h1 class="text-lg font-bold uppercase tracking-wide leading-none">Agenda CCB</h1>
                             ${state.masterEventFilter !== 'todos' ? `<span class="text-[9px] font-bold uppercase tracking-widest text-slate-300 mt-0.5">vendo eventos ${state.masterEventFilter}</span>` : ''}
                         </div>
@@ -1815,7 +1798,12 @@
 
             if (mode === 'filter' && state.selectedDate) {
                 const dayEvents = calendarEvents.filter((e) => e.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
-                contentHtml += `<div class="flex flex-col border-t border-slate-100 shrink-0"><div class="px-4 py-1.5 flex justify-between items-center bg-slate-50/50"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">EVENTOS: ${formatDate(state.selectedDate)}</span></div><div class="flex flex-col divide-y divide-slate-100 max-h-[160px] overflow-y-auto scrollbar-none bg-white">${dayEvents.length === 0 ? '<div class="text-center text-slate-300 py-6 text-[10px] font-medium italic">Nenhum evento programado</div>' : dayEvents.map((e) => {
+                contentHtml += `<div class="flex flex-col border-t border-slate-100 shrink-0">
+                    <div class="px-4 py-1.5 flex justify-between items-center bg-slate-50/50">
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">EVENTOS: ${formatDate(state.selectedDate)}</span>
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">${dayEvents.length} REGISTROS</span>
+                    </div>
+                    <div class="flex flex-col divide-y divide-slate-100 max-h-[160px] overflow-y-auto scrollbar-none bg-white">${dayEvents.length === 0 ? '<div class="text-center text-slate-300 py-6 text-[10px] font-medium italic">Nenhum evento programado</div>' : dayEvents.map((e) => {
                     const loc = state.locations.find((l) => l.id === e.location_id)?.localidade || '';
                     const att = state.attendants.find((a) => a.id === e.attendant_id)?.name || '';
                     return `<div class="p-2.5 flex flex-col gap-0.5 active:bg-slate-50 transition-colors relative group"><div class="flex items-center gap-2"><span class="text-[11px] font-black text-navy shrink-0">${e.time}</span><span class="text-[11px] font-bold text-slate-800 leading-tight">${state.types.find((t) => t.id === e.type_id)?.name || 'Evento'}</span></div><div class="flex items-center gap-3 pr-10"><div class="text-[9px] text-slate-400 font-medium flex items-center gap-1"><i data-lucide="map-pin" class="w-2 h-2 shrink-0"></i> <span>${loc} ${att ? '| ' + att : ''}</span></div></div><div class="absolute bottom-2 right-3 bg-navy text-white text-[7px] font-black px-1 py-0.5 rounded uppercase tracking-tighter shrink-0 shadow-sm">${state.types.find((t) => t.id === e.type_id)?.sigla || 'EVT'}</div></div>`;
@@ -2302,12 +2290,12 @@
         }
 
         function showConnStatus(status) {
-            const el = document.getElementById('conn-status');
-            if (!el) return;
-            el.className = '';
-            if (status === 'offline') { el.innerHTML = '<i data-lucide="wifi-off" class="w-3.5 h-3.5"></i> Sem internet - Modo Offline'; el.classList.add('offline'); }
-            else if (status === 'online-recovered') { el.innerHTML = '<i data-lucide="wifi" class="w-3.5 h-3.5"></i> Online Sincronizando...'; el.classList.add('online-recovered'); setTimeout(() => { el.classList.remove('online-recovered'); }, 3000); }
-            renderIcons();
+            if (status === 'offline') {
+                state.isOffline = true;
+            }
+            else if (status === 'online-recovered') {
+                state.isOffline = false;
+            }
         }
 
         Object.assign(window, {
