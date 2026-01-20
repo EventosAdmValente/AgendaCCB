@@ -1893,6 +1893,15 @@
                 perfis: { title: 'Usuário', name: 'Nome do Usuário' }
             }[coll] || { title: 'Registro', name: 'Nome' };
 
+            // Clear temporary caches if starting fresh from the list
+            if (!initVals || Object.keys(initVals).length === 0) {
+                window.__location_modal_cache = null;
+                window.__attendant_modal_cache = null;
+                window.__type_modal_cache = null;
+                window.__user_modal_cache = null;
+                window.__feriado_modal_cache = null;
+            }
+
             const mainV = (coll === 'locations' ? item.localidade : (coll === 'feriados' ? item.nome_feriado : (coll === 'perfis' ? item.nome : item.name))) || '';
 
             if (coll === 'feriados') window.__feriado_modal_cache = { safeId, item };
