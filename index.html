@@ -1880,8 +1880,25 @@
                     </div>
                     <div class="flex flex-col divide-y divide-slate-100 max-h-[160px] overflow-y-auto scrollbar-none bg-white">${dayEvents.length === 0 ? '<div class="text-center text-slate-300 py-6 text-[10px] font-medium italic">Nenhum evento programado</div>' : dayEvents.map((e) => {
                     const loc = state.locations.find((l) => l.id === e.location_id)?.localidade || '';
-                    const att = state.attendants.find((a) => a.id === e.attendant_id)?.name || '';
-                    return `<div class="p-2.5 flex flex-col gap-0.5 active:bg-slate-50 transition-colors relative group"><div class="flex items-center gap-2"><span class="text-[11px] font-black text-navy shrink-0">${e.time}</span><span class="text-[11px] font-bold text-slate-800 leading-tight">${state.types.find((t) => t.id === e.type_id)?.name || 'Evento'}</span></div><div class="flex items-center gap-3 pr-10"><div class="text-[9px] text-slate-400 font-medium flex items-center gap-1"><i data-lucide="map-pin" class="w-2 h-2 shrink-0"></i> <span>${loc} ${att ? '| ' + att : ''}</span></div></div><div class="absolute bottom-2 right-3 bg-navy text-white text-[7px] font-black px-1 py-0.5 rounded uppercase tracking-tighter shrink-0 shadow-sm">${state.types.find((t) => t.id === e.type_id)?.sigla || 'EVT'}</div></div>`;
+                    const att = state.attendants.find((a) => a.id === e.attendant_id);
+                    const att2 = state.attendants.find((a) => a.id === e.attendant2_id);
+                    let attendantDisplay = att?.name || '';
+                    if (att2?.name) attendantDisplay = `${att?.name || ''} / ${att2.name}`;
+
+                    return `<div class="p-2.5 flex flex-col gap-0.5 active:bg-slate-50 transition-colors relative group">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] font-black text-navy shrink-0">${e.time}</span>
+                        <span class="text-[11px] font-bold text-slate-800 leading-tight">${state.types.find((t) => t.id === e.type_id)?.name || 'Evento'}</span>
+                    </div>
+                    <div class="flex items-center gap-3 pr-10">
+                        <div class="text-[9px] text-slate-400 font-medium flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
+                            <i data-lucide="map-pin" class="w-2.5 h-2.5 shrink-0"></i> 
+                            <span class="truncate">${loc}</span>
+                            ${attendantDisplay ? `<span class="text-slate-200 mx-0.5">|</span><i data-lucide="user" class="w-2.5 h-2.5 shrink-0"></i><span class="truncate">${attendantDisplay}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="absolute bottom-2 right-3 bg-navy text-white text-[7px] font-black px-1 py-0.5 rounded uppercase tracking-tighter shrink-0 shadow-sm">${state.types.find((t) => t.id === e.type_id)?.sigla || 'EVT'}</div>
+                </div>`;
                 }).join('')}</div><div class="p-3 bg-white border-t border-slate-50"><button onclick="window.applyCalendarAndClose()" class="w-full bg-navy text-white py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-navy/20 active:scale-95 transition-all"><i data-lucide="list" class="w-3.5 h-3.5"></i> Ver na Lista</button></div></div>`;
             }
             contentHtml += `</div>`;
