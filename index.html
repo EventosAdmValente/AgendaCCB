@@ -92,124 +92,102 @@
 
         .loading-container {
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
             width: 100vw;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            background-color: #003366;
             position: fixed;
             top: 0;
             left: 0;
             z-index: 100;
-            overflow: hidden;
         }
 
-        .bokeh-overlay {
-            position: absolute;
-            inset: 0;
-            overflow: hidden;
-            pointer-events: none;
-        }
-
-        .bokeh-circle {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(60px);
-            opacity: 0.4;
-            animation: float-bokeh 20s infinite alternate ease-in-out;
-        }
-
-        .bokeh-circle-1 {
-            width: 300px;
-            height: 300px;
-            background: #003366;
-            top: -50px;
-            left: -50px;
-            animation-duration: 25s;
-        }
-
-        .bokeh-circle-2 {
-            width: 400px;
-            height: 400px;
-            background: #FF8C00;
-            bottom: -100px;
-            right: -50px;
-            animation-duration: 30s;
-            opacity: 0.2;
-        }
-
-        .bokeh-circle-3 {
-            width: 250px;
-            height: 250px;
-            background: #3b82f6;
-            top: 40%;
-            left: 60%;
-            animation-duration: 22s;
-            opacity: 0.15;
-        }
-
-        @keyframes float-bokeh {
-            0% {
-                transform: translate(0, 0) scale(1);
-            }
-
-            50% {
-                transform: translate(30px, -50px) scale(1.1);
-            }
-
-            100% {
-                transform: translate(-20px, 40px) scale(0.9);
-            }
-        }
-
-        .glass-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 32px;
-            padding: 40px;
+        .loading-brand {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            z-index: 10;
-            width: 280px;
-            animation: card-appear 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: pulse-brand 2s infinite ease-in-out;
+            margin-bottom: 40px;
         }
 
-        @keyframes card-appear {
+        .loading-logo-text {
+            font-size: 2rem;
+            font-weight: 900;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .loading-subtitle {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #FF8C00;
+            text-transform: uppercase;
+            letter-spacing: 0.4em;
+            margin-top: 8px;
+            opacity: 0.9;
+        }
+
+        @keyframes pulse-brand {
+            0% {
+                transform: scale(1);
+                opacity: 0.95;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 0.95;
+            }
+        }
+
+        @keyframes spin {
             from {
-                opacity: 0;
-                transform: translateY(20px) scale(0.95);
+                transform: rotate(0deg);
             }
 
             to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
+                transform: rotate(360deg);
             }
         }
 
-        .loading-spinner {
-            width: 48px;
-            height: 48px;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            border-top: 2px solid #FF8C00;
-            border-radius: 50%;
-            animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-            margin-bottom: 20px;
-            box-shadow: 0 0 15px rgba(255, 140, 0, 0.3);
+        .loading-progress-container {
+            width: 200px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
         }
 
-        .loading-text {
-            font-size: 0.75rem;
-            font-weight: 800;
-            color: white;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
-            opacity: 0.8;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        .loading-progress-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 40%;
+            background: #FF8C00;
+            border-radius: 4px;
+            animation: progress-slide 1.5s infinite ease-in-out;
+            box-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+        }
+
+        @keyframes progress-slide {
+            0% {
+                left: -40%;
+            }
+
+            100% {
+                left: 100%;
+            }
         }
 
         #report-capture-area {
@@ -313,14 +291,12 @@
 
     <div id="app" class="flex-1 w-full h-full relative overflow-hidden flex flex-col">
         <div class="loading-container">
-            <div class="bokeh-overlay">
-                <div class="bokeh-circle bokeh-circle-1"></div>
-                <div class="bokeh-circle bokeh-circle-2"></div>
-                <div class="bokeh-circle bokeh-circle-3"></div>
+            <div class="loading-brand">
+                <div class="loading-logo-text">Agenda CCB</div>
+                <div class="loading-subtitle">Agenda de Eventos</div>
             </div>
-            <div class="glass-card">
-                <div class="loading-spinner"></div>
-                <span class="loading-text">Carregando Agenda...</span>
+            <div class="loading-progress-container">
+                <div class="loading-progress-fill"></div>
             </div>
         </div>
     </div>
@@ -1025,14 +1001,12 @@
             if (state.isLoading) {
                 app.innerHTML = `
                     <div class="loading-container">
-                        <div class="bokeh-overlay">
-                            <div class="bokeh-circle bokeh-circle-1"></div>
-                            <div class="bokeh-circle bokeh-circle-2"></div>
-                            <div class="bokeh-circle bokeh-circle-3"></div>
+                        <div class="loading-brand">
+                            <div class="loading-logo-text">Agenda CCB</div>
+                            <div class="loading-subtitle">Agenda de Eventos</div>
                         </div>
-                        <div class="glass-card">
-                            <div class="loading-spinner"></div>
-                            <span class="loading-text">Conectando...</span>
+                        <div class="loading-progress-container">
+                            <div class="loading-progress-fill"></div>
                         </div>
                     </div>
                 `;
