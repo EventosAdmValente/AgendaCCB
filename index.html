@@ -1879,7 +1879,8 @@
                 await window.OneSignal.init({
                     appId: ONESIGNAL_APP_ID,
                     notifyButton: { enable: false },
-                    path: '/AgendaCCB/',
+                    serviceWorkerPath: '/AgendaCCB/OneSignalSDKWorker.js',
+                    serviceWorkerUpdaterPath: '/AgendaCCB/OneSignalSDK.sw.js',
                     serviceWorkerParam: { scope: '/AgendaCCB/' },
                     promptOptions: {
                         slidedown: {
