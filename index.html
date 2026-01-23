@@ -1890,14 +1890,17 @@
 
                     // Listener para capturar a inscrição assim que o ID for gerado
                     window.OneSignal.User.PushSubscription.addEventListener("change", async (event) => {
+                        console.log("[OneSignal] PushSubscription change event:", event);
                         if (event.current.id && state.user && state.pushNotificationActive) {
-                            console.log("Nova inscrição OneSignal detectada:", event.current.id);
-                            await supabaseClient.from('push_subscriptions').upsert({
+                            console.log("[OneSignal] Detectada mudança de inscrição. Salvando no banco:", event.current.id);
+                            const { error } = await supabaseClient.from('push_subscriptions').upsert({
                                 user_id: state.user.id,
                                 onesignal_id: event.current.id,
                                 active: true,
                                 preferred_time: state.pushNotificationTime
                             });
+                            if (error) console.error("[OneSignal] Erro ao salvar subscrição (listener):", error);
+                            else console.log("[OneSignal] Subscrição salva com sucesso (listener)!");
                         }
                     });
                     console.log("[OneSignal] Listener configurado.");
@@ -1908,7 +1911,11 @@
         };
 
         window.togglePushNotifications = async (active) => {
-            if (!state.user) return;
+            console.log("[OneSignal] togglePushNotifications:", active);
+            if (!state.user) {
+                console.warn("[OneSignal] Usuário não logado.");
+                return;
+            }
 
             if (!window.OneSignal) {
                 console.error("OneSignal SDK não carregado. Verifique sua conexão ou se há bloqueadores de anúncios.");
@@ -1922,29 +1929,37 @@
 
             try {
                 if (active) {
+                    console.log("[OneSignal] Verificando permissões...");
                     const permission = await window.OneSignal.Notifications.permission;
+                    console.log("[OneSignal] Permissão atual:", permission);
                     if (!permission || permission === 'default') {
+                        console.log("[OneSignal] Solicitando permissão...");
                         await window.OneSignal.Slidedown.promptPush();
                     }
 
                     // Garante o login com o ID do Supabase
+                    console.log("[OneSignal] Fazendo login no OneSignal para user:", state.user.id);
                     await window.OneSignal.login(state.user.id);
 
                     // Tenta salvar imediatamente se já tiver o ID, senão o listener acima cuidará disso
                     const subscriptionId = await window.OneSignal.User.PushSubscription.id;
+                    console.log("[OneSignal] ID de subscrição atual:", subscriptionId);
                     if (subscriptionId) {
-                        await supabaseClient.from('push_subscriptions').upsert({
+                        const { error } = await supabaseClient.from('push_subscriptions').upsert({
                             user_id: state.user.id,
                             onesignal_id: subscriptionId,
                             active: true,
                             preferred_time: state.pushNotificationTime
                         });
-                        console.log("Inscrição salva com sucesso!");
+                        if (error) console.error("[OneSignal] Erro ao salvar subscrição (toggle):", error);
+                        else console.log("[OneSignal] Subscrição salva com sucesso (toggle)!");
                     } else {
                         console.log("Aguardando geração do ID de inscrição pelo OneSignal...");
                     }
                 } else {
-                    await supabaseClient.from('push_subscriptions').update({ active: false }).eq('user_id', state.user.id);
+                    console.log("[OneSignal] Desativando notificações para user:", state.user.id);
+                    const { error } = await supabaseClient.from('push_subscriptions').update({ active: false }).eq('user_id', state.user.id);
+                    if (error) console.error("[OneSignal] Erro ao desativar subscrição:", error);
                 }
             } catch (e) {
                 console.error("Erro ao configurar OneSignal:", e);
