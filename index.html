@@ -1879,8 +1879,8 @@
                 await window.OneSignal.init({
                     appId: ONESIGNAL_APP_ID,
                     notifyButton: { enable: false },
-                    path: '/AgendaCCB/',
-                    serviceWorkerParam: { scope: '/AgendaCCB/' },
+                    serviceWorkerPath: '/AgendaCCB/OneSignalSDKWorker.js',
+                    serviceWorkerUpdaterPath: '/AgendaCCB/OneSignalSDK.sw.js',
                     promptOptions: {
                         slidedown: {
                             prompts: [{
@@ -1969,6 +1969,26 @@
                     if (!permission || permission === 'default') {
                         console.log("[OneSignal] Solicitando permissão...");
                         await window.OneSignal.Slidedown.promptPush();
+
+                        // Aguarda um pouco e verifica se o usuário aceitou
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        const newPermission = await window.OneSignal.Notifications.permission;
+                        console.log("[OneSignal] Permissão após prompt:", newPermission);
+
+                        if (newPermission === 'denied') {
+                            console.warn("[OneSignal] Usuário bloqueou a permissão.");
+                            alert("Você bloqueou as notificações. Para ativar, clique no ícone de cadeado na barra de endereço e permita as notificações para este site.");
+                            state.pushNotificationActive = false;
+                            scheduleRender();
+                            return;
+                        }
+
+                        if (newPermission !== 'granted') {
+                            console.warn("[OneSignal] Permissão não concedida.");
+                            state.pushNotificationActive = false;
+                            scheduleRender();
+                            return;
+                        }
                     }
 
                     // Garante o login com o ID do Supabase
