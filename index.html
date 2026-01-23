@@ -23,6 +23,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 
     <style>
         body {
@@ -374,6 +375,15 @@
         const activeChannels = new Map();
 
         // Centraliza a criação de todos os listeners do Realtime
+        function cleanupListeners() {
+            console.log("[Realtime] Removendo todos os canais ativos...");
+            activeChannels.forEach((channel, name) => {
+                supabaseClient.removeChannel(channel);
+                console.log(`[Realtime] Canal removido: ${name}`);
+            });
+            activeChannels.clear();
+        }
+
         function setupAllListeners() {
             console.log("[Realtime] Iniciando subscrição de todos os canais...");
             const listeners = [
@@ -926,7 +936,9 @@
             originalEventSnapshot: null,
             masterEventFilter: localStorage.getItem('masterEventFilter') || 'ativos',
             returnedFromFocus: false,
-            isOffline: !navigator.onLine
+            isOffline: !navigator.onLine,
+            pushNotificationActive: false,
+            pushNotificationTime: '08:00'
         };
 
         const state = new Proxy(INITIAL_STATE, {
@@ -1789,6 +1801,7 @@
                         <button onclick="window.navigateTo('home')" class="p-2 hover:bg-white/10 rounded"><i data-lucide="home" class="w-5 h-5"></i></button>
                     </div>
                     <div class="p-4 flex flex-col gap-6 max-w-xl mx-auto w-full overflow-y-auto scrollbar-none">
+                        <!-- Filtro Mestre -->
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                             <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Mostrar Eventos</h2>
                             <div class="flex flex-col gap-2">
@@ -1806,6 +1819,29 @@
                                 </button>
                             </div>
                         </div>
+
+                        <!-- Card de Notificações -->
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Notificações Push</h2>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="push-toggle" class="sr-only peer" ${state.pushNotificationActive ? 'checked' : ''} onchange="window.togglePushNotifications(this.checked)">
+                                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-custom"></div>
+                                </label>
+                            </div>
+                            
+                            <div id="push-options" class="${state.pushNotificationActive ? '' : 'hidden'} flex flex-col gap-4">
+                                <p class="text-[11px] text-slate-500 font-medium leading-relaxed">Receba lembretes diários dos eventos programados no horário escolhido.</p>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Horário do Lembrete</label>
+                                    <div class="relative">
+                                        <input type="time" id="push-time" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-navy focus:ring-2 focus:ring-navy/10" value="${state.pushNotificationTime}" onchange="window.updatePushTime(this.value)">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            ${!state.pushNotificationActive ? '<p class="text-[11px] text-slate-400 italic">Ative para configurar lembretes diários.</p>' : ''}
+                        </div>
                     </div>
                 </div>
             `;
@@ -1816,6 +1852,123 @@
             state.masterEventFilter = val;
             localStorage.setItem('masterEventFilter', val);
             renderOptions();
+        };
+
+        // --- NOTIFICAÇÕES PUSH (OneSignal) ---
+        const ONESIGNAL_APP_ID = "6e52759b-9b46-47cb-a241-d5b2b396e38d";
+
+        window.initOneSignal = async () => {
+            if (window.OneSignal) {
+                try {
+                    console.log("[OneSignal] Iniciando init...");
+
+                    // Ativa logs detalhados para debug
+                    window.OneSignal.Debug.setLogLevel('trace');
+
+                    await window.OneSignal.init({
+                        appId: ONESIGNAL_APP_ID,
+                        notifyButton: { enable: false },
+                        allowLocalhostAsSecureOrigin: true,
+                        serviceWorkerPath: 'OneSignalSDKWorker.js',
+                        serviceWorkerParam: { scope: '/' },
+                        // Previne erro 404 de ícone padrão
+                        promptOptions: {
+                            slidedown: {
+                                prompts: [{
+                                    type: "push",
+                                    autoPrompt: false,
+                                    text: {
+                                        actionMessage: "Gostaria de receber notificações de novos eventos?",
+                                        acceptButton: "Sim",
+                                        cancelButton: "Agora não"
+                                    }
+                                }]
+                            }
+                        }
+                    });
+
+                    console.log("[OneSignal] Init concluído.");
+
+                    // Listener para capturar a inscrição assim que o ID for gerado
+                    window.OneSignal.User.PushSubscription.addEventListener("change", async (event) => {
+                        if (event.current.id && state.user && state.pushNotificationActive) {
+                            console.log("Nova inscrição OneSignal detectada:", event.current.id);
+                            await supabaseClient.from('push_subscriptions').upsert({
+                                user_id: state.user.id,
+                                onesignal_id: event.current.id,
+                                active: true,
+                                preferred_time: state.pushNotificationTime
+                            });
+                        }
+                    });
+                    console.log("[OneSignal] Listener configurado.");
+                } catch (e) {
+                    console.error("Erro ao inicializar OneSignal:", e);
+                }
+            }
+        };
+
+        window.togglePushNotifications = async (active) => {
+            if (!state.user) return;
+
+            if (!window.OneSignal) {
+                console.error("OneSignal SDK não carregado. Verifique sua conexão ou se há bloqueadores de anúncios.");
+                alert("Erro: O serviço de notificações ainda não carregou. Tente novamente em alguns segundos.");
+                state.pushNotificationActive = false;
+                scheduleRender();
+                return;
+            }
+
+            state.pushNotificationActive = active;
+
+            try {
+                if (active) {
+                    const permission = await window.OneSignal.Notifications.permission;
+                    if (!permission || permission === 'default') {
+                        await window.OneSignal.Slidedown.promptPush();
+                    }
+
+                    // Garante o login com o ID do Supabase
+                    await window.OneSignal.login(state.user.id);
+
+                    // Tenta salvar imediatamente se já tiver o ID, senão o listener acima cuidará disso
+                    const subscriptionId = await window.OneSignal.User.PushSubscription.id;
+                    if (subscriptionId) {
+                        await supabaseClient.from('push_subscriptions').upsert({
+                            user_id: state.user.id,
+                            onesignal_id: subscriptionId,
+                            active: true,
+                            preferred_time: state.pushNotificationTime
+                        });
+                        console.log("Inscrição salva com sucesso!");
+                    } else {
+                        console.log("Aguardando geração do ID de inscrição pelo OneSignal...");
+                    }
+                } else {
+                    await supabaseClient.from('push_subscriptions').update({ active: false }).eq('user_id', state.user.id);
+                }
+            } catch (e) {
+                console.error("Erro ao configurar OneSignal:", e);
+            }
+            scheduleRender();
+        };
+
+        window.updatePushTime = async (time) => {
+            state.pushNotificationTime = time;
+            if (state.pushNotificationActive && state.user) {
+                await supabaseClient.from('push_subscriptions').update({ preferred_time: time }).eq('user_id', state.user.id);
+            }
+        };
+
+        window.loadPushSettings = async () => {
+            if (!state.user || !navigator.onLine) return;
+            try {
+                const { data, error } = await supabaseClient.from('push_subscriptions').select('*').eq('user_id', state.user.id).maybeSingle();
+                if (!error && data) {
+                    state.pushNotificationActive = data.active;
+                    state.pushNotificationTime = data.preferred_time || '08:00';
+                }
+            } catch (e) { }
         };
 
         function renderCalendar(mode) {
@@ -3726,7 +3879,10 @@
                             }));
                         }
                     } catch (e) { }
-                    if (state.isAuthorized) await refreshAllData();
+                    if (state.isAuthorized) {
+                        await refreshAllData();
+                        await window.loadPushSettings();
+                    }
                 }
             }
 
@@ -3780,6 +3936,7 @@
 
                 if (state.isAuthorized) {
                     await refreshAllData();
+                    await window.loadPushSettings();
                     setupAllListeners();
                 }
                 if (event === 'SIGNED_IN') closeModal();
@@ -3795,7 +3952,10 @@
 
 
             // Tenta sincronizar pendências logo ao abrir o app
-            if (navigator.onLine) processOfflineQueue(true);
+            if (navigator.onLine) {
+                processOfflineQueue(true);
+                window.initOneSignal();
+            }
         }
 
         window.deferredPrompt = null;
