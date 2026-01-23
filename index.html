@@ -1839,6 +1839,10 @@
                                         <input type="time" id="push-time" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-navy focus:ring-2 focus:ring-navy/10" value="${state.pushNotificationTime}" onchange="window.updatePushTime(this.value)">
                                     </div>
                                 </div>
+                                <button onclick="window.sendTestNotification(event)" class="w-full py-3 rounded-xl border border-orange-custom text-orange-custom font-bold text-[10px] uppercase tracking-widest hover:bg-orange-50 transition-all flex items-center justify-center gap-2">
+                                    <i data-lucide="bell" class="w-3.5 h-3.5"></i>
+                                    Testar Notificação
+                                </button>
                             </div>
                             
                             ${!state.pushNotificationActive ? '<p class="text-[11px] text-slate-400 italic">Ative para configurar lembretes diários.</p>' : ''}
@@ -2022,6 +2026,34 @@
                 console.error("Erro ao configurar OneSignal:", e);
             }
             scheduleRender();
+        };
+
+        window.sendTestNotification = async (e) => {
+            if (!state.user) return;
+
+            const btn = e.currentTarget;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = 'Enviando...';
+
+            try {
+                console.log("[OneSignal] Solicitando notificação de teste...");
+                const { data, error } = await supabaseClient.functions.invoke('daily-notifications', {
+                    body: { user_id: state.user.id }
+                });
+
+                if (error) throw error;
+
+                console.log("[OneSignal] Resposta do teste:", data);
+                alert("Solicitação de teste enviada! Se você não receber em alguns segundos, verifique se as notificações estão ativas no seu dispositivo.");
+            } catch (err) {
+                console.error("[OneSignal] Erro ao testar:", err);
+                alert("Erro ao enviar teste: " + (err.message || "Erro desconhecido"));
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                renderIcons();
+            }
         };
 
         window.updatePushTime = async (time) => {
