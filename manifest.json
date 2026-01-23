@@ -1,6 +1,6 @@
 {
-  "name": "Eventos Adm Valente",
-  "short_name": "Adm Valente",
+  "name": "Agenda CCB",
+  "short_name": "Agenda de Eventos",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
