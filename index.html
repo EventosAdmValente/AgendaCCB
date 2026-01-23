@@ -1858,60 +1858,81 @@
         const ONESIGNAL_APP_ID = "6e52759b-9b46-47cb-a241-d5b2b396e38d";
 
         window.initOneSignal = async () => {
-            if (window.OneSignal) {
-                try {
-                    console.log("[OneSignal] Iniciando init...");
+            // Previne múltiplas inicializações
+            if (window.oneSignalInitialized) {
+                console.log("[OneSignal] Já inicializado, pulando.");
+                return;
+            }
 
-                    // Ativa logs detalhados para debug
-                    window.OneSignal.Debug.setLogLevel('trace');
+            if (!window.OneSignal) {
+                console.warn("[OneSignal] SDK não carregado ainda. Aguardando...");
+                return;
+            }
 
-                    await window.OneSignal.init({
-                        appId: ONESIGNAL_APP_ID,
-                        notifyButton: { enable: false },
-                        path: '/AgendaCCB/',
-                        serviceWorkerParam: { scope: '/AgendaCCB/' },
-                        // Previne erro 404 de ícone padrão
-                        promptOptions: {
-                            slidedown: {
-                                prompts: [{
-                                    type: "push",
-                                    autoPrompt: false,
-                                    text: {
-                                        actionMessage: "Gostaria de receber notificações de novos eventos?",
-                                        acceptButton: "Sim",
-                                        cancelButton: "Agora não"
-                                    }
-                                }]
-                            }
+            try {
+                console.log("[OneSignal] Iniciando init...");
+                window.oneSignalInitialized = true;
+
+                // Ativa logs detalhados para debug
+                window.OneSignal.Debug.setLogLevel('trace');
+
+                await window.OneSignal.init({
+                    appId: ONESIGNAL_APP_ID,
+                    notifyButton: { enable: false },
+                    path: '/AgendaCCB/',
+                    serviceWorkerParam: { scope: '/AgendaCCB/' },
+                    promptOptions: {
+                        slidedown: {
+                            prompts: [{
+                                type: "push",
+                                autoPrompt: false,
+                                text: {
+                                    actionMessage: "Gostaria de receber notificações de novos eventos?",
+                                    acceptButton: "Sim",
+                                    cancelButton: "Agora não"
+                                }
+                            }]
+                        }
+                    }
+                });
+
+                console.log("[OneSignal] Init concluído.");
+
+                // Aguarda o namespace estar pronto (com timeout de 5s)
+                let attempts = 0;
+                const maxAttempts = 50; // 5 segundos (50 * 100ms)
+
+                while (attempts < maxAttempts) {
+                    if (window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+                        console.log("[OneSignal] Namespace User/PushSubscription disponível!");
+                        break;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+
+                if (window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+                    window.OneSignal.User.PushSubscription.addEventListener("change", async (event) => {
+                        console.log("[OneSignal] PushSubscription change event:", event);
+                        if (event.current.id && state.user && state.pushNotificationActive) {
+                            console.log("[OneSignal] Detectada mudança de inscrição. Salvando no banco:", event.current.id);
+                            const { error } = await supabaseClient.from('push_subscriptions').upsert({
+                                user_id: state.user.id,
+                                onesignal_id: event.current.id,
+                                active: true,
+                                preferred_time: state.pushNotificationTime
+                            });
+                            if (error) console.error("[OneSignal] Erro ao salvar subscrição (listener):", error);
+                            else console.log("[OneSignal] Subscrição salva com sucesso (listener)!");
                         }
                     });
-
-                    console.log("[OneSignal] Init concluído.");
-
-                    // Pequeno delay para garantir que o namespace User esteja pronto
-                    // e verificação de segurança
-                    if (window.OneSignal.User && window.OneSignal.User.PushSubscription) {
-                        window.OneSignal.User.PushSubscription.addEventListener("change", async (event) => {
-                            console.log("[OneSignal] PushSubscription change event:", event);
-                            if (event.current.id && state.user && state.pushNotificationActive) {
-                                console.log("[OneSignal] Detectada mudança de inscrição. Salvando no banco:", event.current.id);
-                                const { error } = await supabaseClient.from('push_subscriptions').upsert({
-                                    user_id: state.user.id,
-                                    onesignal_id: event.current.id,
-                                    active: true,
-                                    preferred_time: state.pushNotificationTime
-                                });
-                                if (error) console.error("[OneSignal] Erro ao salvar subscrição (listener):", error);
-                                else console.log("[OneSignal] Subscrição salva com sucesso (listener)!");
-                            }
-                        });
-                        console.log("[OneSignal] Listener configurado.");
-                    } else {
-                        console.warn("[OneSignal] Namespace User/PushSubscription não disponível após init.");
-                    }
-                } catch (e) {
-                    console.error("Erro ao inicializar OneSignal:", e);
+                    console.log("[OneSignal] Listener configurado com sucesso.");
+                } else {
+                    console.warn("[OneSignal] Timeout: Namespace User/PushSubscription não disponível após 5s.");
                 }
+            } catch (e) {
+                console.error("[OneSignal] Erro ao inicializar:", e);
+                window.oneSignalInitialized = false; // Permite retry
             }
         };
 
