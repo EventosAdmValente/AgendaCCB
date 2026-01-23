@@ -1888,22 +1888,27 @@
 
                     console.log("[OneSignal] Init concluído.");
 
-                    // Listener para capturar a inscrição assim que o ID for gerado
-                    window.OneSignal.User.PushSubscription.addEventListener("change", async (event) => {
-                        console.log("[OneSignal] PushSubscription change event:", event);
-                        if (event.current.id && state.user && state.pushNotificationActive) {
-                            console.log("[OneSignal] Detectada mudança de inscrição. Salvando no banco:", event.current.id);
-                            const { error } = await supabaseClient.from('push_subscriptions').upsert({
-                                user_id: state.user.id,
-                                onesignal_id: event.current.id,
-                                active: true,
-                                preferred_time: state.pushNotificationTime
-                            });
-                            if (error) console.error("[OneSignal] Erro ao salvar subscrição (listener):", error);
-                            else console.log("[OneSignal] Subscrição salva com sucesso (listener)!");
-                        }
-                    });
-                    console.log("[OneSignal] Listener configurado.");
+                    // Pequeno delay para garantir que o namespace User esteja pronto
+                    // e verificação de segurança
+                    if (window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+                        window.OneSignal.User.PushSubscription.addEventListener("change", async (event) => {
+                            console.log("[OneSignal] PushSubscription change event:", event);
+                            if (event.current.id && state.user && state.pushNotificationActive) {
+                                console.log("[OneSignal] Detectada mudança de inscrição. Salvando no banco:", event.current.id);
+                                const { error } = await supabaseClient.from('push_subscriptions').upsert({
+                                    user_id: state.user.id,
+                                    onesignal_id: event.current.id,
+                                    active: true,
+                                    preferred_time: state.pushNotificationTime
+                                });
+                                if (error) console.error("[OneSignal] Erro ao salvar subscrição (listener):", error);
+                                else console.log("[OneSignal] Subscrição salva com sucesso (listener)!");
+                            }
+                        });
+                        console.log("[OneSignal] Listener configurado.");
+                    } else {
+                        console.warn("[OneSignal] Namespace User/PushSubscription não disponível após init.");
+                    }
                 } catch (e) {
                     console.error("Erro ao inicializar OneSignal:", e);
                 }
@@ -1932,6 +1937,14 @@
                     console.log("[OneSignal] Verificando permissões...");
                     const permission = await window.OneSignal.Notifications.permission;
                     console.log("[OneSignal] Permissão atual:", permission);
+                    if (permission === 'denied') {
+                        console.warn("[OneSignal] Permissão bloqueada pelo usuário.");
+                        alert("As notificações estão bloqueadas no seu navegador. Para ativar, clique no ícone de cadeado na barra de endereço e permita as notificações para este site.");
+                        state.pushNotificationActive = false;
+                        scheduleRender();
+                        return;
+                    }
+
                     if (!permission || permission === 'default') {
                         console.log("[OneSignal] Solicitando permissão...");
                         await window.OneSignal.Slidedown.promptPush();
