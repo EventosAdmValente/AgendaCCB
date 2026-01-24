@@ -1938,6 +1938,7 @@
             }
 
             state.pushNotificationActive = active;
+            scheduleRender(); // Atualiza UI imediatamente
 
             try {
                 // Tenta inicializar se ainda não foi (como fallback)
@@ -1953,9 +1954,22 @@
                 }
 
                 if (active) {
+                    // 1. TENTATIVA RÁPIDA: Atualizar apenas o status no banco (se já existir)
+                    const { data: updatedData, error: updateError } = await supabaseClient
+                        .from('push_subscriptions')
+                        .update({ active: true })
+                        .eq('user_id', state.user.id)
+                        .select();
+
+                    if (!updateError && updatedData && updatedData.length > 0) {
+                        console.log("[OneSignal] Reativado com sucesso pelo banco de dados (Fast Path).");
+                        return; // SUCESSO! Não precisa esperar ID do OneSignal.
+                    }
+
+                    // Se chegou aqui, é porque não tinha registro no banco ou deu erro.
                     // Lógica "Soft Toggle": Apenas garante permissão e ID
                     const permission = await window.OneSignal.Notifications.permission;
-
+                    
                     if (permission === 'denied') {
                         alert("Notificações bloqueadas no navegador. Desbloqueie nas configurações do site para ativar.");
                         state.pushNotificationActive = false;
@@ -1975,20 +1989,26 @@
                     }
 
                     await window.OneSignal.login(state.user.id);
-
+                    
                     let subId = await pushSub.id;
-                    // Pequeno retry apenas se não tiver ID nenhum (primeira ativação)
+                    // Retry Loop Completo
                     if (!subId) {
-                        let retries = 0;
-                        while (!subId && retries < 5) {
+                         let retries = 0;
+                         while (!subId && retries < 20) {
+                            console.log(`[OneSignal] Aguardando ID de subscrição... (${retries + 1}/20)`);
                             await new Promise(r => setTimeout(r, 500));
                             subId = await pushSub.id;
+                            
+                            if (!subId && retries === 5) {
+                                console.log("[OneSignal] Forçando Opt-In para gerar ID...");
+                                await pushSub.optIn();
+                            }
                             retries++;
-                        }
+                         }
                     }
 
                     if (subId) {
-                        console.log("[OneSignal] Ativando no banco (Soft Toggle) para ID:", subId);
+                        console.log("[OneSignal] Criando registro no banco para ID:", subId);
                         const { error } = await supabaseClient.from('push_subscriptions').upsert({
                             user_id: state.user.id,
                             onesignal_id: subId,
@@ -2001,7 +2021,6 @@
                     }
                 } else {
                     console.log("[OneSignal] Desativando APENAS NO BANCO (Soft Toggle)...");
-                    // NÃO chamamos optOut(). Filtramos o envio pelo banco de dados.
                     await supabaseClient.from('push_subscriptions').update({ active: false }).eq('user_id', state.user.id);
                 }
             } catch (e) {
