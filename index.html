@@ -1969,15 +1969,28 @@
                     }
 
                     await window.OneSignal.login(state.user.id);
-                    const subId = await pushSub.id;
+
+                    // RETRY LOOP: Aguarda o ID ser gerado após o Opt-In
+                    let subId = await pushSub.id;
+                    let retries = 0;
+                    while (!subId && retries < 10) {
+                        console.log(`[OneSignal] Aguardando ID de subscrição... (${retries + 1}/10)`);
+                        await new Promise(r => setTimeout(r, 500));
+                        subId = await pushSub.id;
+                        retries++;
+                    }
+                    console.log("[OneSignal] ID Final:", subId);
 
                     if (subId) {
-                        await supabaseClient.from('push_subscriptions').upsert({
+                        const { error } = await supabaseClient.from('push_subscriptions').upsert({
                             user_id: state.user.id,
                             onesignal_id: subId,
                             active: true,
                             preferred_time: state.pushNotificationTime
                         });
+                        if (error) console.error("[OneSignal] Erro ao salvar upsert:", error);
+                    } else {
+                        console.warn("[OneSignal] ID de subscrição não foi gerado. Verifique se o navegador suporta Push.");
                     }
                 } else {
                     console.log("[OneSignal] Desativando...");
