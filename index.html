@@ -1955,7 +1955,7 @@
                 if (active) {
                     // Lógica "Soft Toggle": Apenas garante permissão e ID
                     const permission = await window.OneSignal.Notifications.permission;
-                    
+
                     if (permission === 'denied') {
                         alert("Notificações bloqueadas no navegador. Desbloqueie nas configurações do site para ativar.");
                         state.pushNotificationActive = false;
@@ -1975,16 +1975,16 @@
                     }
 
                     await window.OneSignal.login(state.user.id);
-                    
+
                     let subId = await pushSub.id;
                     // Pequeno retry apenas se não tiver ID nenhum (primeira ativação)
                     if (!subId) {
-                         let retries = 0;
-                         while (!subId && retries < 5) {
+                        let retries = 0;
+                        while (!subId && retries < 5) {
                             await new Promise(r => setTimeout(r, 500));
                             subId = await pushSub.id;
                             retries++;
-                         }
+                        }
                     }
 
                     if (subId) {
@@ -1994,7 +1994,7 @@
                             onesignal_id: subId,
                             active: true,
                             preferred_time: state.pushNotificationTime
-                        });
+                        }, { onConflict: 'user_id' });
                         if (error) console.error("[OneSignal] Erro ao salvar upsert:", error);
                     } else {
                         console.warn("[OneSignal] ID incorreto. Verifique permissões.");
