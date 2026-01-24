@@ -1953,35 +1953,42 @@
                 }
 
                 if (active) {
-                    console.log("[OneSignal] Ativando...");
-                    await pushSub.optIn();
-
+                    // Lógica "Soft Toggle": Apenas garante permissão e ID
                     const permission = await window.OneSignal.Notifications.permission;
+                    
                     if (permission === 'denied') {
-                        alert("Notificações bloqueadas no navegador.");
+                        alert("Notificações bloqueadas no navegador. Desbloqueie nas configurações do site para ativar.");
                         state.pushNotificationActive = false;
                         scheduleRender();
                         return;
                     }
 
                     if (permission !== 'granted') {
+                        console.log("[OneSignal] Solicitando permissão...");
                         await window.OneSignal.Slidedown.promptPush();
                     }
 
-                    await window.OneSignal.login(state.user.id);
-
-                    // RETRY LOOP: Aguarda o ID ser gerado após o Opt-In
-                    let subId = await pushSub.id;
-                    let retries = 0;
-                    while (!subId && retries < 10) {
-                        console.log(`[OneSignal] Aguardando ID de subscrição... (${retries + 1}/10)`);
-                        await new Promise(r => setTimeout(r, 500));
-                        subId = await pushSub.id;
-                        retries++;
+                    // Se o usuário estiver optado para fora no nível do SDK (ex: limpou dados), reativamos
+                    if (pushSub.optedOut) {
+                        console.log("[OneSignal] Usuário estava Opt-Out no SDK, reativando (Soft Toggle)...");
+                        await pushSub.optIn();
                     }
-                    console.log("[OneSignal] ID Final:", subId);
+
+                    await window.OneSignal.login(state.user.id);
+                    
+                    let subId = await pushSub.id;
+                    // Pequeno retry apenas se não tiver ID nenhum (primeira ativação)
+                    if (!subId) {
+                         let retries = 0;
+                         while (!subId && retries < 5) {
+                            await new Promise(r => setTimeout(r, 500));
+                            subId = await pushSub.id;
+                            retries++;
+                         }
+                    }
 
                     if (subId) {
+                        console.log("[OneSignal] Ativando no banco (Soft Toggle) para ID:", subId);
                         const { error } = await supabaseClient.from('push_subscriptions').upsert({
                             user_id: state.user.id,
                             onesignal_id: subId,
@@ -1990,11 +1997,11 @@
                         });
                         if (error) console.error("[OneSignal] Erro ao salvar upsert:", error);
                     } else {
-                        console.warn("[OneSignal] ID de subscrição não foi gerado. Verifique se o navegador suporta Push.");
+                        console.warn("[OneSignal] ID incorreto. Verifique permissões.");
                     }
                 } else {
-                    console.log("[OneSignal] Desativando...");
-                    await pushSub.optOut();
+                    console.log("[OneSignal] Desativando APENAS NO BANCO (Soft Toggle)...");
+                    // NÃO chamamos optOut(). Filtramos o envio pelo banco de dados.
                     await supabaseClient.from('push_subscriptions').update({ active: false }).eq('user_id', state.user.id);
                 }
             } catch (e) {
