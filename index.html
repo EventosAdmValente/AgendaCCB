@@ -1940,6 +1940,19 @@
             state.pushNotificationActive = active;
             scheduleRender(); // Atualiza UI imediatamente
 
+            // FORCE RELOAD LOGIC: Adiciona item na fila para forçar recarregamento ao voltar o foco
+            try {
+                const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+                queue.push({
+                    type: 'NOTIFICATION_TOGGLE', // Tipo dummy apenas para gatilho
+                    payload: { active, timestamp: Date.now() }
+                });
+                localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+                console.log("[App] Agendado recarregamento via fila de sincronização.");
+            } catch (e) {
+                console.error("[App] Erro ao agendar recarregamento:", e);
+            }
+
             try {
                 // Tenta inicializar se ainda não foi (como fallback)
                 if (!window.oneSignalInitialized) await window.initOneSignal();
