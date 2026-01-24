@@ -1951,7 +1951,7 @@
             }
 
             if (!window.OneSignal) {
-                console.error("OneSignal SDK não carregado. Verifique sua conexão ou se há bloqueadores de anúncios.");
+                console.error("OneSignal SDK não carregado.");
                 alert("Erro: O serviço de notificações ainda não carregou. Tente novamente em alguns segundos.");
                 state.pushNotificationActive = false;
                 scheduleRender();
@@ -1962,9 +1962,14 @@
 
             try {
                 if (active) {
-                    console.log("[OneSignal] Verificando permissões...");
+                    // 1. Re-ativar inscrição no OneSignal (opt-in)
+                    console.log("[OneSignal] Realizando Opt-In...");
+                    await window.OneSignal.User.PushSubscription.optIn();
+
+                    // 2. Verificar permissões
                     const permission = await window.OneSignal.Notifications.permission;
                     console.log("[OneSignal] Permissão atual:", permission);
+
                     if (permission === 'denied') {
                         console.warn("[OneSignal] Permissão bloqueada pelo usuário.");
                         alert("As notificações estão bloqueadas no seu navegador. Para ativar, clique no ícone de cadeado na barra de endereço e permita as notificações para este site.");
@@ -1976,35 +1981,23 @@
                     if (!permission || permission === 'default') {
                         console.log("[OneSignal] Solicitando permissão...");
                         await window.OneSignal.Slidedown.promptPush();
-
-                        // Aguarda um pouco e verifica se o usuário aceitou
                         await new Promise(resolve => setTimeout(resolve, 1000));
                         const newPermission = await window.OneSignal.Notifications.permission;
-                        console.log("[OneSignal] Permissão após prompt:", newPermission);
-
-                        if (newPermission === 'denied') {
-                            console.warn("[OneSignal] Usuário bloqueou a permissão.");
-                            alert("Você bloqueou as notificações. Para ativar, clique no ícone de cadeado na barra de endereço e permita as notificações para este site.");
-                            state.pushNotificationActive = false;
-                            scheduleRender();
-                            return;
-                        }
-
                         if (newPermission !== 'granted') {
-                            console.warn("[OneSignal] Permissão não concedida.");
+                            console.warn("[OneSignal] Permissão não concedida após prompt.");
                             state.pushNotificationActive = false;
                             scheduleRender();
                             return;
                         }
                     }
 
-                    // Garante o login com o ID do Supabase
-                    console.log("[OneSignal] Fazendo login no OneSignal para user:", state.user.id);
+                    // 3. Login e Sincronização
+                    console.log("[OneSignal] Fazendo login para user:", state.user.id);
                     await window.OneSignal.login(state.user.id);
 
-                    // Tenta salvar imediatamente se já tiver o ID, senão o listener acima cuidará disso
                     const subscriptionId = await window.OneSignal.User.PushSubscription.id;
-                    console.log("[OneSignal] ID de subscrição atual:", subscriptionId);
+                    console.log("[OneSignal] ID de subscrição obtido:", subscriptionId);
+
                     if (subscriptionId) {
                         const { error } = await supabaseClient.from('push_subscriptions').upsert({
                             user_id: state.user.id,
@@ -2012,18 +2005,23 @@
                             active: true,
                             preferred_time: state.pushNotificationTime
                         });
-                        if (error) console.error("[OneSignal] Erro ao salvar subscrição (toggle):", error);
-                        else console.log("[OneSignal] Subscrição salva com sucesso (toggle)!");
+                        if (error) console.error("[OneSignal] Erro ao salvar subscrição:", error);
+                        else console.log("[OneSignal] Subscrição ativada com sucesso!");
                     } else {
-                        console.log("Aguardando geração do ID de inscrição pelo OneSignal...");
+                        console.warn("[OneSignal] ID de subscrição ainda não disponível.");
                     }
                 } else {
-                    console.log("[OneSignal] Desativando notificações para user:", state.user.id);
+                    // Desativar: Opt-Out + Update no banco
+                    console.log("[OneSignal] Realizando Opt-Out para user:", state.user.id);
+                    await window.OneSignal.User.PushSubscription.optOut();
+
                     const { error } = await supabaseClient.from('push_subscriptions').update({ active: false }).eq('user_id', state.user.id);
-                    if (error) console.error("[OneSignal] Erro ao desativar subscrição:", error);
+                    if (error) console.error("[OneSignal] Erro ao desativar no banco:", error);
+                    else console.log("[OneSignal] Subscrição desativada com sucesso!");
                 }
             } catch (e) {
-                console.error("Erro ao configurar OneSignal:", e);
+                console.error("[OneSignal] Erro crítico no toggle:", e);
+                state.pushNotificationActive = !active; // Reverte o estado visual em caso de erro grave
             }
             scheduleRender();
         };
