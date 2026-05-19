@@ -2985,7 +2985,16 @@
                                     <tbody>
                                         ${tableRows || `<tr><td colspan="${isExclusiveBatismoOuCeia ? 8 : 5}" class="p-8 text-center text-slate-300 italic font-medium align-middle">Nenhum evento encontrado.</td></tr>`}
                                     </tbody>
-                                    ${isExclusiveBatismoOuCeia && tableRows && (i === totalPages - 1) ? `<tfoot><tr class="bg-slate-100 border-t-2 border-navy"><td colspan="3" class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-left uppercase tracking-wider align-middle border-r border-slate-200" style="vertical-align: middle;">${(() => { const tp = state.types.find(t => t.id === events[0].type_id); return (tp?.name || '').toLowerCase().includes('batismo') ? 'Total de Batismo(s): ' + events.length : 'Total de Santa(s) Ceia(s): ' + events.length; })()}</td><td colspan="2" class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-right uppercase tracking-wider align-middle border-r border-slate-200" style="vertical-align: middle;">Totais</td><td class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-center align-middle border-r border-slate-200" style="vertical-align: middle;">${totalH}</td><td class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-center align-middle border-r border-slate-200" style="vertical-align: middle;">${totalM}</td><td class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-center align-middle" style="vertical-align: middle;">${totalT}</td></tr></tfoot>` : ''}
+                                    ${isExclusiveBatismoOuCeia && tableRows && (i === totalPages - 1) ? `
+                                    <tfoot>
+                                        <tr class="bg-slate-100 text-[8px] md:text-[11px] font-black text-navy uppercase tracking-wider">
+                                            <td colspan="4" class="py-1 px-1 md:py-1 md:px-2 text-left">${(() => { const tp = state.types.find(t => t.id === events[0].type_id); return (tp?.name || '').toLowerCase().includes('batismo') ? 'Total de Batismo(s): ' + events.length : 'Total de Santa(s) Ceia(s): ' + events.length; })()}</td>
+                                            <td class="py-1 px-1 md:py-1 md:px-2 text-right">Totais:</td>
+                                            <td class="py-1 px-1 md:py-1 md:px-2 border-l border-slate-200 text-center">${totalH}</td>
+                                            <td class="py-1 px-1 md:py-1 md:px-2 border-l border-slate-200 text-center">${totalM}</td>
+                                            <td class="py-1 px-1 md:py-1 md:px-2 border-l border-slate-200 text-center">${totalT}</td>
+                                        </tr>
+                                    </tfoot>` : ''}
                                 </table>
                             </div>
                             
