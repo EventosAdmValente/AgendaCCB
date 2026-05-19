@@ -2892,6 +2892,17 @@
                 window.activeReportType = 'events';
                 const events = getFilteredEvents();
                 const filterDesc = getFilterDescription('home');
+                // Detectar se TODOS os eventos filtrados são exclusivamente Batismo ou Santa Ceia
+                const isExclusiveBatismoOuCeia = events.length > 0 && events.every(ev => {
+                    const tp = state.types.find(t => t.id === ev.type_id);
+                    const nm = (tp?.name || '').toLowerCase();
+                    return nm.includes('batismo') || nm.includes('santa ceia');
+                });
+                let totalH = 0, totalM = 0, totalT = 0;
+                if (isExclusiveBatismoOuCeia) {
+                    events.forEach(ev => { totalH += (ev.irmaos || 0); totalM += (ev.irmas || 0); });
+                    totalT = totalH + totalM;
+                }
                 const itemsPerPage = 32; // Increased to 32 to match Locations report and fill A4 page
                 const totalPages = Math.ceil(events.length / itemsPerPage) || 1;
 
@@ -2946,7 +2957,8 @@
                                 ${timeSpan > 0 ? `<td rowspan="${timeSpan}" class="py-1 px-1 md:py-1 md:px-2 border-r border-b border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 text-center align-middle bg-white" style="vertical-align: middle;">${e.time}</td>` : ''}
                                 <td class="py-1 px-1 md:py-1 md:px-2 border-r border-b border-slate-200 text-[8px] md:text-[11px] font-bold text-navy align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${type?.name || ''}</td>
                                 <td class="py-1 px-1 md:py-1 md:px-2 border-r border-b border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-700 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${loc?.localidade || ''}</td>
-                                <td class="py-1 px-1 md:py-1 md:px-2 border-b border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-600 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${attendantDisplay}</td>
+                                <td class="py-1 px-1 md:py-1 md:px-2 ${isExclusiveBatismoOuCeia ? 'border-r' : ''} border-b border-slate-200 text-[8px] md:text-[11px] font-medium text-slate-600 align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${attendantDisplay}</td>
+                                ${isExclusiveBatismoOuCeia ? `<td class="py-1 px-1 md:py-1 md:px-2 border-r border-b border-slate-200 text-[8px] md:text-[11px] font-bold text-slate-700 text-center align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${e.irmaos || 0}</td><td class="py-1 px-1 md:py-1 md:px-2 border-r border-b border-slate-200 text-[8px] md:text-[11px] font-bold text-slate-700 text-center align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${e.irmas || 0}</td><td class="py-1 px-1 md:py-1 md:px-2 border-b border-slate-200 text-[8px] md:text-[11px] font-black text-navy text-center align-middle ${isZebra ? 'bg-slate-50' : 'bg-white'}" style="vertical-align: middle;">${(e.irmaos || 0) + (e.irmas || 0)}</td>` : ''}
                             </tr>
                         `;
                     }).join('');
@@ -2966,12 +2978,14 @@
                                             <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Hora</th>
                                             <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Evento</th>
                                             <th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">Localidade</th>
-                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center align-middle">Atendente</th>
+                                            <th class="py-1 px-1 md:py-1.5 md:px-2 text-center ${isExclusiveBatismoOuCeia ? 'border-r border-white' : ''} align-middle">Atendente</th>
+                                            ${isExclusiveBatismoOuCeia ? `<th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">H</th><th class="py-1 px-1 md:py-1.5 md:px-2 text-center border-r border-white align-middle">M</th><th class="py-1 px-1 md:py-1.5 md:px-2 text-center align-middle">T</th>` : ''}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${tableRows || '<tr><td colspan="5" class="p-8 text-center text-slate-300 italic font-medium align-middle">Nenhum evento encontrado.</td></tr>'}
+                                        ${tableRows || `<tr><td colspan="${isExclusiveBatismoOuCeia ? 8 : 5}" class="p-8 text-center text-slate-300 italic font-medium align-middle">Nenhum evento encontrado.</td></tr>`}
                                     </tbody>
+                                    ${isExclusiveBatismoOuCeia && tableRows && (i === totalPages - 1) ? `<tfoot><tr class="bg-slate-100 border-t-2 border-navy"><td colspan="5" class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-right uppercase tracking-wider align-middle border-r border-slate-200" style="vertical-align: middle;">Totais</td><td class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-center align-middle border-r border-slate-200" style="vertical-align: middle;">${totalH}</td><td class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-center align-middle border-r border-slate-200" style="vertical-align: middle;">${totalM}</td><td class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-center align-middle" style="vertical-align: middle;">${totalT}</td></tr></tfoot>` : ''}
                                 </table>
                             </div>
                             
@@ -3329,7 +3343,21 @@
                     filterDesc = getFilterDescription('home');
                     const events = getFilteredEvents();
 
-                    const head = [['Data', 'Hora', 'Evento', 'Localidade', 'Atendente']];
+                    // Detectar se TODOS os eventos filtrados são exclusivamente Batismo ou Santa Ceia
+                    const pdfIsExclusiveBatismoOuCeia = events.length > 0 && events.every(ev => {
+                        const tp = state.types.find(t => t.id === ev.type_id);
+                        const nm = (tp?.name || '').toLowerCase();
+                        return nm.includes('batismo') || nm.includes('santa ceia');
+                    });
+                    let pdfTotalH = 0, pdfTotalM = 0, pdfTotalT = 0;
+                    if (pdfIsExclusiveBatismoOuCeia) {
+                        events.forEach(ev => { pdfTotalH += (ev.irmaos || 0); pdfTotalM += (ev.irmas || 0); });
+                        pdfTotalT = pdfTotalH + pdfTotalM;
+                    }
+
+                    const head = pdfIsExclusiveBatismoOuCeia
+                        ? [['Data', 'Hora', 'Evento', 'Localidade', 'Atendente', 'H', 'M', 'T']]
+                        : [['Data', 'Hora', 'Evento', 'Localidade', 'Atendente']];
                     const body = events.map(e => {
                         const type = state.types.find(t => t.id === e.type_id);
                         const loc = state.locations.find(l => l.id === e.location_id);
@@ -3342,8 +3370,17 @@
                             attendantDisplay = `${att?.name || ''} / ${att2.name}`;
                         }
 
-                        return [formatDate(e.date), e.time, type?.name || '', loc?.localidade || '', attendantDisplay];
+                        const row = [formatDate(e.date), e.time, type?.name || '', loc?.localidade || '', attendantDisplay];
+                        if (pdfIsExclusiveBatismoOuCeia) {
+                            row.push(String(e.irmaos || 0), String(e.irmas || 0), String((e.irmaos || 0) + (e.irmas || 0)));
+                        }
+                        return row;
                     });
+
+                    // Adicionar linha de totais ao final do body
+                    if (pdfIsExclusiveBatismoOuCeia) {
+                        body.push([{content: 'TOTAIS', colSpan: 5, styles: {halign: 'right', fontStyle: 'bold', fillColor: [230, 237, 246], textColor: [0, 51, 102]}}, {content: String(pdfTotalH), styles: {halign: 'center', fontStyle: 'bold', fillColor: [230, 237, 246], textColor: [0, 51, 102]}}, {content: String(pdfTotalM), styles: {halign: 'center', fontStyle: 'bold', fillColor: [230, 237, 246], textColor: [0, 51, 102]}}, {content: String(pdfTotalT), styles: {halign: 'center', fontStyle: 'bold', fillColor: [230, 237, 246], textColor: [0, 51, 102]}}]);
+                    }
 
                     const dateSpans = [];
                     let d = 0;
@@ -3372,7 +3409,16 @@
                     tableConfig = {
                         head: head,
                         body: body,
-                        columnStyles: {
+                        columnStyles: pdfIsExclusiveBatismoOuCeia ? {
+                            0: { cellWidth: 22, halign: 'center' },
+                            1: { cellWidth: 13, halign: 'center' },
+                            2: { cellWidth: 'auto' },
+                            3: { cellWidth: 'auto' },
+                            4: { cellWidth: 'auto' },
+                            5: { cellWidth: 12, halign: 'center' },
+                            6: { cellWidth: 12, halign: 'center' },
+                            7: { cellWidth: 12, halign: 'center' }
+                        } : {
                             0: { cellWidth: 25, halign: 'center' },
                             1: { cellWidth: 15, halign: 'center' },
                             2: { cellWidth: 'auto' },
@@ -3380,7 +3426,7 @@
                             4: { cellWidth: 'auto' }
                         },
                         didParseCell: (data) => {
-                            if (data.section === 'body') {
+                            if (data.section === 'body' && data.row.index < events.length) {
                                 if (data.column.index === 0) {
                                     const span = dateSpans[data.row.index];
                                     if (span > 1) data.cell.rowSpan = span;
