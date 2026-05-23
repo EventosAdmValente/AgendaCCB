@@ -283,6 +283,92 @@
         .highlight-item {
             animation: highlight-pulse 1s ease-in-out;
         }
+
+        /* Assistente de Voz CSS */
+        .voice-orb-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 120px;
+            height: 120px;
+            margin: 15px auto;
+        }
+
+        .voice-orb {
+            width: 75px;
+            height: 75px;
+            background: radial-gradient(circle, #ff8c00 0%, #003366 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 0 20px rgba(255, 140, 0, 0.4), 0 0 40px rgba(0, 51, 102, 0.3);
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .voice-pulse-ring {
+            position: absolute;
+            width: 75px;
+            height: 75px;
+            border-radius: 50%;
+            background-color: rgba(255, 140, 0, 0.4);
+            animation: voice-pulse 2s infinite ease-out;
+            z-index: 1;
+        }
+
+        .voice-pulse-ring-2 {
+            position: absolute;
+            width: 75px;
+            height: 75px;
+            border-radius: 50%;
+            background-color: rgba(0, 51, 102, 0.3);
+            animation: voice-pulse 2s infinite ease-out 1s;
+            z-index: 2;
+        }
+
+        @keyframes voice-pulse {
+            0% {
+                transform: scale(1);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+
+        /* Speaking State: Greenish blue active waves */
+        .voice-orb.voice-speaking {
+            background: radial-gradient(circle, #10b981 0%, #003366 100%);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.5), 0 0 40px rgba(0, 51, 102, 0.4);
+        }
+
+        .voice-orb.voice-speaking ~ .voice-pulse-ring {
+            background-color: rgba(16, 185, 129, 0.4);
+        }
+        
+        .voice-orb.voice-speaking ~ .voice-pulse-ring-2 {
+            background-color: rgba(0, 51, 102, 0.3);
+        }
+        
+        /* Error/Blocked State: Red orb */
+        .voice-orb.voice-error {
+            background: radial-gradient(circle, #ef4444 0%, #7f1d1d 100%);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+        }
+        
+        .voice-orb.voice-error ~ .voice-pulse-ring {
+            animation: none;
+            opacity: 0;
+        }
+        
+        .voice-orb.voice-error ~ .voice-pulse-ring-2 {
+            animation: none;
+            opacity: 0;
+        }
     </style>
     <link rel="manifest" href="./manifest.json">
 
@@ -935,6 +1021,7 @@
             clockTempMinute: '00',
             originalEventSnapshot: null,
             masterEventFilter: localStorage.getItem('masterEventFilter') || 'ativos',
+            autoVoiceResponse: localStorage.getItem('autoVoiceResponse') !== 'false',
             returnedFromFocus: false,
             isOffline: !navigator.onLine,
             pushNotificationActive: false,
@@ -949,7 +1036,7 @@
                 const silent = [
                     'searchTerm', 'managerSearchTerm', 'clockMode', 'clockTempHour', 'clockTempMinute',
                     'ffTemp', 'fetchedYears', 'formErrors',
-                    'events', 'types', 'locations', 'attendants', 'feriados', 'perfis'
+                    'events', 'types', 'locations', 'attendants', 'feriados', 'perfis', 'autoVoiceResponse'
                 ];
                 if (!silent.includes(property)) {
                     scheduleRender();
@@ -1341,8 +1428,11 @@
                         </div>
                         <div class="flex gap-2">
                             <div class="relative flex-1">
-                                <input id="homeSearch" type="text" placeholder="Pesquisar evento, local ou atendente..." class="w-full pl-10 pr-3 h-10 border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-navy/10" value="${state.searchTerm || ''}">
+                                <input id="homeSearch" type="text" placeholder="Pesquisar evento, local ou atendente..." class="w-full pl-10 pr-10 h-10 border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-navy/10" value="${state.searchTerm || ''}">
                                 <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
+                                <button onclick="window.startVoiceAssistant()" class="absolute right-3 top-2.5 text-navy hover:text-orange-custom transition-colors" title="Pesquisa por voz">
+                                    <i data-lucide="mic" class="w-5 h-5"></i>
+                                </button>
                             </div>
                             <button onclick="window.renderAdvancedFilterModal()" class="w-10 h-10 bg-white border border-slate-300 rounded-lg flex items-center justify-center text-navy shadow-sm active:bg-slate-50 relative">
                                 <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
@@ -1427,7 +1517,13 @@
                 });
             }
 
-            return filtered.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+            if (state.masterEventFilter === 'inativos') {
+                // Passado: registros do mais novo para o mais velho (ordem decrescente)
+                return filtered.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
+            } else {
+                // Futuro ou Padrão: do mais próximo para o mais distante (ordem crescente)
+                return filtered.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+            }
         }
 
         function getFilterDescription(context = 'home') {
@@ -2985,16 +3081,7 @@
                                     <tbody>
                                         ${tableRows || `<tr><td colspan="${isExclusiveBatismoOuCeia ? 8 : 5}" class="p-8 text-center text-slate-300 italic font-medium align-middle">Nenhum evento encontrado.</td></tr>`}
                                     </tbody>
-                                    ${isExclusiveBatismoOuCeia && tableRows && (i === totalPages - 1) ? `
-                                    <tfoot>
-                                        <tr class="bg-slate-100 text-[8px] md:text-[11px] font-black text-navy uppercase tracking-wider">
-                                            <td colspan="4" class="py-1 px-1 md:py-1 md:px-2 text-left">${(() => { const tp = state.types.find(t => t.id === events[0].type_id); return (tp?.name || '').toLowerCase().includes('batismo') ? 'Total de Batismo(s): ' + events.length : 'Total de Santa(s) Ceia(s): ' + events.length; })()}</td>
-                                            <td class="py-1 px-1 md:py-1 md:px-2 text-right">Totais:</td>
-                                            <td class="py-1 px-1 md:py-1 md:px-2 border-l border-slate-200 text-center">${totalH}</td>
-                                            <td class="py-1 px-1 md:py-1 md:px-2 border-l border-slate-200 text-center">${totalM}</td>
-                                            <td class="py-1 px-1 md:py-1 md:px-2 border-l border-slate-200 text-center">${totalT}</td>
-                                        </tr>
-                                    </tfoot>` : ''}
+                                    ${isExclusiveBatismoOuCeia && tableRows && (i === totalPages - 1) ? `<tfoot><tr class="bg-slate-100 border-t-2 border-navy"><td colspan="3" class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-left uppercase tracking-wider align-middle border-r border-slate-200" style="vertical-align: middle;">${(() => { const tp = state.types.find(t => t.id === events[0].type_id); return (tp?.name || '').toLowerCase().includes('batismo') ? 'Total de Batismo(s): ' + events.length : 'Total de Santa(s) Ceia(s): ' + events.length; })()}</td><td colspan="2" class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-right uppercase tracking-wider align-middle border-r border-slate-200" style="vertical-align: middle;">Totais</td><td class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-center align-middle border-r border-slate-200" style="vertical-align: middle;">${totalH}</td><td class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-center align-middle border-r border-slate-200" style="vertical-align: middle;">${totalM}</td><td class="py-1.5 px-2 text-[8px] md:text-[11px] font-black text-navy text-center align-middle" style="vertical-align: middle;">${totalT}</td></tr></tfoot>` : ''}
                                 </table>
                             </div>
                             
@@ -4040,6 +4127,832 @@
             returnToLocationModal: () => {
                 const cache = window.__location_modal_cache;
                 window.openRowModal('locations', cache.id, cache.item);
+            },
+            startVoiceAssistant: () => {
+                if (window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
+                showModal(`
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border-t-8 border-orange-custom" id="voice-assistant-modal-content">
+                        <div class="p-6 flex flex-col items-center text-center">
+                            <div class="w-full flex justify-between items-center mb-3 shrink-0">
+                                <h3 class="text-sm font-black text-navy uppercase tracking-tight">Assistente de Voz</h3>
+                                <button onclick="window.closeVoiceAssistant()" class="text-slate-400 hover:text-slate-600 p-1">
+                                    <i data-lucide="x" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Toggle switch for automatic response -->
+                            <div class="w-full flex justify-between items-center bg-slate-50 p-2.5 rounded-2xl mb-4 border border-slate-100 shrink-0">
+                                <div class="flex flex-col text-left">
+                                    <span class="text-[9px] font-extrabold text-navy uppercase tracking-wider">Resposta Automática</span>
+                                    <span class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Aplicar filtros sem confirmar</span>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="voice-auto-toggle" class="sr-only peer" ${state.autoVoiceResponse ? 'checked' : ''} onchange="window.toggleAutoVoiceResponse(this.checked)">
+                                    <div class="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-orange-custom"></div>
+                                </label>
+                            </div>
+
+                            <div id="voice-assistant-body" class="w-full flex flex-col items-center">
+                                <div class="voice-orb-container">
+                                    <div class="voice-pulse-ring" id="voice-ring-1"></div>
+                                    <div class="voice-pulse-ring-2" id="voice-ring-2"></div>
+                                    <div class="voice-orb" id="voice-assistant-orb">
+                                        <i data-lucide="mic" class="w-8 h-8" id="voice-mic-icon"></i>
+                                    </div>
+                                </div>
+                                
+                                <div class="w-full mt-4 px-2 min-h-[120px] flex flex-col justify-center">
+                                    <div id="voice-status" class="text-xs font-bold text-orange-custom uppercase tracking-wide">Aguardando...</div>
+                                    <div id="voice-query" class="text-sm font-semibold text-slate-500 mt-2 italic max-h-[60px] overflow-y-auto"></div>
+                                    <div id="voice-response" class="text-sm font-bold text-navy mt-4 leading-relaxed max-h-[85px] overflow-y-auto"></div>
+                                </div>
+                                
+                                <div class="w-full flex gap-3 mt-6">
+                                    <button onclick="window.retryVoiceAssistant()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
+                                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Ouvir
+                                    </button>
+                                    <button onclick="window.closeVoiceAssistant()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all">
+                                        Fechar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `);
+                renderIcons();
+                window.runVoiceRecognition();
+            },
+             toggleAutoVoiceResponse: (checked) => {
+                state.autoVoiceResponse = checked;
+                localStorage.setItem('autoVoiceResponse', checked ? 'true' : 'false');
+            },
+            handleVoiceTextEdit: (newText) => {
+                if (window.__voice_edit_timeout) clearTimeout(window.__voice_edit_timeout);
+                window.__voice_edit_timeout = setTimeout(() => {
+                    if (window.__pendingVoiceFilter) {
+                        window.__pendingVoiceFilter.text = newText;
+                    }
+                    window.interpretVoiceQuery(newText);
+                }, 750);
+            },
+            closeVoiceAssistant: () => {
+                if (window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
+                if (window.__voice_recognition) {
+                    window.__voice_recognition.abort();
+                }
+                window.__pendingVoiceFilter = null;
+                closeModal();
+            },
+            retryVoiceAssistant: () => {
+                if (window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
+                window.runVoiceRecognition();
+            },
+            runVoiceRecognition: () => {
+                const bodyEl = document.getElementById('voice-assistant-body');
+                if (bodyEl && !bodyEl.querySelector('#voice-assistant-orb')) {
+                    bodyEl.innerHTML = `
+                        <div class="voice-orb-container animate-fade-in">
+                            <div class="voice-pulse-ring" id="voice-ring-1"></div>
+                            <div class="voice-pulse-ring-2" id="voice-ring-2"></div>
+                            <div class="voice-orb" id="voice-assistant-orb">
+                                <i data-lucide="mic" class="w-8 h-8" id="voice-mic-icon"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="w-full mt-4 px-2 min-h-[120px] flex flex-col justify-center">
+                            <div id="voice-status" class="text-xs font-bold text-orange-custom uppercase tracking-wide">Aguardando...</div>
+                            <div id="voice-query" class="text-sm font-semibold text-slate-500 mt-2 italic max-h-[60px] overflow-y-auto"></div>
+                            <div id="voice-response" class="text-sm font-bold text-navy mt-4 leading-relaxed max-h-[85px] overflow-y-auto"></div>
+                        </div>
+                        
+                        <div class="w-full flex gap-3 mt-6">
+                            <button onclick="window.retryVoiceAssistant()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Ouvir
+                            </button>
+                            <button onclick="window.closeVoiceAssistant()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all">
+                                Fechar
+                            </button>
+                        </div>
+                    `;
+                    renderIcons();
+                }
+
+                const statusEl = document.getElementById('voice-status');
+                const queryEl = document.getElementById('voice-query');
+                const responseEl = document.getElementById('voice-response');
+                const orb = document.getElementById('voice-assistant-orb');
+                const micIcon = document.getElementById('voice-mic-icon');
+                
+                if (queryEl) queryEl.innerText = "";
+                if (responseEl) responseEl.innerText = "";
+                if (orb) {
+                    orb.className = "voice-orb";
+                    if (micIcon) micIcon.setAttribute('data-lucide', 'mic');
+                    renderIcons();
+                }
+
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    if (statusEl) statusEl.innerText = "Não suportado";
+                    if (responseEl) responseEl.innerText = "Desculpe, o reconhecimento de voz não é suportado pelo seu navegador.";
+                    return;
+                }
+
+                if (window.__voice_recognition) {
+                    try { window.__voice_recognition.abort(); } catch(e){}
+                }
+
+                const recognition = new SpeechRecognition();
+                window.__voice_recognition = recognition;
+                recognition.lang = 'pt-BR';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                recognition.onstart = () => {
+                    if (statusEl) statusEl.innerText = "Ouvindo... Fale agora";
+                };
+
+                recognition.onresult = (event) => {
+                    const speechResult = event.results[0][0].transcript;
+                    if (statusEl) statusEl.innerText = "Processando...";
+                    if (queryEl) queryEl.innerText = `Você disse: "${speechResult}"`;
+                    window.interpretVoiceQuery(speechResult);
+                };
+
+                recognition.onerror = (event) => {
+                    console.error("[VoiceRecognition] Error:", event.error);
+                    if (orb) {
+                        orb.className = "voice-orb voice-error";
+                        if (micIcon) micIcon.setAttribute('data-lucide', 'mic-off');
+                        renderIcons();
+                    }
+                    if (statusEl) statusEl.innerText = "Erro";
+                    
+                    let errMsg = "Ocorreu um erro ao capturar sua voz. Tente novamente.";
+                    if (event.error === 'not-allowed') {
+                        errMsg = "Acesso ao microfone negado. Habilite a permissão nas configurações do seu navegador.";
+                    } else if (event.error === 'no-speech') {
+                        errMsg = "Não ouvi nada. Por favor, tente falar novamente.";
+                    }
+                    
+                    if (responseEl) responseEl.innerText = errMsg;
+                    window.speakVoiceResponse(errMsg);
+                };
+
+                recognition.onend = () => {
+                    window.__voice_recognition = null;
+                };
+
+                try {
+                    recognition.start();
+                } catch (e) {
+                    console.error(e);
+                }
+            },
+            interpretVoiceQuery: (text) => {
+                // Pre-processing corrections for speech-to-text engine errors
+                let correctedText = text;
+                const replacements = [
+                    { regex: /\bmar[cç]o\b\s+de\b/gi, replace: "marcos de" },
+                    { regex: /\bmar[cç]o\b\s+lima\b/gi, replace: "marcos lima" },
+                    { regex: /\bmar[cç]o\b\s+de\s+lima\b/gi, replace: "marcos de lima" },
+                    { regex: /\bce\s+ce\s+be\b/gi, replace: "ccb" },
+                    { regex: /\bcecebe\b/gi, replace: "ccb" },
+                    { regex: /\bc\s+c\s+b\b/gi, replace: "ccb" }
+                ];
+                replacements.forEach(r => {
+                    correctedText = correctedText.replace(r.regex, r.replace);
+                });
+
+                const clean = correctedText.toLowerCase()
+                                  .normalize("NFD")
+                                  .replace(/[\u0300-\u036f]/g, "")
+                                  .trim();
+
+                const monthsMap = {
+                    'janeiro': 0, 'fevereiro': 1, 'marco': 2, 'abril': 3, 'maio': 4, 'junho': 5,
+                    'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+                };
+
+                const today = new Date();
+                const currentYear = today.getFullYear();
+                const currentMonth = today.getMonth();
+                
+                let queryYear = currentYear;
+                const yearMatch = clean.match(/\b(20\d{2})\b/);
+                if (yearMatch) {
+                    queryYear = parseInt(yearMatch[1]);
+                }
+
+                let dateStart = '';
+                let dateEnd = '';
+                let periodLabel = '';
+                
+                let monthFound = null;
+                for (const [mName, mIdx] of Object.entries(monthsMap)) {
+                    const mRegex = new RegExp(`\\b${mName}\\b`);
+                    if (mRegex.test(clean)) {
+                        monthFound = mIdx;
+                        break;
+                    }
+                }
+
+                if (monthFound !== null) {
+                    const end = new Date(queryYear, monthFound + 1, 0);
+                    dateStart = `${queryYear}-${String(monthFound + 1).padStart(2, '0')}-01`;
+                    dateEnd = `${queryYear}-${String(monthFound + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+                    const mNamesPT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+                    periodLabel = `${mNamesPT[monthFound]} de ${queryYear}`;
+                } else if (clean.includes("hoje")) {
+                    const dStr = today.toISOString().split('T')[0];
+                    dateStart = dStr;
+                    dateEnd = dStr;
+                    periodLabel = "Hoje";
+                } else if (clean.includes("amanha")) {
+                    const tom = new Date(today);
+                    tom.setDate(today.getDate() + 1);
+                    const dStr = tom.toISOString().split('T')[0];
+                    dateStart = dStr;
+                    dateEnd = dStr;
+                    periodLabel = "Amanhã";
+                } else if (clean.includes("esta semana") || clean.includes("essa semana")) {
+                    const d1 = new Date(today);
+                    d1.setDate(today.getDate() - today.getDay());
+                    const d2 = new Date(d1);
+                    d2.setDate(d1.getDate() + 6);
+                    dateStart = d1.toISOString().split('T')[0];
+                    dateEnd = d2.toISOString().split('T')[0];
+                    periodLabel = "Esta Semana";
+                } else if (clean.includes("semana que vem") || clean.includes("proxima semana")) {
+                    const d1 = new Date(today);
+                    d1.setDate(today.getDate() - today.getDay() + 7);
+                    const d2 = new Date(d1);
+                    d2.setDate(d1.getDate() + 6);
+                    dateStart = d1.toISOString().split('T')[0];
+                    dateEnd = d2.toISOString().split('T')[0];
+                    periodLabel = "Semana que vem";
+                } else if (clean.includes("este mes") || clean.includes("desse mes")) {
+                    const end = new Date(currentYear, currentMonth + 1, 0);
+                    dateStart = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+                    dateEnd = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+                    const mNamesPT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+                    periodLabel = `${mNamesPT[currentMonth]} de ${currentYear}`;
+                } else if (clean.includes("mes que vem") || clean.includes("proximo mes")) {
+                    let nextMonth = currentMonth + 1;
+                    let nextYear = currentYear;
+                    if (nextMonth > 11) {
+                        nextMonth = 0;
+                        nextYear += 1;
+                    }
+                    const end = new Date(nextYear, nextMonth + 1, 0);
+                    dateStart = `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-01`;
+                    dateEnd = `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+                    const mNamesPT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+                    periodLabel = `${mNamesPT[nextMonth]} de ${nextYear}`;
+                } else if (clean.includes("este ano") || clean.includes("desse ano")) {
+                    dateStart = `${currentYear}-01-01`;
+                    dateEnd = `${currentYear}-12-31`;
+                    periodLabel = `Ano de ${currentYear}`;
+                } else if (clean.includes("ano que vem") || clean.includes("proximo ano")) {
+                    const nextYear = currentYear + 1;
+                    dateStart = `${nextYear}-01-01`;
+                    dateEnd = `${nextYear}-12-31`;
+                    periodLabel = `Ano de ${nextYear}`;
+                }
+
+                let matchedType = null;
+                // Sort types by name length descending so more specific names match first
+                const sortedTypes = [...state.types].sort((a, b) => b.name.length - a.name.length);
+                for (const type of sortedTypes) {
+                    const typeName = type.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    const typeSigla = type.sigla.toLowerCase();
+                    // Use word-boundary matching for the type name words
+                    const typeWords = typeName.trim().split(/\s+/);
+                    const typeMatches = typeWords.every(w => w.length >= 3 && new RegExp(`\\b${w}\\b`).test(clean));
+                    if (typeMatches || (typeSigla.length >= 2 && clean.split(/\s+/).includes(typeSigla))) {
+                        matchedType = type;
+                        break;
+                    }
+                }
+
+                let matchedAtt = null;
+                let matchedAtt2 = null;
+                for (const att of state.attendants) {
+                    const attName = att.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    const attWords = attName.trim().split(/\s+/);
+                    // Match if ALL words of the attendant name appear as whole words in the query
+                    const attMatches = attWords.every(w => w.length >= 3 && new RegExp(`\\b${w}\\b`).test(clean));
+                    if (attMatches) {
+                        if (!matchedAtt) matchedAtt = att;
+                        else if (!matchedAtt2) { matchedAtt2 = att; break; }
+                    }
+                }
+
+                let matchedLoc = null;
+                let matchedCidade = '';
+                let matchedSetor = '';
+                let matchedAdm = '';
+
+                // Sort locations by name length descending so longer/more specific names match first
+                const sortedLocs = [...state.locations].sort((a, b) => b.localidade.length - a.localidade.length);
+                for (const loc of sortedLocs) {
+                    const locName = loc.localidade.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    // Use word-boundary matching for each word in the location name
+                    const locWords = locName.trim().split(/\s+/);
+                    const locMatches = locWords.every(w => w.length >= 3 && new RegExp(`\\b${w}\\b`).test(clean));
+                    if (locMatches) {
+                        matchedLoc = loc;
+                        break;
+                    }
+                }
+
+                if (!matchedLoc) {
+                    // Sort cities by length descending so longer/more specific names match first
+                    const allCidades = [...new Set(state.locations.map(l => (l.cidade || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")))]
+                        .filter(Boolean)
+                        .sort((a, b) => b.length - a.length);
+                    for (const cidade of allCidades) {
+                        // Use word-boundary matching for each word in the city name
+                        const cidadeWords = cidade.trim().split(/\s+/);
+                        const cidadeMatches = cidadeWords.every(w => w.length >= 3 && new RegExp(`\\b${w}\\b`).test(clean));
+                        if (cidadeMatches) {
+                            matchedCidade = state.locations.find(l => l.cidade?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === cidade)?.cidade || '';
+                            const locsInCidade = state.locations.filter(l => (l.cidade || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === cidade);
+                            if (locsInCidade.length === 1) matchedLoc = locsInCidade[0];
+                            break;
+                        }
+                    }
+                }
+
+                if (!matchedSetor) {
+                    const allSetores = [...new Set(state.locations.map(l => (l.setor || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")))].filter(Boolean);
+                    for (const setor of allSetores) {
+                        if (setor.length >= 2 && new RegExp(`\\b${setor}\\b`).test(clean)) {
+                            matchedSetor = state.locations.find(l => l.setor?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === setor)?.setor || '';
+                            break;
+                        }
+                    }
+                }
+
+                if (!matchedAdm) {
+                    const allAdms = [...new Set(state.locations.map(l => (l.adm || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")))].filter(Boolean);
+                    for (const adm of allAdms) {
+                        if (adm.length >= 4 && new RegExp(`\\b${adm}\\b`).test(clean)) {
+                            matchedAdm = state.locations.find(l => l.adm?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === adm)?.adm || '';
+                            break;
+                        }
+                    }
+                }
+
+                if (matchedLoc) {
+                    if (!matchedAdm && matchedLoc.adm) matchedAdm = matchedLoc.adm;
+                    if (!matchedSetor && matchedLoc.setor) matchedSetor = matchedLoc.setor;
+                    if (!matchedCidade && matchedLoc.cidade) matchedCidade = matchedLoc.cidade;
+                }
+
+                // Detect context using morphological-semantic classification (Filtro Mestre)
+                const detectVerbTense = (text) => {
+                    const cleanText = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                    
+                    const pastKeywords = [
+                        "ultimo", "ultima", "ultimos", "ultimas", 
+                        "realizado", "realizada", "realizados", "realizadas", 
+                        "aconteceu", "aconteceram", "passado", "passada", "passados", "passadas",
+                        "anterior", "anteriores", "foi", "foram", "teve", "tiveram", "houve", "fez", "fizeram",
+                        "ocorreu", "ocorreram", "participou", "participaram", "assistiu", "assistiram",
+                        "realizou", "realizaram", "agendou", "agendaram"
+                    ];
+                    
+                    const futureKeywords = [
+                        "proximo", "proxima", "proximos", "proximas", 
+                        "agendado", "agendada", "agendados", "agendadas", 
+                        "vai", "vao", "iremos", "programado", "programada", "programados", "programadas",
+                        "futuro", "futuros", "futura", "futuras", "sera", "serao", 
+                        "acontecera", "acontecerao", "realizara", "realizarao", "tera", "terao", "fara", "farao",
+                        "havera", "agendara", "agendarao", "programara", "programarao", "marcara", "marcarao"
+                    ];
+
+                    const hasPast = pastKeywords.some(kw => {
+                        const regex = new RegExp(`\\b${kw}\\b`);
+                        return regex.test(cleanText);
+                    });
+
+                    const hasFuture = futureKeywords.some(kw => {
+                        const regex = new RegExp(`\\b${kw}\\b`);
+                        return regex.test(cleanText);
+                    });
+
+                    if (hasFuture && !hasPast) {
+                        return 'ativos';
+                    } else if (hasPast && !hasFuture) {
+                        return 'inativos';
+                    } else {
+                        return 'todos';
+                    }
+                };
+
+                const tenseDetected = detectVerbTense(clean);
+                const isPastQuery = tenseDetected === 'inativos';
+                const isFutureQuery = tenseDetected === 'ativos';
+
+                let eventsList = [...state.events];
+                const now = new Date();
+
+                if (!dateStart && !dateEnd) {
+                    if (isPastQuery && !isFutureQuery) {
+                        eventsList = eventsList.filter(e => new Date(`${e.date}T${e.time}`) < now);
+                    } else if (isFutureQuery && !isPastQuery) {
+                        eventsList = eventsList.filter(e => new Date(`${e.date}T${e.time}`) >= now);
+                    } else {
+                        // Use the master filter logic for neutral/present queries
+                        if (state.masterEventFilter !== 'todos') {
+                            eventsList = eventsList.filter(e => {
+                                const isPast = new Date(`${e.date}T${e.time}`) < now;
+                                return state.masterEventFilter === 'ativos' ? !isPast : isPast;
+                            });
+                        }
+                    }
+                } else {
+                    eventsList = eventsList.filter(e => e.date >= dateStart && e.date <= dateEnd);
+                }
+
+                if (matchedType) {
+                    eventsList = eventsList.filter(e => e.type_id === matchedType.id);
+                }
+                if (matchedLoc) {
+                    eventsList = eventsList.filter(e => e.location_id === matchedLoc.id);
+                }
+                if (matchedAtt) {
+                    eventsList = eventsList.filter(e => e.attendant_id === matchedAtt.id || e.attendant2_id === matchedAtt.id
+                        || (matchedAtt2 && (e.attendant_id === matchedAtt2.id || e.attendant2_id === matchedAtt2.id)));
+                }
+                if (!matchedLoc) {
+                    if (matchedAdm || matchedSetor || matchedCidade) {
+                        const normF = s => (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                        eventsList = eventsList.filter(e => {
+                            const loc = state.locations.find(l => l.id === e.location_id);
+                            if (!loc) return false;
+                            if (matchedAdm && normF(loc.adm) !== normF(matchedAdm)) return false;
+                            if (matchedSetor && normF(loc.setor) !== normF(matchedSetor)) return false;
+                            if (matchedCidade && normF(loc.cidade) !== normF(matchedCidade)) return false;
+                            return true;
+                        });
+                    }
+                }
+
+                if (isPastQuery && !isFutureQuery) {
+                    eventsList.sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+                } else {
+                    eventsList.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+                }
+
+                let responseText = "";
+                const isQuantityQuery = clean.includes("quanto") || clean.includes("quantidade") || clean.includes("numero") || clean.includes("total");
+
+                if (eventsList.length === 0) {
+                    const typeLabel = matchedType ? matchedType.name : "evento";
+                    const locLabel = matchedLoc ? ` em ${matchedLoc.localidade}` : "";
+                    const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
+                    const verbLabel = isPastQuery ? "foi encontrado" : "está agendado";
+                    responseText = `Não encontrei nenhum ${typeLabel}${locLabel}${periodLabelText} que ${verbLabel}.`;
+                } else {
+                    if (isQuantityQuery) {
+                        const typeLabel = matchedType ? matchedType.name : "evento";
+                        const locLabel = matchedLoc ? ` em ${matchedLoc.localidade}` : "";
+                        const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
+                        const pluralEvent = eventsList.length === 1 ? typeLabel : (matchedType ? `${typeLabel}s` : "eventos");
+                        
+                        let verb = "";
+                        const first = eventsList[0];
+                        const isPast = new Date(`${first.date}T${first.time}`) < now;
+                        if (isPast) {
+                            verb = eventsList.length === 1 ? "foi realizado" : "foram realizados";
+                        } else {
+                            verb = eventsList.length === 1 ? "está agendado" : "estão agendados";
+                        }
+                        
+                        responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${verb}${locLabel}${periodLabelText}.`;
+                        
+                        if (matchedType && matchedType.name.toLowerCase().includes("batismo")) {
+                            let totalIrmaos = 0;
+                            let totalIrmas = 0;
+                            eventsList.forEach(e => {
+                                totalIrmaos += (e.irmaos || 0);
+                                totalIrmas += (e.irmas || 0);
+                            });
+                            const totalCandidatos = totalIrmaos + totalIrmas;
+                            if (isPast) {
+                                responseText += ` Foram batizados ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalCandidatos}.`;
+                            } else {
+                                if (totalCandidatos > 0) {
+                                    responseText += ` No total, são ${totalCandidatos} ${totalCandidatos === 1 ? 'candidato' : 'candidatos'}, sendo ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}.`;
+                                } else {
+                                    responseText += ` Ainda não há candidatos registrados.`;
+                                }
+                            }
+                        }
+                    } else {
+                        const isLastQuery = clean.includes("ultimo") || clean.includes("ultima");
+                        
+                        if (isLastQuery) {
+                            const first = eventsList[0];
+                            const fDateParts = first.date.split('-');
+                            const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
+                            const fType = state.types.find(t => t.id === first.type_id)?.name || "evento";
+                            const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
+                            const attName = matchedAtt ? matchedAtt.name : (state.attendants.find(a => a.id === first.attendant_id)?.name || "");
+                            
+                            const attText = attName ? ` atendido por ${attName}` : "";
+                            const locText = fLoc ? ` em ${fLoc}` : "";
+                            
+                            if (fType.toLowerCase().includes("batismo")) {
+                                const irmaos = first.irmaos || 0;
+                                const irmas = first.irmas || 0;
+                                const total = irmaos + irmas;
+                                responseText = `O último batismo${attText}${locText} foi no dia ${fDateFormatted} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
+                            } else {
+                                responseText = `O último ${fType}${attText}${locText} foi no dia ${fDateFormatted} às ${first.time}.`;
+                            }
+                        } else {
+                            const first = eventsList[0];
+                            const isPast = new Date(`${first.date}T${first.time}`) < now;
+                            const fType = state.types.find(t => t.id === first.type_id)?.name || "Evento";
+                            const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
+                            const fDateParts = first.date.split('-');
+                            const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
+                            
+                            let verb = isPast ? "aconteceu" : "está agendado";
+                            if (clean.includes("quando")) {
+                                verb = isPast ? "foi" : "será";
+                            }
+                            
+                            responseText = `Encontrei ${eventsList.length} ${eventsList.length === 1 ? 'evento' : 'eventos'}. O ${isPast ? 'último' : 'próximo'} ${verb} no dia ${fDateFormatted} às ${first.time} em ${fLoc}.`;
+                        }
+                    }
+                }
+
+                // Construct parsed result payload
+                const parsed = {
+                    text: text,
+                    tense: tenseDetected,
+                    matchedType: matchedType,
+                    matchedLoc: matchedLoc,
+                    matchedCidade: matchedCidade,
+                    matchedSetor: matchedSetor,
+                    matchedAdm: matchedAdm,
+                    matchedAtt: matchedAtt,
+                    dateStart: dateStart,
+                    dateEnd: dateEnd,
+                    periodLabel: periodLabel,
+                    eventsList: eventsList,
+                    responseText: responseText
+                };
+
+                window.__pendingVoiceFilter = parsed;
+
+                // Check for Automatic Response vs Manual Confirmation
+                if (state.autoVoiceResponse) {
+                    window.applyVoiceFilter(parsed);
+                } else {
+                    window.showVoiceConfirmation(
+                        text, 
+                        tenseDetected, 
+                        matchedType, 
+                        matchedLoc, 
+                        matchedCidade, 
+                        matchedSetor, 
+                        matchedAdm, 
+                        matchedAtt, 
+                        periodLabel, 
+                        eventsList
+                    );
+                }
+            },
+            showVoiceConfirmation: (text, tense, matchedType, matchedLoc, matchedCidade, matchedSetor, matchedAdm, matchedAtt, periodLabel, eventsList) => {
+                const bodyEl = document.getElementById('voice-assistant-body');
+                if (!bodyEl) return;
+
+                let tenseLabel = "Todos";
+                if (tense === 'ativos') tenseLabel = "Ativos";
+                else if (tense === 'inativos') tenseLabel = "Inativos";
+
+                // Prepare preview chips
+                const chipsHtml = `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-navy text-white shadow-sm border border-navy/10">
+                        <i data-lucide="activity" class="w-2.5 h-2.5 text-orange-custom"></i>
+                        Filtro Mestre: ${tenseLabel}
+                    </span>
+                    ${matchedType ? `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-orange-custom/10 text-orange-custom border border-orange-custom/20">
+                        <i data-lucide="tag" class="w-2.5 h-2.5"></i>
+                        ${matchedType.name}
+                    </span>` : ''}
+                    ${matchedLoc ? `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <i data-lucide="map-pin" class="w-2.5 h-2.5"></i>
+                        ${matchedLoc.localidade}
+                    </span>` : ''}
+                    ${matchedCidade ? `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200">
+                        <i data-lucide="building-2" class="w-2.5 h-2.5"></i>
+                        ${matchedCidade}
+                    </span>` : ''}
+                    ${matchedSetor ? `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <i data-lucide="layers" class="w-2.5 h-2.5"></i>
+                        Setor ${matchedSetor}
+                    </span>` : ''}
+                    ${matchedAdm ? `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                        <i data-lucide="user-cog" class="w-2.5 h-2.5"></i>
+                        ADM ${matchedAdm}
+                    </span>` : ''}
+                    ${matchedAtt ? `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                        <i data-lucide="user" class="w-2.5 h-2.5"></i>
+                        ${matchedAtt.name}
+                    </span>` : ''}
+                    ${periodLabel ? `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                        <i data-lucide="calendar" class="w-2.5 h-2.5"></i>
+                        ${periodLabel}
+                    </span>` : ''}
+                `;
+
+                const countHtml = `
+                    <span>Eventos Filtrados: <strong>${eventsList.length}</strong></span>
+                    <span class="text-orange-custom animate-pulse uppercase tracking-wider">Aguardando Confirmação</span>
+                `;
+
+                const editInput = document.getElementById('voice-edit-input');
+                if (editInput) {
+                    // Selective update: only update chips wrapper and counts to prevent losing keyboard focus
+                    const chipsWrapper = document.getElementById('voice-chips-wrapper');
+                    if (chipsWrapper) chipsWrapper.innerHTML = chipsHtml;
+                    
+                    const countWrapper = document.getElementById('voice-count-wrapper');
+                    if (countWrapper) countWrapper.innerHTML = countHtml;
+                    
+                    renderIcons();
+                } else {
+                    // First time rendering confirmation UI
+                    bodyEl.innerHTML = `
+                        <div class="w-full flex flex-col items-center animate-fade-in shrink-0">
+                            <!-- Transcribed Phrase (Editable) -->
+                            <div class="w-full text-left mb-2.5 bg-slate-50 border border-slate-100 p-2.5 rounded-2xl shrink-0">
+                                <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Editar Pergunta:</span>
+                                <div class="relative w-full flex items-center bg-white border border-slate-200 rounded-xl px-2 py-1.5 focus-within:ring-1 focus-within:ring-navy/20">
+                                    <input type="text" id="voice-edit-input" class="w-full bg-transparent text-xs font-bold text-navy italic focus:outline-none pr-6" value="${text}" oninput="window.handleVoiceTextEdit(this.value)">
+                                    <i data-lucide="edit-3" class="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none"></i>
+                                </div>
+                            </div>
+                            
+                            <!-- Filter Preview Area -->
+                            <div class="w-full text-left bg-slate-50 border border-slate-100 p-2.5 rounded-2xl mb-3 max-h-[140px] overflow-y-auto scrollbar-none shrink-0">
+                                <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Filtros Mapeados:</span>
+                                <div id="voice-chips-wrapper" class="flex flex-wrap gap-1">
+                                    ${chipsHtml}
+                                </div>
+                                <div id="voice-count-wrapper" class="text-[8px] text-slate-400 font-extrabold mt-2.5 border-t border-slate-100 pt-2 flex justify-between shrink-0">
+                                    ${countHtml}
+                                </div>
+                            </div>
+                            
+                            <!-- Confirmation Action Buttons -->
+                            <div class="w-full flex gap-3 shrink-0">
+                                <button onclick="window.retryVoiceAssistant()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Refazer
+                                </button>
+                                <button onclick="window.confirmVoiceFilter()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-navy/20">
+                                    <i data-lucide="check" class="w-4 h-4 text-orange-custom"></i> OK
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    renderIcons();
+                }
+            },
+            confirmVoiceFilter: () => {
+                const editInput = document.getElementById('voice-edit-input');
+                if (editInput) {
+                    // Cancel any pending debounce timeout from text editing
+                    if (window.__voice_edit_timeout) {
+                        clearTimeout(window.__voice_edit_timeout);
+                        window.__voice_edit_timeout = null;
+                    }
+                    // Synchronously re-interpret current text to ensure __pendingVoiceFilter is fresh
+                    window.interpretVoiceQuery(editInput.value);
+                }
+                
+                const pending = window.__pendingVoiceFilter;
+                if (!pending) return;
+                window.applyVoiceFilter(pending);
+            },
+            applyVoiceFilter: (pending) => {
+                // 1. Reset ALL filters before applying voice criteria (including master filter)
+                state.searchTerm = '';
+                state.selectedDate = null;
+                state.fastFilter = { active: false };
+                state.masterEventFilter = pending.tense; // Set master filter based on tense!
+                localStorage.setItem('masterEventFilter', pending.tense);
+                state.highlightedItemId = null;
+
+                // 2. Apply voice-derived filters
+                state.advancedFilter = {
+                    active: true,
+                    eventos: { enabled: true, status: pending.tense },
+                    type: { enabled: !!pending.matchedType, id: pending.matchedType ? pending.matchedType.id : '' },
+                    location: { enabled: !!pending.matchedLoc, id: pending.matchedLoc ? pending.matchedLoc.id : '' },
+                    attendant: { enabled: !!pending.matchedAtt, id: pending.matchedAtt ? pending.matchedAtt.id : '' },
+                    adm: { enabled: !!pending.matchedAdm, value: pending.matchedAdm || '' },
+                    setor: { enabled: !!pending.matchedSetor, value: pending.matchedSetor || '' },
+                    cidade: { enabled: !!pending.matchedCidade, value: pending.matchedCidade || '' },
+                    period: { enabled: !!(pending.dateStart && pending.dateEnd), start: pending.dateStart || '', end: pending.dateEnd || '' },
+                    validationErrors: []
+                };
+
+                if (document.getElementById('homeSearch')) {
+                    document.getElementById('homeSearch').value = '';
+                }
+
+                // 3. Update home list
+                window.updateHomeList();
+
+                // 4. Transform body layout to Speak/Success visual report
+                const bodyEl = document.getElementById('voice-assistant-body');
+                if (bodyEl) {
+                    bodyEl.innerHTML = `
+                        <div class="voice-orb-container animate-fade-in shrink-0">
+                            <div class="voice-pulse-ring" id="voice-ring-1"></div>
+                            <div class="voice-pulse-ring-2" id="voice-ring-2"></div>
+                            <div class="voice-orb voice-speaking" id="voice-assistant-orb">
+                                <i data-lucide="volume-2" class="w-8 h-8" id="voice-mic-icon"></i>
+                            </div>
+                        </div>
+                        <div class="w-full mt-4 px-2 text-center shrink-0">
+                            <div id="voice-status" class="text-[9px] font-black text-orange-custom uppercase tracking-widest">Filtrado com Sucesso</div>
+                            <div id="voice-response" class="text-xs font-bold text-navy mt-4 leading-relaxed max-h-[110px] overflow-y-auto scrollbar-none">${pending.responseText}</div>
+                        </div>
+                    `;
+                    renderIcons();
+                } else {
+                    const statusEl = document.getElementById('voice-status');
+                    const responseEl = document.getElementById('voice-response');
+                    if (statusEl) statusEl.innerText = "Resposta por Voz";
+                    if (responseEl) responseEl.innerText = pending.responseText;
+                }
+
+                // 5. Speak response report
+                window.speakVoiceResponse(pending.responseText);
+            },
+            speakVoiceResponse: (text) => {
+                if (!window.speechSynthesis) return;
+                
+                window.speechSynthesis.cancel();
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'pt-BR';
+                
+                if (window.speechSynthesis.getVoices) {
+                    const voices = window.speechSynthesis.getVoices();
+                    const ptVoice = voices.find(v => v.lang.includes('pt-BR') || v.lang.includes('pt_BR'));
+                    if (ptVoice) {
+                        utterance.voice = ptVoice;
+                    }
+                }
+                
+                utterance.rate = 1.05;
+                utterance.pitch = 1.0;
+                
+                utterance.onstart = () => {
+                    const orb = document.getElementById('voice-assistant-orb');
+                    if (orb) {
+                        orb.className = "voice-orb voice-speaking";
+                    }
+                };
+                
+                utterance.onend = () => {
+                    const orb = document.getElementById('voice-assistant-orb');
+                    if (orb) {
+                        orb.className = "voice-orb";
+                    }
+                    
+                    setTimeout(() => {
+                        const modal = document.getElementById('voice-assistant-modal-content');
+                        if (modal && window.__voice_speaking_text === text) {
+                            window.closeVoiceAssistant();
+                        }
+                    }, 3000);
+                };
+                
+                window.__voice_speaking_text = text;
+                window.speechSynthesis.speak(utterance);
             },
         });
 
