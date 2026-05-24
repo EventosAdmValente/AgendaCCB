@@ -1934,14 +1934,11 @@
                             <!-- Seletor de voz -->
                             <div class="flex flex-col gap-1 mb-4">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Voz</label>
-                                <div class="relative">
-                                    <select id="voice-selector"
-                                        onchange="window.saveVoiceSettings()"
-                                        class="w-full appearance-none p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-navy focus:ring-2 focus:ring-navy/10 transition-all">
-                                        <option value="">Melhor disponível (automático)</option>
-                                    </select>
-                                    <i data-lucide="chevron-down" class="absolute right-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none"></i>
-                                </div>
+                                <button onclick="window.openVoicePickerModal()"
+                                    class="w-full flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-navy focus:ring-2 focus:ring-navy/10 transition-all active:bg-slate-100 text-left">
+                                    <span id="voice-selected-display">Melhor disponível (automático)</span>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                                </button>
                                 <span class="text-[10px] text-slate-400 ml-1 mt-0.5">Vozes disponíveis dependem do seu dispositivo.</span>
                             </div>
 
@@ -1955,7 +1952,7 @@
                                     min="0.5" max="2.0" step="0.05"
                                     value="${parseFloat(localStorage.getItem('voiceRate') || '0.95').toFixed(2)}"
                                     oninput="window.updateVoiceRateLabel(this.value)"
-                                    onchange="window.saveVoiceSettings()"
+                                    onchange="window.saveVoiceRate(this.value)"
                                     class="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-orange-custom">
                                 <div class="flex justify-between text-[9px] text-slate-300 font-bold uppercase tracking-widest px-1">
                                     <span>Lenta</span>
@@ -2001,9 +1998,9 @@
                 </div>
             `;
             renderIcons();
-            // Populando as vozes e definindo velocidade atual
+            // Definindo a voz e velocidade atual
             setTimeout(() => {
-                window.populateVoiceList();
+                window.updateVoiceDisplay();
                 const currentRate = parseFloat(localStorage.getItem('voiceRate') || '0.95');
                 window.updateVoiceRateLabel(currentRate);
             }, 0);
@@ -2015,29 +2012,21 @@
             renderOptions();
         };
 
-        window.populateVoiceList = () => {
-            if (!window.speechSynthesis) return;
-            const selectEl = document.getElementById('voice-selector');
-            if (!selectEl) return;
-
-            const voices = window.speechSynthesis.getVoices();
-            const ptVoices = voices.filter(v =>
-                v.lang.startsWith('pt-BR') || v.lang.startsWith('pt_BR') ||
-                v.lang.startsWith('pt-br') || v.lang.startsWith('pt')
-            );
+        window.updateVoiceDisplay = () => {
+            const displayEl = document.getElementById('voice-selected-display');
+            if (!displayEl) return;
 
             const savedVoiceURI = localStorage.getItem('voiceURI') || '';
-            selectEl.innerHTML = '<option value="">Melhor disponível (automático)</option>';
-
-            ptVoices.forEach(voice => {
-                const opt = document.createElement('option');
-                opt.value = voice.voiceURI;
-                opt.textContent = `${voice.name} (${voice.lang})${voice.localService ? ' [Local]' : ''}`;
-                if (voice.voiceURI === savedVoiceURI) {
-                    opt.selected = true;
+            if (savedVoiceURI === '') {
+                displayEl.textContent = 'Melhor disponível (automático)';
+            } else {
+                if (window.speechSynthesis) {
+                    const voice = window.speechSynthesis.getVoices().find(v => v.voiceURI === savedVoiceURI);
+                    displayEl.textContent = voice ? voice.name : savedVoiceURI;
+                } else {
+                    displayEl.textContent = savedVoiceURI;
                 }
-                selectEl.appendChild(opt);
-            });
+            }
         };
 
         window.updateVoiceRateLabel = (val) => {
@@ -2053,22 +2042,102 @@
             }
         };
 
-        window.saveVoiceSettings = () => {
-            const selectEl = document.getElementById('voice-selector');
-            const sliderEl = document.getElementById('voice-rate-slider');
-            if (selectEl) {
-                localStorage.setItem('voiceURI', selectEl.value);
+        window.saveVoiceRate = (val) => {
+            localStorage.setItem('voiceRate', val);
+        };
+
+        window.selectVoice = (voiceURI) => {
+            localStorage.setItem('voiceURI', voiceURI);
+            window.updateVoiceDisplay();
+        };
+
+        window.openVoicePickerModal = () => {
+            if (!window.speechSynthesis) return;
+            const voices = window.speechSynthesis.getVoices();
+            const ptVoices = voices.filter(v =>
+                v.lang.startsWith('pt-BR') || v.lang.startsWith('pt_BR') ||
+                v.lang.startsWith('pt-br') || v.lang.startsWith('pt')
+            );
+
+            const savedVoiceURI = localStorage.getItem('voiceURI') || '';
+
+            showModal(`
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+                    <div class="p-5 flex justify-between items-center bg-white border-b border-slate-50">
+                        <div class="flex items-center gap-3 text-navy">
+                            <i data-lucide="mic-2" class="w-5 h-5 text-orange-custom"></i>
+                            <h3 class="font-bold text-lg">Selecionar Voz</h3>
+                        </div>
+                        <button onclick="window.closeModal()" class="text-slate-400 p-1">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <div class="px-5 py-4">
+                        <div class="relative group">
+                            <input id="voicePickerSearch" type="text" placeholder="Filtrar vozes..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-navy/10 transition-all">
+                            <i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div id="voicePickerItemsList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none">
+                    </div>
+                </div>
+            `);
+
+            const listEl = document.getElementById('voicePickerItemsList');
+            const renderVoiceList = (filteredVoices) => {
+                let html = '';
+                
+                // Opção automática sempre no topo
+                const isAutoSelected = savedVoiceURI === '';
+                html += `
+                    <button onclick="window.selectVoice(''); window.closeModal();" 
+                        class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100">
+                        <div class="flex flex-col">
+                            <span class="font-bold text-sm text-navy leading-tight">Melhor disponível (automático)</span>
+                            <span class="text-[10px] text-slate-400 font-medium">Usa a voz padrão inteligente do sistema</span>
+                        </div>
+                        ${isAutoSelected ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0"></i>' : ''}
+                    </button>
+                `;
+
+                filteredVoices.forEach(voice => {
+                    const isSelected = voice.voiceURI === savedVoiceURI;
+                    html += `
+                        <button onclick="window.selectVoice('${voice.voiceURI.replace(/'/g, "\\'")}'); window.closeModal();" 
+                            class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-sm text-navy leading-tight">${voice.name}</span>
+                                <span class="text-[10px] text-slate-400 font-medium">${voice.lang}${voice.localService ? ' [Voz Local]' : ' [Voz Online]'}</span>
+                            </div>
+                            ${isSelected ? '<i data-lucide="check" class="w-4 h-4 text-orange-custom shrink-0"></i>' : ''}
+                        </button>
+                    `;
+                });
+
+                return html;
+            };
+
+            if (listEl) {
+                listEl.innerHTML = renderVoiceList(ptVoices);
             }
-            if (sliderEl) {
-                localStorage.setItem('voiceRate', sliderEl.value);
-            }
+
+            document.getElementById('voicePickerSearch')?.addEventListener('input', (e) => {
+                const term = (e.target.value || '').toLowerCase();
+                const filtered = ptVoices.filter(v => v.name.toLowerCase().includes(term));
+                if (listEl) {
+                    listEl.innerHTML = renderVoiceList(filtered);
+                }
+                renderIcons();
+            });
+
+            renderIcons();
         };
 
         if (window.speechSynthesis) {
             window.speechSynthesis.addEventListener('voiceschanged', () => {
-                const selectEl = document.getElementById('voice-selector');
-                if (selectEl) {
-                    window.populateVoiceList();
+                const displayEl = document.getElementById('voice-selected-display');
+                if (displayEl) {
+                    window.updateVoiceDisplay();
                 }
             });
         }
