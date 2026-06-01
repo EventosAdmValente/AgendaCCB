@@ -1,0 +1,15 @@
+OneSignal App ID
+
+6e52759b-9b46-47cb-a241-d5b2b396e38d
+
+Rest API Key
+
+os_v2_app_nzjhlg43izd4xisb2wzlhfxdrxfrbyxgwcdephnx5bwlcauvawf7zkgy5sbz6u47vcb2poqkccou5q2uv2ozhi3fyj7eg75zt3oq27i
+
+
+SUPABASE_SERVICE_ROLE_KEY
+
+6Lx3VxlD1599As3UBw8zO/fWRNIMpo2o/ULYxPqI181TAtoQHtuFM0woUD2eugdg0sUvDor5ZMSJFnmFD+21Dg==
+
+
+

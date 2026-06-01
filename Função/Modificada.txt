@@ -1,0 +1,155 @@
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+
+const ONESIGNAL_APP_ID = Deno.env.get("ONESIGNAL_APP_ID")
+const ONESIGNAL_REST_API_KEY = Deno.env.get("ONESIGNAL_REST_API_KEY")
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform',
+}
+
+serve(async (req) => {
+    if (req.method === 'OPTIONS') {
+        return new Response('ok', { headers: corsHeaders })
+    }
+
+    try {
+        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+            throw new Error("Missing Supabase environment variables.")
+        }
+
+        if (!ONESIGNAL_REST_API_KEY) {
+            throw new Error("ONESIGNAL_REST_API_KEY is missing!")
+        }
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+        // 1. Obter data e hora no fuso de Brasília
+        const now = new Date();
+        
+        // Data formatada para YYYY-MM-DD
+        const today = new Intl.DateTimeFormat('sv-SE', {
+            timeZone: 'America/Sao_Paulo',
+            year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(now);
+
+        // Hora atual (ex: 07, 14, 18)
+        const currentHour = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Sao_Paulo',
+            hour: '2-digit',
+            hour12: false
+        }).format(now);
+
+        // Minuto atual para saber se é aviso inicial ou lembrete
+        const currentMinute = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Sao_Paulo',
+            minute: '2-digit'
+        }).format(now);
+
+        console.log(`[Daily Notifications] Rodando para: ${today} às ${currentHour}:${currentMinute}`);
+
+        // 2. Buscar eventos de hoje
+        const { data: events, error: eventsError } = await supabase
+            .from('agenda')
+            .select('time, location_id, type_id')
+            .eq('date', today)
+
+        if (eventsError) throw eventsError;
+
+        if (!events || events.length === 0) {
+            return new Response(JSON.stringify({ message: "Nenhum evento para hoje." }), {
+                status: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" }
+            })
+        }
+
+        // Buscar nomes de tipos e localidades
+        const [{ data: types }, { data: locations }] = await Promise.all([
+            supabase.from('types').select('id, name'),
+            supabase.from('locations').select('id, localidade')
+        ])
+
+        const typeMap = Object.fromEntries(types?.map(t => [t.id, t.name]) || [])
+        const locMap = Object.fromEntries(locations?.map(l => [l.id, l.localidade]) || [])
+
+        // 3. Determinar público-alvo (Usuários da hora cheia atual)
+        let userIds: string[] = []
+        let isTest = false
+
+        try {
+            const body = await req.json()
+            if (body.user_id) {
+                userIds = [body.user_id]
+                isTest = true
+            }
+        } catch (e) { /* Chamada via Cron */ }
+
+        if (!isTest) {
+            // Como você só permite hora cheia no app, buscamos sempre o que termina em :00
+            const searchTime = `${currentHour}:00`;
+            
+            const { data: subs, error: subsError } = await supabase
+                .from('push_subscriptions')
+                .select('user_id')
+                .eq('active', true)
+                .eq('preferred_time', searchTime)
+
+            if (subsError) throw subsError;
+
+            if (!subs || subs.length === 0) {
+                return new Response(JSON.stringify({ message: `Nenhum inscrito para ${searchTime}` }), {
+                    status: 200,
+                    headers: { ...corsHeaders, "Content-Type": "application/json" }
+                })
+            }
+            userIds = subs.map((s: any) => s.user_id)
+        }
+
+        // 4. Lógica de Título Dinâmico (Lembrete vs Oficial)
+        // Se os minutos forem próximos de 30 (ex: entre 20 e 40), mudamos o título
+        const isReminder = parseInt(currentMinute) >= 20; 
+        const title = isReminder ? "Lembrete: Agenda do Dia" : "Agenda do Dia";
+
+        // 5. Montar sumário e enviar
+        const eventSummary = events
+            .map(e => `${e.time} - ${typeMap[e.type_id] || 'Evento'} em ${locMap[e.location_id] || 'Local'}`)
+            .join('\n')
+
+        const notification = {
+            app_id: ONESIGNAL_APP_ID,
+            contents: {
+                en: `Today's agenda (${events.length} events):\n${eventSummary}`,
+                pt: `Você tem ${events.length} eventos hoje:\n${eventSummary}`
+            },
+            headings: { en: title, pt: title },
+            include_external_user_ids: userIds,
+            url: "https://eventosadmvalente.github.io/AgendaCCB/"
+        }
+
+        const response = await fetch("https://onesignal.com/api/v1/notifications", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json; charset=utf-8",
+                "Authorization": `Basic ${ONESIGNAL_REST_API_KEY}`
+            },
+            body: JSON.stringify(notification)
+        })
+
+        const result = await response.json()
+
+        return new Response(JSON.stringify({ message: "Processado", isReminder, result }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200
+        })
+
+    } catch (error: any) {
+        console.error("[Daily Notifications] Erro:", error)
+        return new Response(JSON.stringify({ error: error.message }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 500
+        })
+    }
+})

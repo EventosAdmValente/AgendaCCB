@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "dev": "http-server -S -C localhost.pem -K localhost-key.pem -p 8083"
+  },
+  "devDependencies": {
+    "devcert-cli": "^1.0.0",
+    "http-server": "^14.1.1"
+  }
+}
