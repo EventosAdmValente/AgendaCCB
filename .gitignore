@@ -1,0 +1,30 @@
+# Dependências
+node_modules/
+
+# Variáveis de ambiente
+.env
+.env.local
+.env.*.local
+
+# Supabase temporários
+supabase/.temp/
+
+# Certificados locais
+localhost.pem
+localhost-key.pem
+
+# Arquivos de chave sensíveis
+Chave.txt
+
+# Backups e arquivos temporários
+*.bak
+index - OK - *.html
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
