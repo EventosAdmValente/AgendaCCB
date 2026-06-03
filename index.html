@@ -5842,7 +5842,19 @@
                         await audio.play();
                         return;
                     } catch (e) {
-                        console.warn('[TTS] Google Cloud TTS falhou, usando fallback do navegador:', e);
+                        console.warn('[TTS] Geração de Voz do Gemini falhou ou cota excedida, usando fallback do navegador:', e);
+                        
+                        // Atualiza o status na UI informando que a voz do navegador foi ativada por falha na IA
+                        const statusEl = document.getElementById('voice-status');
+                        if (statusEl) {
+                            statusEl.innerText = "Voz do Navegador (AI Indisponível)";
+                            statusEl.className = "text-[9px] font-black text-rose-500 uppercase tracking-widest";
+                        }
+                        
+                        if (window.__current_speech_id === speechId) {
+                            window._speakFallback(speechText, onSpeechStart, onSpeechDone);
+                        }
+                        return;
                     }
                 }
 
