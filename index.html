@@ -4645,11 +4645,11 @@
 
                         const context = {
                             types: state.types.map(t => t.name),
-                            locations: state.locations.map(l => l.localidade),
-                            attendants: state.attendants.map(a => a.name),
-                            adms: [...new Set(state.locations.map(l => l.adm).filter(Boolean))],
-                            setores: [...new Set(state.locations.map(l => l.setor).filter(Boolean))],
-                            cidades: [...new Set(state.locations.map(l => l.cidade).filter(Boolean))]
+                            locations: state.locations.map(l => l.localidade).slice(0, 80),
+                            attendants: state.attendants.map(a => a.name).slice(0, 80),
+                            adms: [...new Set(state.locations.map(l => l.adm).filter(Boolean))].slice(0, 80),
+                            setores: [...new Set(state.locations.map(l => l.setor).filter(Boolean))].slice(0, 80),
+                            cidades: [...new Set(state.locations.map(l => l.cidade).filter(Boolean))].slice(0, 80)
                         };
 
                         const { data, error } = await supabaseClient.functions.invoke('gemini-proxy', {
