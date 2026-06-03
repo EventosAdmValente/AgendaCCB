@@ -4310,6 +4310,22 @@
                 if (window.speechSynthesis) {
                     window.speechSynthesis.cancel();
                 }
+                // Parar áudio HTML5 se estiver tocando
+                if (window.__voice_audio_element) {
+                    window.__voice_audio_element.pause();
+                    window.__voice_audio_element = null;
+                }
+
+                const savedTtsVoice = localStorage.getItem('ttsVoice') || 'Puck';
+                const voiceOptions = [
+                    { value: 'Puck', label: 'Gemini Puck (Masculino Realista)' },
+                    { value: 'Aoede', label: 'Gemini Aoede (Feminino Expressivo)' },
+                    { value: 'Kore', label: 'Gemini Kore (Feminino Profissional)' },
+                    { value: 'Charon', label: 'Gemini Charon (Masculino Calmo)' },
+                    { value: 'Fenrir', label: 'Gemini Fenrir (Masculino Jovem)' },
+                ];
+                const voiceSelectOptions = voiceOptions.map(v => `<option value="${v.value}" ${savedTtsVoice === v.value ? 'selected' : ''}>${v.label}</option>`).join('');
+
                 showModal(`
                     <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border-t-8 border-orange-custom" id="voice-assistant-modal-content">
                         <div class="p-6 flex flex-col items-center text-center">
@@ -4319,9 +4335,17 @@
                                     <i data-lucide="x" class="w-5 h-5"></i>
                                 </button>
                             </div>
+
+                            <!-- AI Status Badge -->
+                            <div class="w-full flex items-center gap-2 mb-3 shrink-0">
+                                <div id="voice-ai-badge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${localStorage.getItem('ttsAiEnabled') !== 'false' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'}">
+                                    <span class="w-1.5 h-1.5 rounded-full ${localStorage.getItem('ttsAiEnabled') !== 'false' ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+                                    ${localStorage.getItem('ttsAiEnabled') !== 'false' ? 'Voz AI Google' : 'Voz do Navegador'}
+                                </div>
+                            </div>
                             
                             <!-- Toggle switch for automatic response -->
-                            <div class="w-full flex justify-between items-center bg-slate-50 p-2.5 rounded-2xl mb-4 border border-slate-100 shrink-0">
+                            <div class="w-full flex justify-between items-center bg-slate-50 p-2.5 rounded-2xl mb-2 border border-slate-100 shrink-0">
                                 <div class="flex flex-col text-left">
                                     <span class="text-[9px] font-extrabold text-navy uppercase tracking-wider">Resposta Automática</span>
                                     <span class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Aplicar filtros sem confirmar</span>
@@ -4330,6 +4354,17 @@
                                     <input type="checkbox" id="voice-auto-toggle" class="sr-only peer" ${state.autoVoiceResponse ? 'checked' : ''} onchange="window.toggleAutoVoiceResponse(this.checked)">
                                     <div class="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-orange-custom"></div>
                                 </label>
+                            </div>
+
+                            <!-- Voice selector -->
+                            <div class="w-full flex justify-between items-center bg-slate-50 p-2.5 rounded-2xl mb-4 border border-slate-100 shrink-0">
+                                <div class="flex flex-col text-left">
+                                    <span class="text-[9px] font-extrabold text-navy uppercase tracking-wider">Voz Google AI</span>
+                                    <span class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Selecione a voz do assistente</span>
+                                </div>
+                                <select id="voice-tts-select" onchange="localStorage.setItem('ttsVoice', this.value)" class="text-[9px] font-bold text-navy bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
+                                    ${voiceSelectOptions}
+                                </select>
                             </div>
 
                             <div id="voice-assistant-body" class="w-full flex flex-col items-center">
@@ -4379,8 +4414,23 @@
                 if (window.speechSynthesis) {
                     window.speechSynthesis.cancel();
                 }
+                // Parar áudio HTML5 se estiver tocando
+                if (window.__voice_audio_element) {
+                    window.__voice_audio_element.pause();
+                    window.__voice_audio_element = null;
+                }
+                window.__current_speech_id = null;
+
                 if (window.__voice_recognition) {
-                    window.__voice_recognition.abort();
+                    try {
+                        const rec = window.__voice_recognition;
+                        rec.onstart = null;
+                        rec.onresult = null;
+                        rec.onerror = null;
+                        rec.onend = null;
+                        rec.abort();
+                    } catch(e){}
+                    window.__voice_recognition = null;
                 }
                 window.__pendingVoiceFilter = null;
                 closeModal();
@@ -4389,9 +4439,36 @@
                 if (window.speechSynthesis) {
                     window.speechSynthesis.cancel();
                 }
+                // Parar áudio HTML5 se estiver tocando
+                if (window.__voice_audio_element) {
+                    window.__voice_audio_element.pause();
+                    window.__voice_audio_element = null;
+                }
+                window.__current_speech_id = null;
+
+                if (window.__voice_recognition) {
+                    try {
+                        const rec = window.__voice_recognition;
+                        rec.onstart = null;
+                        rec.onresult = null;
+                        rec.onerror = null;
+                        rec.onend = null;
+                        rec.abort();
+                    } catch(e){}
+                    window.__voice_recognition = null;
+                }
                 window.runVoiceRecognition();
             },
             runVoiceRecognition: () => {
+                if (window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
+                if (window.__voice_audio_element) {
+                    window.__voice_audio_element.pause();
+                    window.__voice_audio_element = null;
+                }
+                window.__current_speech_id = null;
+
                 const bodyEl = document.getElementById('voice-assistant-body');
                 if (bodyEl && !bodyEl.querySelector('#voice-assistant-orb')) {
                     bodyEl.innerHTML = `
@@ -4443,7 +4520,15 @@
                 }
 
                 if (window.__voice_recognition) {
-                    try { window.__voice_recognition.abort(); } catch(e){}
+                    try {
+                        const rec = window.__voice_recognition;
+                        rec.onstart = null;
+                        rec.onresult = null;
+                        rec.onerror = null;
+                        rec.onend = null;
+                        rec.abort();
+                    } catch(e){}
+                    window.__voice_recognition = null;
                 }
 
                 const recognition = new SpeechRecognition();
@@ -4458,13 +4543,15 @@
 
                 recognition.onresult = (event) => {
                     const speechResult = event.results[0][0].transcript;
-                    if (statusEl) statusEl.innerText = "Processando...";
+                    if (statusEl) statusEl.innerText = "Processando com IA...";
                     if (queryEl) queryEl.innerText = `Você disse: "${speechResult}"`;
-                    window.interpretVoiceQuery(speechResult);
+                    window.interpretVoiceQueryWithAI(speechResult);
                 };
 
                 recognition.onerror = (event) => {
                     console.error("[VoiceRecognition] Error:", event.error);
+                    if (event.error === 'aborted') return;
+
                     if (orb) {
                         orb.className = "voice-orb voice-error";
                         if (micIcon) micIcon.setAttribute('data-lucide', 'mic-off');
@@ -4484,14 +4571,304 @@
                 };
 
                 recognition.onend = () => {
-                    window.__voice_recognition = null;
+                    if (window.__voice_recognition === recognition) {
+                        window.__voice_recognition = null;
+                    }
                 };
 
-                try {
-                    recognition.start();
-                } catch (e) {
-                    console.error(e);
+                const startRecognition = (attemptsLeft = 2) => {
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        console.error("[Voice] Erro ao iniciar reconhecimento:", e);
+                        if (attemptsLeft > 0) {
+                            setTimeout(() => {
+                                console.log("[Voice] Tentando iniciar microfone novamente...", attemptsLeft);
+                                startRecognition(attemptsLeft - 1);
+                            }, 250);
+                        } else {
+                            if (statusEl) statusEl.innerText = "Erro no Microfone";
+                            if (responseEl) responseEl.innerText = "Não foi possível ativar o microfone. Tente clicar em Ouvir.";
+                        }
+                    }
+                };
+
+                startRecognition();
+            },
+            interpretVoiceQueryWithAI: async (rawText) => {
+                // Tenta usar Gemini AI para interpretar a pesquisa de forma inteligente
+                const useAI = localStorage.getItem('ttsAiEnabled') !== 'false';
+                if (useAI && navigator.onLine) {
+                    try {
+                        const statusEl = document.getElementById('voice-status');
+                        if (statusEl) statusEl.innerText = 'Analisando com Gemini AI...';
+
+                        const context = {
+                            types: state.types.map(t => t.name),
+                            locations: state.locations.map(l => l.localidade),
+                            attendants: state.attendants.map(a => a.name),
+                            adms: [...new Set(state.locations.map(l => l.adm).filter(Boolean))],
+                            setores: [...new Set(state.locations.map(l => l.setor).filter(Boolean))],
+                            cidades: [...new Set(state.locations.map(l => l.cidade).filter(Boolean))]
+                        };
+
+                        const { data, error } = await supabaseClient.functions.invoke('gemini-proxy', {
+                            body: { query: rawText, context }
+                        });
+
+                        if (!error && data && !data.error) {
+                            console.log('[Voice AI] Gemini interpretou:', data);
+
+                            // Mapeia os nomes retornados pelo Gemini para os objetos reais do state
+                            const normName = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+                            const matchedType = data.type ? state.types.find(t => normName(t.name) === normName(data.type)) : null;
+                            const matchedLoc = data.location ? state.locations.find(l => normName(l.localidade) === normName(data.location)) : null;
+                            const matchedAtt = data.attendant ? state.attendants.find(a => normName(a.name) === normName(data.attendant)) : null;
+                            const matchedCidade = data.cidade || '';
+                            const matchedAdm = data.adm || '';
+                            const matchedSetor = data.setor || '';
+                            const dateStart = data.dateStart || '';
+                            const dateEnd = data.dateEnd || '';
+                            const periodLabel = data.periodLabel || '';
+                            const tenseDetected = data.tense || 'todos';
+
+                            // Aplica os filtros da mesma forma que a interpretação local
+                            let eventsList = [...state.events];
+                            const now = new Date();
+                            const eventTs = e => { const d = new Date(`${e.date}T${e.time || '00:00'}`); return isNaN(d.getTime()) ? 0 : d.getTime(); };
+
+                            if (dateStart || dateEnd) {
+                                eventsList = eventsList.filter(e => (!dateStart || e.date >= dateStart) && (!dateEnd || e.date <= dateEnd));
+                            }
+                            if (tenseDetected === 'inativos') {
+                                eventsList = eventsList.filter(e => eventTs(e) < now.getTime());
+                            } else if (tenseDetected === 'ativos') {
+                                eventsList = eventsList.filter(e => eventTs(e) >= now.getTime());
+                            }
+                            if (matchedType) eventsList = eventsList.filter(e => e.type_id === matchedType.id);
+                            if (matchedLoc) eventsList = eventsList.filter(e => e.location_id === matchedLoc.id);
+                            if (matchedAtt) eventsList = eventsList.filter(e => e.attendant_id === matchedAtt.id || e.attendant2_id === matchedAtt.id);
+                            if (!matchedLoc && (matchedAdm || matchedSetor || matchedCidade)) {
+                                eventsList = eventsList.filter(e => {
+                                    const loc = state.locations.find(l => l.id === e.location_id);
+                                    if (!loc) return false;
+                                    if (matchedAdm && normName(loc.adm) !== normName(matchedAdm)) return false;
+                                    if (matchedSetor && normName(loc.setor) !== normName(matchedSetor)) return false;
+                                    if (matchedCidade && normName(loc.cidade) !== normName(matchedCidade)) return false;
+                                    return true;
+                                });
+                            }
+
+                            // Ordena
+                            if (tenseDetected === 'inativos') {
+                                eventsList.sort((a, b) => eventTs(b) - eventTs(a));
+                            } else {
+                                eventsList.sort((a, b) => eventTs(a) - eventTs(b));
+                            }
+
+                            // Auxiliares locais para gerar o texto da resposta
+                            const getEventAttendantsText = (event) => {
+                                if (!event) return "";
+                                const att1 = state.attendants.find(a => a.id === event.attendant_id)?.name || "";
+                                const att2 = state.attendants.find(a => a.id === event.attendant2_id)?.name || "";
+                                if (att1 && att2) return `${att1} e ${att2}`;
+                                return att1 || att2 || "";
+                            };
+
+                            const expandAbbrForSpeech = (t) => {
+                                if (!t) return "";
+                                let res = t;
+                                res = res.replace(/\bCentral de C\.\s*do Coité/gi, 'Central de Conceição do Coité');
+                                res = res.replace(/\bCentral de R\.\s*do Jacuípe/gi, 'Central de Riachão do Jacuípe');
+                                res = res.replace(/\bSanta R\.\s*de Cássia/gi, 'Santa Rita de Cássia');
+                                res = res.replace(/\bC\.\s*de Oração/gi, 'Casa de Oração');
+                                res = res.replace(/\bFeira X\b/gi, 'Feira dez');
+                                res = res.replace(/\b[Ss]\.\s*/g, (m) => m.startsWith('S') ? 'São ' : 'são ');
+                                res = res.replace(/\bApres\.\s*/gi, 'Apresentação ');
+                                res = res.replace(/\bCoop\.\s*/gi, 'Cooperador ');
+                                res = res.replace(/\bReun\.\s*/gi, 'Reunião ');
+                                res = res.replace(/\bAtend\.\s*/gi, 'Atendimento ');
+                                res = res.replace(/\bEnc\.\s*/gi, 'Encarregado ');
+                                res = res.replace(/\bReg\.\s*/gi, 'Regional ');
+                                res = res.replace(/\bLoc\.\s*/gi, 'Local ');
+                                res = res.replace(/\bExam\.\s*/gi, 'Examinadora ');
+                                res = res.replace(/\bAux\.\s*/gi, 'Auxiliares ');
+                                res = res.replace(/\bConj\.\s*/gi, 'Conjunto ');
+                                res = res.replace(/\bHab\.\s*/gi, 'Habitacional ');
+                                return res.replace(/\s+/g, ' ').trim();
+                            };
+
+                            // Geração local do responseText
+                            let responseText = "";
+                            const cleanQuery = rawText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                            const isQuantityQuery = cleanQuery.match(/\b(quanto|quanta|quantidade|numero|total)\b/i);
+
+                            let areaLabel = "";
+                            if (matchedLoc) {
+                                areaLabel = ` em ${matchedLoc.localidade}`;
+                            } else {
+                                const parts = [];
+                                if (matchedSetor) parts.push(`no ${matchedSetor}`);
+                                if (matchedAdm) parts.push(`da ADM de ${matchedAdm}`);
+                                if (matchedCidade) parts.push(`em ${matchedCidade}`);
+                                if (parts.length > 0) areaLabel = ` ${parts.join(" ")}`;
+                            }
+
+                            const pastOnly = [...eventsList].filter(e => eventTs(e) < now.getTime());
+                            pastOnly.sort((a, b) => eventTs(b) - eventTs(a));
+                            const mostRecentPast = pastOnly[0] || null;
+
+                            const isPastQuery = tenseDetected === 'inativos';
+                            const isFutureQuery = tenseDetected === 'ativos';
+
+                            if (eventsList.length === 0) {
+                                const typeLabel = matchedType ? matchedType.name : "evento";
+                                const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
+                                const verbLabel = isPastQuery ? "foi realizado" : (isFutureQuery ? "está agendado" : "está cadastrado");
+                                responseText = `Não encontrei nenhum ${typeLabel}${areaLabel}${periodLabelText} que ${verbLabel}.`;
+                            } else {
+                                if (isQuantityQuery) {
+                                    const typeLabel = matchedType ? matchedType.name : "evento";
+                                    const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
+                                    const pluralEvent = eventsList.length === 1 ? typeLabel : (matchedType ? `${typeLabel}s` : "eventos");
+                                    const refEvent = mostRecentPast || eventsList[0];
+                                    const isPastRef = eventTs(refEvent) < now.getTime();
+
+                                    if (matchedType && matchedType.name.toLowerCase().includes("batismo")) {
+                                        if (eventsList.length === 1) {
+                                            const refAttName = getEventAttendantsText(refEvent);
+                                            const refAttText = refAttName ? ` atendido por ${refAttName}` : "";
+                                            const irmaos = refEvent.irmaos || 0;
+                                            const irmas = refEvent.irmas || 0;
+                                            const total = irmaos + irmas;
+                                            if (isPastRef) {
+                                                responseText = `Encontrei 1 batismo realizado${areaLabel}${periodLabelText}. O batismo foi${refAttText} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
+                                            } else {
+                                                if (total > 0) {
+                                                    responseText = `Encontrei 1 batismo agendado${areaLabel}${periodLabelText}${refAttText}. No total, são ${total} ${total === 1 ? 'candidato' : 'candidatos'}, sendo ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}.`;
+                                                } else {
+                                                    responseText = `Encontrei 1 batismo agendado${areaLabel}${periodLabelText}${refAttText}. Ainda não há candidatos registrados.`;
+                                                }
+                                            }
+                                        } else {
+                                            const lastAttName = getEventAttendantsText(refEvent);
+                                            const lastAttText = lastAttName ? ` atendido por ${lastAttName}` : "";
+                                            const lastIrmaos = refEvent.irmaos || 0;
+                                            const lastIrmas = refEvent.irmas || 0;
+                                            const lastTotal = lastIrmaos + lastIrmas;
+                                            
+                                            let totalIrmaos = 0; let totalIrmas = 0;
+                                            eventsList.forEach(e => { totalIrmaos += (e.irmaos || 0); totalIrmas += (e.irmas || 0); });
+                                            const totalCandidatos = totalIrmaos + totalIrmas;
+                                            
+                                            const emArea = areaLabel.trim() ? (areaLabel.trim().charAt(0).toUpperCase() + areaLabel.trim().slice(1)) : "No total";
+                                            let verbEncontrei = isPastRef ? "realizados" : "agendados";
+                                            responseText = `Encontrei ${eventsList.length} batismos ${verbEncontrei}${areaLabel}${periodLabelText}. `;
+                                            
+                                            if (isPastRef) {
+                                                responseText += `O último batismo foi${lastAttText} e foram batizados ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
+                                                responseText += `${emArea} já aconteceram ${eventsList.length} ${eventsList.length === 1 ? 'batismo' : 'batismos'} e foram batizados ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalCandidatos}.`;
+                                            } else {
+                                                responseText += `O próximo batismo será${lastAttText}. `;
+                                                if (totalCandidatos > 0) {
+                                                    responseText += `Para o próximo, são ${lastTotal} ${lastTotal === 1 ? 'candidato' : 'candidatos'}, sendo ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}. `;
+                                                    responseText += `${emArea} são ${totalCandidatos} ${totalCandidatos === 1 ? 'candidato' : 'candidatos'} estimados, sendo ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}.`;
+                                                } else {
+                                                    responseText += `Ainda não há candidatos registrados.`;
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        if (isPastRef) {
+                                            const refAttName = getEventAttendantsText(refEvent);
+                                            const refAttText = refAttName ? ` atendido por ${refAttName}` : "";
+                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${eventsList.length === 1 ? 'realizado' : 'realizados'}${refAttText}${areaLabel}${periodLabelText}.`;
+                                        } else {
+                                            const refAttName = getEventAttendantsText(refEvent);
+                                            const nextType = state.types.find(t => t.id === refEvent.type_id)?.name || "evento";
+                                            const pluralText = eventsList.length === 1 ? 'agendado' : 'agendados';
+                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${pluralText}${areaLabel}${periodLabelText}. O próximo evento será um ${nextType}${refAttName ? ' a ser atendido por ' + refAttName : ''}.`;
+                                        }
+                                    }
+                                } else {
+                                    const isLastQuery = cleanQuery.includes("ultimo") || cleanQuery.includes("ultima");
+                                    if (isLastQuery) {
+                                        const first = mostRecentPast;
+                                        if (!first) {
+                                            const typeLabel = matchedType ? matchedType.name : "evento";
+                                            responseText = `Não encontrei nenhum ${typeLabel}${areaLabel} já realizado.`;
+                                        } else {
+                                            const fDateParts = first.date.split('-'); const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
+                                            const fType = state.types.find(t => t.id === first.type_id)?.name || "evento";
+                                            const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
+                                            const attName = getEventAttendantsText(first);
+                                            const attText = attName ? ` atendido por ${attName}` : "";
+                                            const locText = fLoc ? ` em ${fLoc}` : "";
+                                            if (fType.toLowerCase().includes("batismo")) {
+                                                const irmaos = first.irmaos || 0; const irmas = first.irmas || 0; const total = irmaos + irmas;
+                                                responseText = `O último batismo${attText}${locText} foi no dia ${fDateFormatted} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
+                                            } else responseText = `O último ${fType}${attText}${locText} foi no dia ${fDateFormatted} às ${first.time}.`;
+                                        }
+                                    } else {
+                                        const hasPast = mostRecentPast !== null; const first = hasPast ? mostRecentPast : eventsList[0];
+                                        const fType = state.types.find(t => t.id === first.type_id)?.name || "Evento";
+                                        const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
+                                        const fDateParts = first.date.split('-'); const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
+                                        const attName = getEventAttendantsText(first);
+                                        const attText = attName ? ` ${hasPast ? 'atendido' : 'a ser atendido'} por ${attName}` : "";
+                                        if (hasPast) {
+                                            let verb = "aconteceu";
+                                            if (cleanQuery.includes("quando")) verb = "foi";
+                                            responseText = `Encontrei ${eventsList.length} ${eventsList.length === 1 ? 'evento' : 'eventos'}. O último ${verb} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
+                                        } else {
+                                            responseText = `Encontrei ${eventsList.length} ${eventsList.length === 1 ? 'evento' : 'eventos'}. O próximo evento será um ${fType} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
+                                        }
+                                    }
+                                }
+                            }
+
+                            responseText = expandAbbrForSpeech(responseText);
+
+                            const parsed = {
+                                text: rawText,
+                                tense: tenseDetected,
+                                matchedType,
+                                matchedLoc,
+                                matchedCidade,
+                                matchedSetor,
+                                matchedAdm,
+                                matchedAtt,
+                                dateStart,
+                                dateEnd,
+                                periodLabel,
+                                eventsList,
+                                responseText: responseText
+                            };
+
+                            window.__pendingVoiceFilter = parsed;
+
+                            if (state.autoVoiceResponse) {
+                                window.applyVoiceFilter(parsed);
+                            } else {
+                                window.showVoiceConfirmation(
+                                    rawText, tenseDetected, matchedType, matchedLoc,
+                                    matchedCidade, matchedSetor, matchedAdm, matchedAtt,
+                                    periodLabel, eventsList
+                                );
+                            }
+                            return; // Sucesso com Gemini — não usa fallback
+                        }
+                        console.warn('[Voice AI] Gemini falhou, usando fallback local:', error || data?.error);
+                    } catch (e) {
+                        console.warn('[Voice AI] Erro no Gemini proxy, usando fallback local:', e);
+                    }
                 }
+
+                // Fallback: interpretação local (regras manuais)
+                const statusEl = document.getElementById('voice-status');
+                if (statusEl) statusEl.innerText = 'Processando...';
+                window.interpretVoiceQuery(rawText);
             },
             interpretVoiceQuery: (text) => {
                 // Pre-processing corrections for speech-to-text engine errors
@@ -5299,12 +5676,120 @@
                 // 5. Speak response report
                 window.speakVoiceResponse(pending.responseText);
             },
-            speakVoiceResponse: (text) => {
-                if (!window.speechSynthesis) return;
-                
+            speakVoiceResponse: async (text) => {
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
+                if (window.__voice_audio_element) {
+                    window.__voice_audio_element.pause();
+                    window.__voice_audio_element = null;
+                }
+
+                const speechId = Date.now();
+                window.__current_speech_id = speechId;
+
+                const useAI = localStorage.getItem('ttsAiEnabled') !== 'false';
+
+                const onSpeechDone = () => {
+                    const orb = document.getElementById('voice-assistant-orb');
+                    if (orb) {
+                        orb.className = 'voice-orb';
+                        const icon = document.getElementById('voice-mic-icon');
+                        if (icon) { icon.setAttribute('data-lucide', 'check-circle'); renderIcons(); }
+                    }
+                    const doneActions = document.getElementById('voice-done-actions');
+                    if (doneActions) {
+                        doneActions.classList.remove('hidden');
+                        doneActions.classList.add('animate-fade-in');
+                    }
+                    const statusEl = document.getElementById('voice-status');
+                    if (statusEl) statusEl.innerText = 'Concluído';
+                };
+
+                const onSpeechStart = () => {
+                    const orb = document.getElementById('voice-assistant-orb');
+                    if (orb) orb.className = 'voice-orb voice-speaking';
+                };
+
+                // ========== MOTOR 1: Google Cloud TTS via Supabase Proxy ==========
+                if (useAI && navigator.onLine) {
+                    try {
+                        const selectedVoice = localStorage.getItem('ttsVoice') || 'Puck';
+                        console.log(`[TTS] Usando Gemini Multimodal TTS (${selectedVoice})...`);
+
+                        const { data, error } = await supabaseClient.functions.invoke('tts-proxy', {
+                            body: { text, voice: selectedVoice }
+                        });
+
+                        if (window.__current_speech_id !== speechId) {
+                            console.log("[TTS] Ignorando resposta de áudio obsoleta (nova transação iniciada).");
+                            return;
+                        }
+
+                        if (error) throw error;
+                        if (!data || !data.audioContent) throw new Error('Áudio vazio');
+
+                        const pcmBytes = Uint8Array.from(atob(data.audioContent), c => c.charCodeAt(0));
+                        const dataLength = pcmBytes.length;
+                        const wavBuffer = new ArrayBuffer(44);
+                        const view = new DataView(wavBuffer);
+
+                        view.setUint32(0, 0x46464952, true);
+                        view.setUint32(4, 36 + dataLength, true);
+                        view.setUint32(8, 0x45564157, true);
+                        view.setUint32(12, 0x20746d66, true);
+                        view.setUint32(16, 16, true);
+                        view.setUint16(20, 1, true);
+                        view.setUint16(22, 1, true);
+                        view.setUint32(24, 24000, true);
+                        view.setUint32(28, 24000 * 2, true);
+                        view.setUint16(32, 2, true);
+                        view.setUint16(34, 16, true);
+                        view.setUint32(36, 0x61746164, true);
+                        view.setUint32(40, dataLength, true);
+
+                        const wavBytes = new Uint8Array(44 + dataLength);
+                        wavBytes.set(new Uint8Array(wavBuffer), 0);
+                        wavBytes.set(pcmBytes, 44);
+
+                        const audioBlob = new Blob([wavBytes], { type: 'audio/wav' });
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        const audio = new Audio(audioUrl);
+                        window.__voice_audio_element = audio;
+
+                        audio.onplay = onSpeechStart;
+                        audio.onended = () => {
+                            URL.revokeObjectURL(audioUrl);
+                            window.__voice_audio_element = null;
+                            onSpeechDone();
+                        };
+                        audio.onerror = () => {
+                            URL.revokeObjectURL(audioUrl);
+                            window.__voice_audio_element = null;
+                            console.warn('[TTS] Erro ao reproduzir áudio, usando fallback');
+                            if (window.__current_speech_id === speechId) {
+                                window._speakFallback(text, onSpeechStart, onSpeechDone);
+                            }
+                        };
+
+                        await audio.play();
+                        return;
+                    } catch (e) {
+                        console.warn('[TTS] Google Cloud TTS falhou, usando fallback do navegador:', e);
+                    }
+                }
+
+                // ========== MOTOR 2: Fallback — speechSynthesis do navegador ==========
+                if (window.__current_speech_id === speechId) {
+                    window._speakFallback(text, onSpeechStart, onSpeechDone);
+                }
+            },
+            _speakFallback: (text, onStart, onEnd) => {
+                if (!window.speechSynthesis) {
+                    if (onEnd) onEnd();
+                    return;
+                }
+                const speechId = window.__current_speech_id;
                 window.speechSynthesis.cancel();
 
-                // Seleciona a voz configurada ou a de maior qualidade disponível para pt-BR
                 const pickBestVoice = () => {
                     const all = window.speechSynthesis.getVoices();
                     const ptVoices = all.filter(v =>
@@ -5312,14 +5797,11 @@
                         v.lang.startsWith('pt-br') || v.lang.startsWith('pt')
                     );
                     if (ptVoices.length === 0) return null;
-
                     const savedVoiceURI = localStorage.getItem('voiceURI') || '';
                     if (savedVoiceURI) {
                         const chosen = ptVoices.find(v => v.voiceURI === savedVoiceURI);
                         if (chosen) return chosen;
                     }
-
-                    // Sistema de pontuação: quanto maior, melhor a qualidade
                     const score = (v) => {
                         const n = v.name.toLowerCase();
                         if (n.includes('google') && (n.includes('neural') || n.includes('wavenet'))) return 100;
@@ -5327,65 +5809,42 @@
                         if (n.includes('neural') || n.includes('natural') || n.includes('premium') || n.includes('enhanced')) return 70;
                         if (n.includes('microsoft') && (n.includes('neural') || n.includes('online'))) return 65;
                         if (n.includes('microsoft')) return 50;
-                        if (!v.localService) return 40; // voz remota geralmente é melhor
+                        if (!v.localService) return 40;
                         return 10;
                     };
-
                     return ptVoices.sort((a, b) => score(b) - score(a))[0];
                 };
 
                 const doSpeak = () => {
+                    if (window.__current_speech_id !== speechId) return;
                     const utterance = new SpeechSynthesisUtterance(text);
                     utterance.lang = 'pt-BR';
-
                     const bestVoice = pickBestVoice();
                     if (bestVoice) utterance.voice = bestVoice;
-
                     const savedRate = parseFloat(localStorage.getItem('voiceRate') || '0.95');
                     utterance.rate = savedRate;
                     utterance.pitch = 1.0;
-
-                    utterance.onstart = () => {
-                        const orb = document.getElementById('voice-assistant-orb');
-                        if (orb) orb.className = "voice-orb voice-speaking";
-                    };
-
-                    utterance.onend = () => {
-                        const orb = document.getElementById('voice-assistant-orb');
-                        if (orb) {
-                            orb.className = "voice-orb";
-                            const icon = document.getElementById('voice-mic-icon');
-                            if (icon) { icon.setAttribute('data-lucide', 'check-circle'); renderIcons(); }
-                        }
-                        const doneActions = document.getElementById('voice-done-actions');
-                        if (doneActions) {
-                            doneActions.classList.remove('hidden');
-                            doneActions.classList.add('animate-fade-in');
-                        }
-                        const statusEl = document.getElementById('voice-status');
-                        if (statusEl) statusEl.innerText = 'Concluído';
-                    };
-
+                    utterance.onstart = () => { if (onStart) onStart(); };
+                    utterance.onend = () => { if (onEnd) onEnd(); };
                     window.__voice_speaking_text = text;
                     window.speechSynthesis.speak(utterance);
-                }; // fim doSpeak
+                };
 
-                // Vozes podem não estar carregadas ainda na primeira chamada
                 const voices = window.speechSynthesis.getVoices();
                 if (voices && voices.length > 0) {
                     doSpeak();
                 } else {
-                    // Aguarda o evento voiceschanged e fala logo que estiverem disponíveis
                     const onVoicesReady = () => {
                         window.speechSynthesis.removeEventListener('voiceschanged', onVoicesReady);
-                        doSpeak();
+                        if (window.__current_speech_id === speechId) {
+                            doSpeak();
+                        }
                     };
                     window.speechSynthesis.addEventListener('voiceschanged', onVoicesReady);
-                    // Fallback: se o evento nunca disparar, tenta falar mesmo assim
                     setTimeout(() => {
                         window.speechSynthesis.removeEventListener('voiceschanged', onVoicesReady);
-                        if (!window.__voice_speaking_text || window.__voice_speaking_text !== text) {
-                            doSpeak();
+                        if (window.__current_speech_id === speechId) {
+                            if (!window.__voice_speaking_text || window.__voice_speaking_text !== text) doSpeak();
                         }
                     }, 500);
                 }
