@@ -1894,6 +1894,19 @@
             if (!app) return;
 
             const filter = state.masterEventFilter;
+            const ttsAiEnabled = localStorage.getItem('ttsAiEnabled') !== 'false';
+            const savedTtsVoice = localStorage.getItem('ttsVoice') || 'Puck';
+
+            let voiceSelectedName = 'Melhor disponível (automático)';
+            const savedVoiceURI = localStorage.getItem('voiceURI') || '';
+            if (savedVoiceURI !== '') {
+                if (window.speechSynthesis) {
+                    const voice = window.speechSynthesis.getVoices().find(v => v.voiceURI === savedVoiceURI);
+                    voiceSelectedName = voice ? voice.name : savedVoiceURI;
+                } else {
+                    voiceSelectedName = savedVoiceURI;
+                }
+            }
 
             app.innerHTML = `
                 <div class="flex flex-col h-full bg-slate-100">
@@ -1931,21 +1944,61 @@
                                 <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Voz do Assistente</h2>
                             </div>
 
-                            <!-- Seletor de voz -->
+                            <!-- Seletor do Motor de Voz -->
                             <div class="flex flex-col gap-1 mb-4">
-                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Voz</label>
-                                <button onclick="window.openVoicePickerModal()"
-                                    class="w-full flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-navy focus:ring-2 focus:ring-navy/10 transition-all active:bg-slate-100 text-left">
-                                    <span id="voice-selected-display">Melhor disponível (automático)</span>
-                                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
-                                </button>
-                                <span class="text-[10px] text-slate-400 ml-1 mt-0.5">Vozes disponíveis dependem do seu dispositivo.</span>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Voz (Leitor)</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button onclick="window.setVoiceEngine(true)" 
+                                        class="flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${ttsAiEnabled ? 'border-orange-custom bg-orange-50/50' : 'border-slate-100 bg-slate-50'}">
+                                        <div class="flex items-center gap-1.5">
+                                            <i data-lucide="sparkles" class="w-4 h-4 text-orange-custom"></i>
+                                            <span class="font-black text-navy text-[11px]">Vozes Google AI</span>
+                                        </div>
+                                        <span class="text-[8px] text-emerald-600 font-bold uppercase tracking-widest mt-1">Voz Realista</span>
+                                    </button>
+                                    <button onclick="window.setVoiceEngine(false)" 
+                                        class="flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${!ttsAiEnabled ? 'border-orange-custom bg-orange-50/50' : 'border-slate-100 bg-slate-50'}">
+                                        <div class="flex items-center gap-1.5">
+                                            <i data-lucide="monitor" class="w-4 h-4 text-slate-500"></i>
+                                            <span class="font-black text-navy text-[11px]">Voz do Navegador</span>
+                                        </div>
+                                        <span class="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-1">Voz do Sistema</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Seletor de voz dinâmico -->
+                            <div class="flex flex-col gap-1 mb-4">
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Selecionar Voz</label>
+                                ${ttsAiEnabled ? `
+                                    <div class="relative w-full">
+                                        <select id="voice-tts-select" onchange="window.saveTtsVoice(this.value)" 
+                                            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-navy focus:ring-2 focus:ring-navy/10 transition-all appearance-none pr-10 cursor-pointer">
+                                            <option value="Puck" ${savedTtsVoice === 'Puck' ? 'selected' : ''}>Gemini Puck (Masculino Realista - Padrão)</option>
+                                            <option value="Aoede" ${savedTtsVoice === 'Aoede' ? 'selected' : ''}>Gemini Aoede (Feminino Expressivo)</option>
+                                            <option value="Kore" ${savedTtsVoice === 'Kore' ? 'selected' : ''}>Gemini Kore (Feminino Profissional)</option>
+                                            <option value="Charon" ${savedTtsVoice === 'Charon' ? 'selected' : ''}>Gemini Charon (Masculino Calmo)</option>
+                                            <option value="Fenrir" ${savedTtsVoice === 'Fenrir' ? 'selected' : ''}>Gemini Fenrir (Masculino Jovem)</option>
+                                        </select>
+                                        <div class="absolute right-3.5 top-3.5 pointer-events-none text-slate-400">
+                                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                        </div>
+                                    </div>
+                                    <span class="text-[9px] text-slate-400 ml-1 mt-0.5">Vozes baseadas no Gemini 3.1 Flash. Requer conexão com a internet.</span>
+                                ` : `
+                                    <button onclick="window.openVoicePickerModal()"
+                                        class="w-full flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-navy focus:ring-2 focus:ring-navy/10 transition-all active:bg-slate-100 text-left">
+                                        <span id="voice-selected-display">${voiceSelectedName}</span>
+                                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                                    </button>
+                                    <span class="text-[9px] text-slate-400 ml-1 mt-0.5">Vozes locais disponíveis no seu dispositivo. Funciona offline.</span>
+                                `}
                             </div>
 
                             <!-- Velocidade -->
                             <div class="flex flex-col gap-2">
                                 <div class="flex justify-between items-center">
-                                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Velocidade</label>
+                                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Velocidade da Voz</label>
                                     <span id="voice-rate-label" class="text-[10px] font-black text-navy uppercase tracking-wider">Normal</span>
                                 </div>
                                 <input type="range" id="voice-rate-slider"
@@ -1998,9 +2051,8 @@
                 </div>
             `;
             renderIcons();
-            // Definindo a voz e velocidade atual
+            // Definindo a velocidade atual
             setTimeout(() => {
-                window.updateVoiceDisplay();
                 const currentRate = parseFloat(localStorage.getItem('voiceRate') || '0.95');
                 window.updateVoiceRateLabel(currentRate);
             }, 0);
@@ -2010,6 +2062,15 @@
             state.masterEventFilter = val;
             localStorage.setItem('masterEventFilter', val);
             renderOptions();
+        };
+
+        window.setVoiceEngine = (isAi) => {
+            localStorage.setItem('ttsAiEnabled', isAi ? 'true' : 'false');
+            renderOptions();
+        };
+
+        window.saveTtsVoice = (val) => {
+            localStorage.setItem('ttsVoice', val);
         };
 
         window.updateVoiceDisplay = () => {
@@ -2048,7 +2109,7 @@
 
         window.selectVoice = (voiceURI) => {
             localStorage.setItem('voiceURI', voiceURI);
-            window.updateVoiceDisplay();
+            renderOptions();
         };
 
         window.openVoicePickerModal = () => {
@@ -4316,16 +4377,6 @@
                     window.__voice_audio_element = null;
                 }
 
-                const savedTtsVoice = localStorage.getItem('ttsVoice') || 'Puck';
-                const voiceOptions = [
-                    { value: 'Puck', label: 'Gemini Puck (Masculino Realista)' },
-                    { value: 'Aoede', label: 'Gemini Aoede (Feminino Expressivo)' },
-                    { value: 'Kore', label: 'Gemini Kore (Feminino Profissional)' },
-                    { value: 'Charon', label: 'Gemini Charon (Masculino Calmo)' },
-                    { value: 'Fenrir', label: 'Gemini Fenrir (Masculino Jovem)' },
-                ];
-                const voiceSelectOptions = voiceOptions.map(v => `<option value="${v.value}" ${savedTtsVoice === v.value ? 'selected' : ''}>${v.label}</option>`).join('');
-
                 showModal(`
                     <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border-t-8 border-orange-custom" id="voice-assistant-modal-content">
                         <div class="p-6 flex flex-col items-center text-center">
@@ -4345,7 +4396,7 @@
                             </div>
                             
                             <!-- Toggle switch for automatic response -->
-                            <div class="w-full flex justify-between items-center bg-slate-50 p-2.5 rounded-2xl mb-2 border border-slate-100 shrink-0">
+                            <div class="w-full flex justify-between items-center bg-slate-50 p-2.5 rounded-2xl mb-4 border border-slate-100 shrink-0">
                                 <div class="flex flex-col text-left">
                                     <span class="text-[9px] font-extrabold text-navy uppercase tracking-wider">Resposta Automática</span>
                                     <span class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Aplicar filtros sem confirmar</span>
@@ -4354,17 +4405,6 @@
                                     <input type="checkbox" id="voice-auto-toggle" class="sr-only peer" ${state.autoVoiceResponse ? 'checked' : ''} onchange="window.toggleAutoVoiceResponse(this.checked)">
                                     <div class="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-orange-custom"></div>
                                 </label>
-                            </div>
-
-                            <!-- Voice selector -->
-                            <div class="w-full flex justify-between items-center bg-slate-50 p-2.5 rounded-2xl mb-4 border border-slate-100 shrink-0">
-                                <div class="flex flex-col text-left">
-                                    <span class="text-[9px] font-extrabold text-navy uppercase tracking-wider">Voz Google AI</span>
-                                    <span class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Selecione a voz do assistente</span>
-                                </div>
-                                <select id="voice-tts-select" onchange="localStorage.setItem('ttsVoice', this.value)" class="text-[9px] font-bold text-navy bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
-                                    ${voiceSelectOptions}
-                                </select>
                             </div>
 
                             <div id="voice-assistant-body" class="w-full flex flex-col items-center">
@@ -5676,6 +5716,33 @@
                 // 5. Speak response report
                 window.speakVoiceResponse(pending.responseText);
             },
+            getConciseTextForSpeech: (text) => {
+                if (!text) return "";
+                if (text.length < 85) return text;
+
+                let concise = text;
+                
+                // Remove detalhes numéricos secundários (irmaos/irmas) do final da resposta para o áudio ser mais rápido
+                concise = concise.replace(/\.?\s*No total,\s*(?:são|estimados,?\s*são)?\s*\d+\s*(?:candidatos|irmãos|irmãs)[\s\S]*$/, '.');
+                
+                // Simplifica a locução de batismo
+                concise = concise.replace(/\.?\s*(?:O batismo foi|O próximo batismo será|O último batismo foi)[\s\S]*?dia\s*(\d{2}\/\d{2})\/\d{4}/gi, (match, date) => {
+                    return `. O próximo será no dia ${date}`;
+                });
+                
+                // Simplifica a listagem de eventos com data, hora, atendente e local
+                concise = concise.replace(/\bserá um ([a-zA-Záéíóúâêîôûãõç\s]+) no dia (\d{2}\/\d{2})\/\d{4} às (\d{2}:\d{2})(?: a ser)? atendido por [\s\S]*? em ([a-zA-Záéíóúâêîôûãõç\s\.]+)/gi, 'será um $1 no dia $2 às $3 em $4');
+                concise = concise.replace(/\baconteceu no dia (\d{2}\/\d{2})\/\d{4} às (\d{2}:\d{2}) atendido por [\s\S]*? em ([a-zA-Záéíóúâêîôûãõç\s\.]+)/gi, 'foi no dia $1 às $2 em $3');
+                concise = concise.replace(/\bfoi no dia (\d{2}\/\d{2})\/\d{4} às (\d{2}:\d{2}) atendido por [\s\S]*? em ([a-zA-Záéíóúâêîôûãõç\s\.]+)/gi, 'foi no dia $1 às $2 em $3');
+                
+                concise = concise.replace(/\bda ADM de\b/gi, 'de');
+                concise = concise.replace(/\bno dia (\d{2}\/\d{2})\/\d{4}\b/g, 'no dia $1');
+                concise = concise.replace(/\bàs (\d{2}:\d{2})\b/g, 'às $1');
+
+                concise = concise.replace(/\s+/g, ' ').replace(/\.+/g, '.').trim();
+                console.log("[TTS Speedup] Texto simplificado de:", text, "-> Para:", concise);
+                return concise;
+            },
             speakVoiceResponse: async (text) => {
                 if (window.speechSynthesis) window.speechSynthesis.cancel();
                 if (window.__voice_audio_element) {
@@ -5687,6 +5754,8 @@
                 window.__current_speech_id = speechId;
 
                 const useAI = localStorage.getItem('ttsAiEnabled') !== 'false';
+                // Otimiza o texto falado se for usar a inteligência artificial do Gemini
+                const speechText = useAI ? window.getConciseTextForSpeech(text) : text;
 
                 const onSpeechDone = () => {
                     const orb = document.getElementById('voice-assistant-orb');
@@ -5716,7 +5785,7 @@
                         console.log(`[TTS] Usando Gemini Multimodal TTS (${selectedVoice})...`);
 
                         const { data, error } = await supabaseClient.functions.invoke('tts-proxy', {
-                            body: { text, voice: selectedVoice }
+                            body: { text: speechText, voice: selectedVoice }
                         });
 
                         if (window.__current_speech_id !== speechId) {
@@ -5766,7 +5835,7 @@
                             window.__voice_audio_element = null;
                             console.warn('[TTS] Erro ao reproduzir áudio, usando fallback');
                             if (window.__current_speech_id === speechId) {
-                                window._speakFallback(text, onSpeechStart, onSpeechDone);
+                                window._speakFallback(speechText, onSpeechStart, onSpeechDone);
                             }
                         };
 
@@ -5779,7 +5848,7 @@
 
                 // ========== MOTOR 2: Fallback — speechSynthesis do navegador ==========
                 if (window.__current_speech_id === speechId) {
-                    window._speakFallback(text, onSpeechStart, onSpeechDone);
+                    window._speakFallback(speechText, onSpeechStart, onSpeechDone);
                 }
             },
             _speakFallback: (text, onStart, onEnd) => {

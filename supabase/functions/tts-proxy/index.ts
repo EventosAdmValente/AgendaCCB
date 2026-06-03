@@ -41,6 +41,7 @@ serve(async (req) => {
             }],
             generationConfig: {
                 responseModalities: ["AUDIO"],
+                temperature: 0,
                 speechConfig: {
                     voiceConfig: {
                         prebuiltVoiceConfig: {
