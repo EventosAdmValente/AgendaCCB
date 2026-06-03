@@ -1025,7 +1025,8 @@
             returnedFromFocus: false,
             isOffline: !navigator.onLine,
             pushNotificationActive: false,
-            pushNotificationTime: '08:00'
+            pushNotificationTime: '08:00',
+            liveVoiceMode: false
         };
 
         const state = new Proxy(INITIAL_STATE, {
@@ -1036,7 +1037,7 @@
                 const silent = [
                     'searchTerm', 'managerSearchTerm', 'clockMode', 'clockTempHour', 'clockTempMinute',
                     'ffTemp', 'fetchedYears', 'formErrors',
-                    'events', 'types', 'locations', 'attendants', 'feriados', 'perfis', 'autoVoiceResponse'
+                    'events', 'types', 'locations', 'attendants', 'feriados', 'perfis', 'autoVoiceResponse', 'liveVoiceMode'
                 ];
                 if (!silent.includes(property)) {
                     scheduleRender();
@@ -4451,6 +4452,7 @@
                 }, 750);
             },
             closeVoiceAssistant: () => {
+                state.liveVoiceMode = false;
                 if (window.speechSynthesis) {
                     window.speechSynthesis.cancel();
                 }
@@ -4474,6 +4476,39 @@
                 }
                 window.__pendingVoiceFilter = null;
                 closeModal();
+            },
+            startLiveVoiceMode: () => {
+                state.liveVoiceMode = true;
+                // Restart listening immediately
+                window.retryVoiceAssistant();
+            },
+            stopLiveVoiceMode: () => {
+                state.liveVoiceMode = false;
+                // Stop mic if active
+                if (window.__voice_recognition) {
+                    try {
+                        const rec = window.__voice_recognition;
+                        rec.onstart = null;
+                        rec.onresult = null;
+                        rec.onerror = null;
+                        rec.onend = null;
+                        rec.abort();
+                    } catch(e){}
+                    window.__voice_recognition = null;
+                }
+                // Update UI: swap Live button back to normal, update status
+                const liveBtn = document.getElementById('voice-live-btn');
+                if (liveBtn) {
+                    liveBtn.onclick = window.startLiveVoiceMode;
+                    liveBtn.className = 'flex-1 py-3 bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5';
+                    liveBtn.innerHTML = '<i data-lucide="radio" class="w-4 h-4"></i> Modo Live';
+                    renderIcons();
+                }
+                const statusEl = document.getElementById('voice-status');
+                if (statusEl) {
+                    statusEl.className = 'text-[9px] font-black text-orange-custom uppercase tracking-widest';
+                    statusEl.innerText = 'Concluído';
+                }
             },
             retryVoiceAssistant: () => {
                 if (window.speechSynthesis) {
@@ -4510,7 +4545,9 @@
                 window.__current_speech_id = null;
 
                 const bodyEl = document.getElementById('voice-assistant-body');
-                if (bodyEl && !bodyEl.querySelector('#voice-assistant-orb')) {
+                // Rebuild layout if orb is missing OR if voice-query field is absent (success layout removes it)
+                if (bodyEl && (!bodyEl.querySelector('#voice-assistant-orb') || !bodyEl.querySelector('#voice-query'))) {
+                    const isLive = state.liveVoiceMode;
                     bodyEl.innerHTML = `
                         <div class="voice-orb-container animate-fade-in">
                             <div class="voice-pulse-ring" id="voice-ring-1"></div>
@@ -4521,7 +4558,7 @@
                         </div>
                         
                         <div class="w-full mt-4 px-2 min-h-[120px] flex flex-col justify-center">
-                            <div id="voice-status" class="text-xs font-bold text-orange-custom uppercase tracking-wide">Aguardando...</div>
+                            <div id="voice-status" class="text-xs font-bold ${isLive ? 'text-emerald-600' : 'text-orange-custom'} uppercase tracking-wide">${isLive ? 'Modo Live: Aguardando...' : 'Aguardando...'}</div>
                             <div id="voice-query" class="text-sm font-semibold text-slate-500 mt-2 italic max-h-[60px] overflow-y-auto"></div>
                             <div id="voice-response" class="text-sm font-bold text-navy mt-4 leading-relaxed max-h-[85px] overflow-y-auto"></div>
                         </div>
@@ -4578,12 +4615,20 @@
                 recognition.maxAlternatives = 1;
 
                 recognition.onstart = () => {
-                    if (statusEl) statusEl.innerText = "Ouvindo... Fale agora";
+                    const isLive = state.liveVoiceMode;
+                    if (statusEl) {
+                        statusEl.className = `text-xs font-bold ${isLive ? 'text-emerald-600' : 'text-orange-custom'} uppercase tracking-wide`;
+                        statusEl.innerText = isLive ? "Modo Live: Ouvindo... Fale agora" : "Ouvindo... Fale agora";
+                    }
                 };
 
                 recognition.onresult = (event) => {
                     const speechResult = event.results[0][0].transcript;
-                    if (statusEl) statusEl.innerText = "Processando com IA...";
+                    const isLive = state.liveVoiceMode;
+                    if (statusEl) {
+                        statusEl.className = `text-xs font-bold ${isLive ? 'text-emerald-600' : 'text-orange-custom'} uppercase tracking-wide`;
+                        statusEl.innerText = isLive ? "Modo Live: Processando com IA..." : "Processando com IA...";
+                    }
                     if (queryEl) queryEl.innerText = `Você disse: "${speechResult}"`;
                     window.interpretVoiceQueryWithAI(speechResult);
                 };
@@ -4888,7 +4933,7 @@
 
                             window.__pendingVoiceFilter = parsed;
 
-                            if (state.autoVoiceResponse) {
+                            if (state.autoVoiceResponse || state.liveVoiceMode) {
                                 window.applyVoiceFilter(parsed);
                             } else {
                                 window.showVoiceConfirmation(
@@ -5503,7 +5548,7 @@
                 window.__pendingVoiceFilter = parsed;
 
                 // Check for Automatic Response vs Manual Confirmation
-                if (state.autoVoiceResponse) {
+                if (state.autoVoiceResponse || state.liveVoiceMode) {
                     window.applyVoiceFilter(parsed);
                 } else {
                     window.showVoiceConfirmation(
@@ -5683,6 +5728,7 @@
 
                 // 4. Transform body layout to Speak/Success visual report
                 const bodyEl = document.getElementById('voice-assistant-body');
+                const isLive = state.liveVoiceMode;
                 if (bodyEl) {
                     bodyEl.innerHTML = `
                         <div class="voice-orb-container animate-fade-in shrink-0">
@@ -5693,12 +5739,15 @@
                             </div>
                         </div>
                         <div class="w-full mt-4 px-2 text-center shrink-0">
-                            <div id="voice-status" class="text-[9px] font-black text-orange-custom uppercase tracking-widest">Filtrado com Sucesso</div>
+                            <div id="voice-status" class="text-[9px] font-black ${isLive ? 'text-emerald-600' : 'text-orange-custom'} uppercase tracking-widest">${isLive ? 'Modo Live: Respondendo...' : 'Filtrado com Sucesso'}</div>
                             <div id="voice-response" class="text-xs font-bold text-navy mt-4 leading-relaxed max-h-[110px] overflow-y-auto scrollbar-none">${pending.responseText}</div>
                         </div>
                         <div id="voice-done-actions" class="w-full flex gap-3 mt-6 hidden shrink-0">
                             <button onclick="window.retryVoiceAssistant()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
                                 <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Ouvir
+                            </button>
+                            <button id="voice-live-btn" onclick="${isLive ? 'window.stopLiveVoiceMode()' : 'window.startLiveVoiceMode()'}" class="flex-1 py-3 ${isLive ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'} rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5">
+                                <i data-lucide="${isLive ? 'circle-stop' : 'radio'}" class="w-4 h-4"></i> ${isLive ? 'Parar Live' : 'Modo Live'}
                             </button>
                             <button onclick="window.closeVoiceAssistant()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all">
                                 Fechar
@@ -5780,7 +5829,19 @@
                         doneActions.classList.add('animate-fade-in');
                     }
                     const statusEl = document.getElementById('voice-status');
-                    if (statusEl) statusEl.innerText = 'Concluído';
+
+                    // Auto-restart mic in Live Mode
+                    if (state.liveVoiceMode) {
+                        if (statusEl) {
+                            statusEl.className = 'text-[9px] font-black text-emerald-600 uppercase tracking-widest';
+                            statusEl.innerText = 'Modo Live: Preparando...';
+                        }
+                        setTimeout(() => {
+                            if (state.liveVoiceMode) window.runVoiceRecognition();
+                        }, 1200);
+                    } else {
+                        if (statusEl) statusEl.innerText = 'Concluído';
+                    }
                 };
 
                 const onSpeechStart = () => {
