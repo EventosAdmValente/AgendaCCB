@@ -87,10 +87,8 @@ REGRAS IMPORTANTES:
                 }]
             },
             generationConfig: {
-                temperature: 0.1,
-                topP: 0.8,
-                topK: 10,
-                maxOutputTokens: 500,
+                temperature: 0,
+                maxOutputTokens: 300,
                 responseMimeType: "application/json"
             }
         }
