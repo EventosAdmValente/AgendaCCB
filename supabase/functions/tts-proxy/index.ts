@@ -15,7 +15,7 @@ serve(async (req) => {
 
     try {
         if (!GOOGLE_AI_KEY) {
-            throw new Error("GOOGLE_AI_KEY não configurada. Use: supabase secrets set GOOGLE_AI_KEY=sua_chave")
+            throw new Error("GOOGLE_AI_KEY não configurada.")
         }
 
         const { text, voice } = await req.json()
@@ -27,12 +27,13 @@ serve(async (req) => {
             })
         }
 
-        // Limita o texto a 3000 caracteres
-        const safeText = text.slice(0, 3000)
+        // Limita o texto a 2000 caracteres
+        const safeText = text.slice(0, 2000)
 
-        // Vozes válidas do Gemini: Puck, Charon, Kore, Fenrir, Aoede
+        // Vozes válidas: Puck, Charon, Kore, Fenrir, Aoede, Leda, Orus, Zephyr
         const selectedVoice = voice || 'Puck'
 
+        // Formato correto para gemini-2.5-flash-preview-tts
         const payload = {
             contents: [{
                 parts: [{
@@ -41,7 +42,6 @@ serve(async (req) => {
             }],
             generationConfig: {
                 responseModalities: ["AUDIO"],
-                temperature: 0,
                 speechConfig: {
                     voiceConfig: {
                         prebuiltVoiceConfig: {
@@ -52,20 +52,30 @@ serve(async (req) => {
             }
         }
 
-        console.log(`[TTS Proxy] Sintetizando ${safeText.length} chars usando Gemini (${selectedVoice})...`)
+        const keyPrefix = GOOGLE_AI_KEY ? GOOGLE_AI_KEY.substring(0, 10) + '...' : 'VAZIA'
+        console.log(`[TTS] gemini-2.5-flash-preview-tts | voz=${selectedVoice} | chars=${safeText.length} | key=${keyPrefix}`)
 
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${GOOGLE_AI_KEY}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }
-        )
+        const controller = new AbortController()
+        const fetchTimeout = setTimeout(() => controller.abort(), 25000)
+
+        let response: Response
+        try {
+            response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GOOGLE_AI_KEY}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                }
+            )
+        } finally {
+            clearTimeout(fetchTimeout)
+        }
 
         if (!response.ok) {
             const errBody = await response.text()
-            console.error(`[TTS Proxy] Erro Gemini TTS (${response.status}):`, errBody)
+            console.error(`[TTS] Erro ${response.status}:`, errBody)
             return new Response(JSON.stringify({
                 error: `Gemini TTS retornou ${response.status}`,
                 details: errBody
@@ -76,11 +86,9 @@ serve(async (req) => {
         }
 
         const data = await response.json()
-
-        // Extrai o áudio inline dos parts do candidate
         const candidates = data?.candidates || []
         let audioBase64 = ""
-        let detectedMime = "audio/l16;rate=24000;channels=1"
+        let detectedMime = "audio/L16;codec=pcm;rate=24000"
 
         if (candidates.length > 0) {
             const parts = candidates[0]?.content?.parts || []
@@ -94,9 +102,12 @@ serve(async (req) => {
         }
 
         if (!audioBase64) {
-            console.error("[TTS Proxy] Áudio não encontrado na resposta do Gemini:", JSON.stringify(data))
-            throw new Error("Áudio não gerado pela API do Gemini")
+            const finishReason = candidates[0]?.finishReason || 'unknown'
+            console.error(`[TTS] Sem áudio. finishReason=${finishReason}`)
+            throw new Error(`Áudio não gerado (finishReason=${finishReason})`)
         }
+
+        console.log(`[TTS] Sucesso! ${audioBase64.length} chars base64, mime=${detectedMime}`)
 
         return new Response(JSON.stringify({
             audioContent: audioBase64,
@@ -107,7 +118,7 @@ serve(async (req) => {
         })
 
     } catch (error: any) {
-        console.error("[TTS Proxy] Erro:", error)
+        console.error("[TTS] Erro:", error)
         return new Response(JSON.stringify({
             error: error.message || String(error)
         }), {
