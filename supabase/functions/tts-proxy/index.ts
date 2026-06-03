@@ -92,9 +92,10 @@ serve(async (req) => {
                 // Enviar setup
                 const setupMessage = {
                     setup: {
-                        model: "models/gemini-2.5-flash-native-audio-preview-09-2025",
+                        model: "models/gemini-2.5-flash-native-audio-latest",
                         generationConfig: {
                             responseModalities: ["AUDIO"],
+                            temperature: 0,
                             speechConfig: {
                                 voiceConfig: {
                                     prebuiltVoiceConfig: {
