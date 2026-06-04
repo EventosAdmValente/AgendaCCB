@@ -47,8 +47,8 @@ DADOS DISPONÍVEIS NO SISTEMA:
 
 INSTRUÇÕES:
 1. Interprete a pergunta do usuário e identifique os filtros de busca
-2. Corrija possíveis erros de transcrição de voz (ex: "marco" pode ser "marcos", "santa luz" pode ser "santaluz")
-3. Tente corresponder nomes parciais ou aproximados com os dados disponíveis
+2. Corrija possíveis erros de transcrição de voz (ex: "marco" pode ser "marcos", "santa luz" pode ser "santaluz", "ermirio" ou "ermírio" deve ser mapeado para "Hermírio")
+3. Tente corresponder nomes parciais ou aproximados com os dados disponíveis. Lembre-se que em português nomes falados com H mudo inicial (ex: Hermírio) podem ser transcritos sem o H (ex: Ermírio), então trate-os como idênticos ao fazer a correspondência.
 4. Para conversas sequenciais (Modo Live/multi-turn com histórico), se a pergunta atual for um acompanhamento (ex: "e a de Valente?", "quando será?", "e em Santaluz?"), você deve MANTER os filtros do turno anterior (como "type", "tense", "dateStart", "attendant", etc.) que continuam fazendo sentido, apenas atualizando ou adicionando o novo filtro mencionado (como "cidade" ou "location").
 5. Retorne APENAS um JSON válido (sem markdown, sem explicação)
 

@@ -4652,7 +4652,8 @@
                 };
 
                 recognition.onresult = (event) => {
-                    const speechResult = event.results[0][0].transcript;
+                    let speechResult = event.results[0][0].transcript;
+                    speechResult = window.correctVoiceTranscription(speechResult);
                     const isLive = state.liveVoiceMode;
                     if (statusEl) {
                         statusEl.className = `text-xs font-bold ${isLive ? 'text-emerald-600' : 'text-orange-custom'} uppercase tracking-wide`;
@@ -4709,7 +4710,27 @@
 
                 startRecognition();
             },
+            correctVoiceTranscription: (text) => {
+                if (!text) return "";
+                let correctedText = text;
+                const replacements = [
+                    { regex: /\berm[ií]rio\b/gi, replace: "Hermírio" },
+                    { regex: /\bmar[cç]o\b\s+de\b/gi, replace: "marcos de" },
+                    { regex: /\bmar[cç]o\b\s+lima\b/gi, replace: "marcos lima" },
+                    { regex: /\bmar[cç]o\b\s+de\s+lima\b/gi, replace: "marcos de lima" },
+                    { regex: /\bce\s+ce\s+be\b/gi, replace: "ccb" },
+                    { regex: /\bcecebe\b/gi, replace: "ccb" },
+                    { regex: /\bc\s+c\s+b\b/gi, replace: "ccb" },
+                    { regex: /\bsanta\s+luz\b/gi, replace: "santaluz" },
+                    { regex: /\bsanta\s+lu\u00fa?[cç]ia\b/gi, replace: "santaluz" }
+                ];
+                replacements.forEach(r => {
+                    correctedText = correctedText.replace(r.regex, r.replace);
+                });
+                return correctedText;
+            },
             interpretVoiceQueryWithAI: async (rawText) => {
+                const correctedText = window.correctVoiceTranscription(rawText);
                 // Tenta usar Gemini AI para interpretar a pesquisa de forma inteligente
                 const useAI = localStorage.getItem('ttsAiEnabled') !== 'false';
                 if (useAI && navigator.onLine) {
@@ -4730,14 +4751,18 @@
                         const liveHistory = (state.liveVoiceMode && Array.isArray(window.__liveVoiceHistory))
                             ? [...window.__liveVoiceHistory] : [];
                         const { data, error } = await supabaseClient.functions.invoke('gemini-proxy', {
-                            body: { query: rawText, context, history: liveHistory }
+                            body: { query: correctedText, context, history: liveHistory }
                         });
 
                         if (!error && data && !data.error) {
                             console.log('[Voice AI] Gemini interpretou:', data);
 
                             // Mapeia os nomes retornados pelo Gemini para os objetos reais do state
-                            const normName = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+                            const normName = (s) => {
+                                let name = (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+                                name = name.replace(/\bh(?=[aeiou])/g, '');
+                                return name;
+                            };
 
                             const matchedType = data.type ? state.types.find(t => normName(t.name) === normName(data.type)) : null;
                             const matchedLoc = data.location ? state.locations.find(l => normName(l.localidade) === normName(data.location)) : null;
@@ -4998,21 +5023,7 @@
             },
             interpretVoiceQuery: (text) => {
                 // Pre-processing corrections for speech-to-text engine errors
-                let correctedText = text;
-                const replacements = [
-                    { regex: /\bmar[cç]o\b\s+de\b/gi, replace: "marcos de" },
-                    { regex: /\bmar[cç]o\b\s+lima\b/gi, replace: "marcos lima" },
-                    { regex: /\bmar[cç]o\b\s+de\s+lima\b/gi, replace: "marcos de lima" },
-                    { regex: /\bce\s+ce\s+be\b/gi, replace: "ccb" },
-                    { regex: /\bcecebe\b/gi, replace: "ccb" },
-                    { regex: /\bc\s+c\s+b\b/gi, replace: "ccb" },
-                    { regex: /\bsanta\s+luz\b/gi, replace: "santaluz" },
-                    // lu\u00fa? covers both "lucia" and "l\u00facia" (with accented \u00fa)
-                    { regex: /\bsanta\s+lu\u00fa?[cç]ia\b/gi, replace: "santaluz" }
-                ];
-                replacements.forEach(r => {
-                    correctedText = correctedText.replace(r.regex, r.replace);
-                });
+                let correctedText = window.correctVoiceTranscription(text);
 
                 // Build the clean string (lower-case, diacritics removed)
                 let clean = correctedText.toLowerCase()
@@ -5080,8 +5091,12 @@
                     return res.replace(/\s+/g, ' ').trim();
                 };
 
-                // Normaliza nome: minúsculas + remove acentos + expande abreviaturas
-                const normName = (s) => expandAbbr((s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+                // Normaliza nome: minúsculas + remove acentos + remove H mudo inicial + expande abreviaturas
+                const normName = (s) => {
+                    let name = (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    name = name.replace(/\bh(?=[aeiou])/g, '');
+                    return expandAbbr(name);
+                };
 
                 // Aplica expansão ao clean (para caso de edição manual com abreviaturas)
                 clean = expandAbbr(clean);
