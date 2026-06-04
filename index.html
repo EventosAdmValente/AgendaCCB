@@ -1999,18 +1999,23 @@
                             <div class="flex flex-col gap-1 mb-4">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Selecionar Voz</label>
                                 ${ttsAiEnabled ? `
-                                    <div class="relative w-full">
-                                        <select id="voice-tts-select" onchange="window.saveTtsVoice(this.value)" 
-                                            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-navy focus:ring-2 focus:ring-navy/10 transition-all appearance-none pr-10 cursor-pointer">
-                                            <option value="Puck" ${savedTtsVoice === 'Puck' ? 'selected' : ''}>Gemini Puck (Masculino Realista - Padrão)</option>
-                                            <option value="Aoede" ${savedTtsVoice === 'Aoede' ? 'selected' : ''}>Gemini Aoede (Feminino Expressivo)</option>
-                                            <option value="Kore" ${savedTtsVoice === 'Kore' ? 'selected' : ''}>Gemini Kore (Feminino Profissional)</option>
-                                            <option value="Charon" ${savedTtsVoice === 'Charon' ? 'selected' : ''}>Gemini Charon (Masculino Calmo)</option>
-                                            <option value="Fenrir" ${savedTtsVoice === 'Fenrir' ? 'selected' : ''}>Gemini Fenrir (Masculino Jovem)</option>
-                                        </select>
-                                        <div class="absolute right-3.5 top-3.5 pointer-events-none text-slate-400">
-                                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
-                                        </div>
+                                    <div class="flex flex-col gap-1.5" id="tts-voice-list">
+                                        ${[
+                                            { value: 'Puck',   label: 'Puck',   desc: 'Masculino Realista', badge: 'Padrão' },
+                                            { value: 'Aoede',  label: 'Aoede',  desc: 'Feminino Expressivo', badge: '' },
+                                            { value: 'Kore',   label: 'Kore',   desc: 'Feminino Profissional', badge: '' },
+                                            { value: 'Charon', label: 'Charon', desc: 'Masculino Calmo', badge: '' },
+                                            { value: 'Fenrir', label: 'Fenrir', desc: 'Masculino Jovem', badge: '' }
+                                        ].map(v => `
+                                            <button onclick="window.saveTtsVoice('${v.value}'); document.querySelectorAll('#tts-voice-list button').forEach(b=>b.classList.remove('border-orange-custom','bg-orange-50')); this.classList.add('border-orange-custom','bg-orange-50');" 
+                                                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-left transition-all active:scale-[0.98] ${savedTtsVoice === v.value ? 'border-orange-custom bg-orange-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}">
+                                                <div class="flex flex-col">
+                                                    <span class="text-[13px] font-black text-navy">Gemini ${v.label}</span>
+                                                    <span class="text-[10px] text-slate-400 font-semibold">${v.desc}</span>
+                                                </div>
+                                                ${v.badge ? `<span class="text-[9px] font-black uppercase tracking-widest text-orange-custom bg-orange-50 border border-orange-custom/30 px-2 py-0.5 rounded-full">${v.badge}</span>` : `<div class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${savedTtsVoice === v.value ? 'border-orange-custom' : 'border-slate-300'}"><div class="w-2 h-2 rounded-full ${savedTtsVoice === v.value ? 'bg-orange-custom' : ''}"></div></div>`}
+                                            </button>
+                                        `).join('')}
                                     </div>
                                     <span class="text-[9px] text-slate-400 ml-1 mt-0.5">Vozes baseadas no Gemini 3.1 Flash. Requer conexão com a internet.</span>
                                 ` : `
@@ -4854,11 +4859,11 @@
                         return `Encontrei ${eventsList.length} ${pluralEvent} e ${gender.art === 'a' ? 'a próxima' : 'o próximo'} ${fType} será na localidade ${fLoc}, no dia ${fDateFormatted} às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
                     }
                 } else {
-                    // Singular: O próximo batismo será no dia X, às X horas, na localidade X, atendido por X.
+                    // Singular: A próxima X, da localidade X, será no dia X, às X horas, atendida por X.
                     if (isPastQuery) {
-                        return `${gender.art === 'a' ? 'A última' : 'O último'} ${fType} foi no dia ${fDateFormatted}, às ${first.time} horas, na localidade ${fLoc}, ${gender.atendido} por ${attName || 'um servo'}.`;
+                        return `${gender.art === 'a' ? 'A última' : 'O último'} ${fType}, da localidade ${fLoc}, foi no dia ${fDateFormatted}, às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
                     } else {
-                        return `${gender.art === 'a' ? 'A próxima' : 'O próximo'} ${fType} será no dia ${fDateFormatted}, às ${first.time} horas, na localidade ${fLoc}, ${gender.atendido} por ${attName || 'um servo'}.`;
+                        return `${gender.art === 'a' ? 'A próxima' : 'O próximo'} ${fType}, da localidade ${fLoc}, será no dia ${fDateFormatted}, às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
                     }
                 }
             },
