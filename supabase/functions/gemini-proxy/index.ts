@@ -68,7 +68,7 @@ FORMATO DO JSON DE RESPOSTA:
 }
 
 REGRAS IMPORTANTES:
-- "tense" deve ser "inativos" para perguntas sobre o passado, "ativos" para futuro, "todos" se não especificado
+- "tense" DEVE ser classificado ESTRITAMENTE com base no tempo verbal da pergunta: se a pergunta contiver verbos no PASSADO (foi, teve, aconteceu, atendeu, realizou, ocorreu, participou, assistiu, houve, fez, foram, tiveram, etc.) → use "inativos"; se a pergunta contiver verbos no FUTURO ou indicadores de futuro (será, serão, vai, irá, irão, próximo, próxima, próximos, próximas, agendado, programado, haverá, etc.) → use "ativos"; use "todos" SOMENTE se a pergunta não contiver nenhum indicador temporal claro
 - Use os nomes EXATAMENTE como estão nos dados disponíveis
 - Se não conseguir identificar um filtro, use null (ou mantenha o do histórico se for acompanhamento)
 - O "responseText" será gerado posteriormente pelo sistema, então pode ser uma frase genérica como "Buscando resultados..."

@@ -4729,6 +4729,46 @@
                 });
                 return correctedText;
             },
+            detectVerbTense: (text) => {
+                if (!text) return 'todos';
+                const cleanText = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                
+                const pastKeywords = [
+                    "ultimo", "ultima", "ultimos", "ultimas", 
+                    "realizado", "realizada", "realizados", "realizadas", 
+                    "aconteceu", "aconteceram", "passado", "passada", "passados", "passadas",
+                    "anterior", "anteriores", "foi", "foram", "teve", "tiveram", "houve", "fez", "fizeram",
+                    "ocorreu", "ocorreram", "participou", "participaram", "assistiu", "assistiram",
+                    "realizou", "realizaram", "agendou", "agendaram", "atendeu", "atenderam", "atendido", "atendida", "atendidos", "atendidas"
+                ];
+                
+                const futureKeywords = [
+                    "proximo", "proxima", "proximos", "proximas", 
+                    "agendado", "agendada", "agendados", "agendadas", 
+                    "vai", "vao", "iremos", "programado", "programada", "programados", "programadas",
+                    "futuro", "futuros", "futura", "futuras", "sera", "serao", 
+                    "acontecera", "acontecerao", "realizara", "realizarao", "tera", "terao", "fara", "farao",
+                    "havera", "agendara", "agendarao", "programara", "programarao", "marcara", "marcarao", "atendera", "atenderao"
+                ];
+
+                const hasPast = pastKeywords.some(kw => {
+                    const regex = new RegExp(`\\b${kw}\\b`);
+                    return regex.test(cleanText);
+                });
+
+                const hasFuture = futureKeywords.some(kw => {
+                    const regex = new RegExp(`\\b${kw}\\b`);
+                    return regex.test(cleanText);
+                });
+
+                if (hasFuture && !hasPast) {
+                    return 'ativos';
+                } else if (hasPast && !hasFuture) {
+                    return 'inativos';
+                } else {
+                    return 'todos';
+                }
+            },
             generateVoiceResponseText: (eventsList, rawText, tenseDetected) => {
                 const now = new Date();
                 const eventTs = e => { const d = new Date(`${e.date}T${e.time || '00:00'}`); return isNaN(d.getTime()) ? 0 : d.getTime(); };
@@ -4770,7 +4810,8 @@
                 const fType = state.types.find(t => t.id === first.type_id)?.name || "evento";
                 const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
                 const fDateParts = first.date.split('-');
-                const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
+                const _monthNames = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+                const fDateFormatted = `${parseInt(fDateParts[2])} de ${_monthNames[parseInt(fDateParts[1]) - 1] || fDateParts[1]} de ${fDateParts[0]}`;
 
                 const getEventAttendantsText = (event) => {
                     if (!event) return "";
@@ -4865,7 +4906,11 @@
                             const dateStart = data.dateStart || '';
                             const dateEnd = data.dateEnd || '';
                             const periodLabel = data.periodLabel || '';
-                            const tenseDetected = data.tense || 'todos';
+                            let tenseDetected = data.tense || 'todos';
+                            const localTense = window.detectVerbTense(correctedText);
+                            if (tenseDetected === 'todos' && localTense !== 'todos') {
+                                tenseDetected = localTense;
+                            }
 
                             // Aplica os filtros da mesma forma que a interpretação local
                             let eventsList = [...state.events];
@@ -5402,48 +5447,7 @@
                     matchedLoc = null;
                 }
 
-                // Detect context using morphological-semantic classification (Filtro Mestre)
-                const detectVerbTense = (text) => {
-                    const cleanText = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-                    
-                    const pastKeywords = [
-                        "ultimo", "ultima", "ultimos", "ultimas", 
-                        "realizado", "realizada", "realizados", "realizadas", 
-                        "aconteceu", "aconteceram", "passado", "passada", "passados", "passadas",
-                        "anterior", "anteriores", "foi", "foram", "teve", "tiveram", "houve", "fez", "fizeram",
-                        "ocorreu", "ocorreram", "participou", "participaram", "assistiu", "assistiram",
-                        "realizou", "realizaram", "agendou", "agendaram", "atendeu", "atenderam", "atendido", "atendida", "atendidos", "atendidas"
-                    ];
-                    
-                    const futureKeywords = [
-                        "proximo", "proxima", "proximos", "proximas", 
-                        "agendado", "agendada", "agendados", "agendadas", 
-                        "vai", "vao", "iremos", "programado", "programada", "programados", "programadas",
-                        "futuro", "futuros", "futura", "futuras", "sera", "serao", 
-                        "acontecera", "acontecerao", "realizara", "realizarao", "tera", "terao", "fara", "farao",
-                        "havera", "agendara", "agendarao", "programara", "programarao", "marcara", "marcarao", "atendera", "atenderao"
-                    ];
-
-                    const hasPast = pastKeywords.some(kw => {
-                        const regex = new RegExp(`\\b${kw}\\b`);
-                        return regex.test(cleanText);
-                    });
-
-                    const hasFuture = futureKeywords.some(kw => {
-                        const regex = new RegExp(`\\b${kw}\\b`);
-                        return regex.test(cleanText);
-                    });
-
-                    if (hasFuture && !hasPast) {
-                        return 'ativos';
-                    } else if (hasPast && !hasFuture) {
-                        return 'inativos';
-                    } else {
-                        return 'todos';
-                    }
-                };
-
-                let tenseDetected = detectVerbTense(clean);
+                let tenseDetected = window.detectVerbTense(clean);
                 const isLastQuery = clean.includes("ultimo") || clean.includes("ultima");
                 if (isLastQuery) {
                     tenseDetected = 'inativos';
