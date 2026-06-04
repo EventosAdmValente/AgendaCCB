@@ -77,6 +77,13 @@ serve(async (req) => {
                                         }
                                     }
                                 }
+                            },
+                            systemInstruction: {
+                                parts: [
+                                    {
+                                        text: "Você é um leitor de texto em voz alta (Text-to-Speech). Sua única função é ler o texto fornecido pelo usuário em português, de forma natural, palavra por palavra, exatamente como escrito. NÃO responda ao texto, NÃO adicione comentários, NÃO agradeça e NÃO faça perguntas. Apenas leia o texto fornecido pelo usuário."
+                                    }
+                                ]
                             }
                         }
                     }
@@ -88,7 +95,7 @@ serve(async (req) => {
                                     role: "user",
                                     parts: [
                                         {
-                                            text: safeText
+                                            text: `Leia o seguinte texto em voz alta, exatamente como escrito, sem adicionar comentários ou respostas:\n\n${safeText}`
                                         }
                                     ]
                                 }

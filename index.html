@@ -4729,6 +4729,98 @@
                 });
                 return correctedText;
             },
+            generateVoiceResponseText: (eventsList, rawText, tenseDetected) => {
+                const now = new Date();
+                const eventTs = e => { const d = new Date(`${e.date}T${e.time || '00:00'}`); return isNaN(d.getTime()) ? 0 : d.getTime(); };
+                const isPastQuery = tenseDetected === 'inativos';
+
+                if (eventsList.length === 0) {
+                    const matchedType = window.__pendingVoiceFilter?.matchedType;
+                    const matchedLoc = window.__pendingVoiceFilter?.matchedLoc;
+                    const matchedCidade = window.__pendingVoiceFilter?.matchedCidade;
+                    const matchedSetor = window.__pendingVoiceFilter?.matchedSetor;
+                    const matchedAdm = window.__pendingVoiceFilter?.matchedAdm;
+                    const periodLabel = window.__pendingVoiceFilter?.periodLabel;
+
+                    let areaLabel = "";
+                    if (matchedLoc) {
+                        areaLabel = ` em ${matchedLoc.localidade}`;
+                    } else {
+                        const parts = [];
+                        if (matchedSetor) parts.push(`no ${matchedSetor}`);
+                        if (matchedAdm) parts.push(`da ADM de ${matchedAdm}`);
+                        if (matchedCidade) parts.push(`em ${matchedCidade}`);
+                        if (parts.length > 0) areaLabel = ` ${parts.join(" ")}`;
+                    }
+
+                    const typeLabel = matchedType ? matchedType.name : "evento";
+                    const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
+                    const verbLabel = isPastQuery ? "foi realizado" : (tenseDetected === 'ativos' ? "está agendado" : "está cadastrado");
+                    return `Não encontrei nenhum ${typeLabel}${areaLabel}${periodLabelText} que ${verbLabel}.`;
+                }
+
+                // Ordena
+                if (isPastQuery) {
+                    eventsList.sort((a, b) => eventTs(b) - eventTs(a));
+                } else {
+                    eventsList.sort((a, b) => eventTs(a) - eventTs(b));
+                }
+
+                const first = eventsList[0];
+                const fType = state.types.find(t => t.id === first.type_id)?.name || "evento";
+                const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
+                const fDateParts = first.date.split('-');
+                const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
+
+                const getEventAttendantsText = (event) => {
+                    if (!event) return "";
+                    const att1 = state.attendants.find(a => a.id === event.attendant_id)?.name || "";
+                    const att2 = state.attendants.find(a => a.id === event.attendant2_id)?.name || "";
+                    if (att1 && att2) return `${att1} e ${att2}`;
+                    return att1 || att2 || "";
+                };
+                const attName = getEventAttendantsText(first);
+
+                const getGenderWords = (typeName) => {
+                    const art = getArticleForEvent(typeName);
+                    if (art === 'uma') {
+                        return {
+                            proximo: 'próxima',
+                            ultimo: 'última',
+                            atendido: 'atendida',
+                            art: 'a'
+                        };
+                    }
+                    return {
+                        proximo: 'próximo',
+                        ultimo: 'último',
+                        atendido: 'atendido',
+                        art: 'o'
+                    };
+                };
+                const gender = getGenderWords(fType);
+
+                const cleanQuery = (rawText || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                const isPlural = /\b(quais|listar|lista|todos|todas|proximos|proximas|ultimos|ultimas|batismos|cultos|santas ceias|reunioes|eventos)\b/i.test(cleanQuery);
+
+                const pluralEvent = getPluralEventName(fType, eventsList.length);
+
+                if (isPlural) {
+                    // Plural: Encontrei X eventos e o próximo X será na localidade X, no dia X às X horas, atendido por X.
+                    if (isPastQuery) {
+                        return `Encontrei ${eventsList.length} ${pluralEvent} e ${gender.art === 'a' ? 'a última' : 'o último'} ${fType} foi na localidade ${fLoc}, no dia ${fDateFormatted} às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
+                    } else {
+                        return `Encontrei ${eventsList.length} ${pluralEvent} e ${gender.art === 'a' ? 'a próxima' : 'o próximo'} ${fType} será na localidade ${fLoc}, no dia ${fDateFormatted} às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
+                    }
+                } else {
+                    // Singular: O próximo batismo será no dia X, às X horas, na localidade X, atendido por X.
+                    if (isPastQuery) {
+                        return `${gender.art === 'a' ? 'A última' : 'O último'} ${fType} foi no dia ${fDateFormatted}, às ${first.time} horas, na localidade ${fLoc}, ${gender.atendido} por ${attName || 'um servo'}.`;
+                    } else {
+                        return `${gender.art === 'a' ? 'A próxima' : 'O próximo'} ${fType} será no dia ${fDateFormatted}, às ${first.time} horas, na localidade ${fLoc}, ${gender.atendido} por ${attName || 'um servo'}.`;
+                    }
+                }
+            },
             interpretVoiceQueryWithAI: async (rawText) => {
                 const correctedText = window.correctVoiceTranscription(rawText);
                 // Tenta usar Gemini AI para interpretar a pesquisa de forma inteligente
@@ -4934,38 +5026,7 @@
                                         }
                                     }
                                 } else {
-                                    const isLastQuery = cleanQuery.includes("ultimo") || cleanQuery.includes("ultima");
-                                    if (isLastQuery) {
-                                        const first = mostRecentPast;
-                                        if (!first) {
-                                            responseText = `Não encontrei nenhum ${typeLabel}${areaLabel} já realizado.`;
-                                        } else {
-                                            const fDateParts = first.date.split('-'); const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
-                                            const fType = state.types.find(t => t.id === first.type_id)?.name || "evento";
-                                            const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
-                                            const attName = getEventAttendantsText(first);
-                                            const attText = attName ? ` atendido por ${attName}` : "";
-                                            const locText = fLoc ? ` em ${fLoc}` : "";
-                                            if (fType.toLowerCase().includes("batismo")) {
-                                                const irmaos = first.irmaos || 0; const irmas = first.irmas || 0; const total = irmaos + irmas;
-                                                responseText = `O último batismo${attText}${locText} foi no dia ${fDateFormatted} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmaos === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
-                                            } else responseText = `O último ${fType}${attText}${locText} foi no dia ${fDateFormatted} às ${first.time}.`;
-                                        }
-                                    } else {
-                                        const hasPast = mostRecentPast !== null; const first = hasPast ? mostRecentPast : eventsList[0];
-                                        const fType = state.types.find(t => t.id === first.type_id)?.name || "Evento";
-                                        const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
-                                        const fDateParts = first.date.split('-'); const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
-                                        const attName = getEventAttendantsText(first);
-                                        const attText = attName ? ` ${hasPast ? 'atendido' : 'a ser atendido'} por ${attName}` : "";
-                                        if (hasPast) {
-                                            let verb = "aconteceu";
-                                            if (cleanQuery.includes("quando")) verb = "foi";
-                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent}. O último ${verb} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
-                                        } else {
-                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent}. O próximo evento será ${getArticleForEvent(fType)} ${fType} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
-                                        }
-                                    }
+                                    responseText = window.generateVoiceResponseText(eventsList, rawText, tenseDetected);
                                 }
                             }
 
@@ -5000,8 +5061,7 @@
                             if (state.autoVoiceResponse || state.liveVoiceMode) {
                                 window.applyVoiceFilter(parsed);
                             } else {
-                                // Modo normal: fala a resposta imediatamente e exibe chips de confirmação
-                                window.speakVoiceResponse(parsed.responseText);
+                                // Modo normal: exibe chips de confirmação e aguarda clique em OK para falar
                                 window.showVoiceConfirmation(
                                     rawText, tenseDetected, matchedType, matchedLoc,
                                     matchedCidade, matchedSetor, matchedAdm, matchedAtt,
@@ -5546,38 +5606,7 @@
                             }
                         }
                     } else {
-                        const isLastQuery = clean.includes("ultimo") || clean.includes("ultima");
-                        if (isLastQuery) {
-                            const first = mostRecentPast;
-                            if (!first) {
-                                responseText = `Não encontrei nenhum ${typeLabel}${areaLabel} já realizado.`;
-                            } else {
-                                const fDateParts = first.date.split('-'); const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
-                                const fType = state.types.find(t => t.id === first.type_id)?.name || "evento";
-                                const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
-                                const attName = getEventAttendantsText(first);
-                                const attText = attName ? ` atendido por ${attName}` : "";
-                                const locText = fLoc ? ` em ${fLoc}` : "";
-                                if (fType.toLowerCase().includes("batismo")) {
-                                    const irmaos = first.irmaos || 0; const irmas = first.irmas || 0; const total = irmaos + irmas;
-                                    responseText = `O último batismo${attText}${locText} foi no dia ${fDateFormatted} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmaos === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
-                                } else responseText = `O último ${fType}${attText}${locText} foi no dia ${fDateFormatted} às ${first.time}.`;
-                            }
-                        } else {
-                            const hasPast = mostRecentPast !== null; const first = hasPast ? mostRecentPast : eventsList[0];
-                            const fType = state.types.find(t => t.id === first.type_id)?.name || "Evento";
-                            const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
-                            const fDateParts = first.date.split('-'); const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
-                            const attName = getEventAttendantsText(first);
-                            const attText = attName ? ` ${hasPast ? 'atendido' : 'a ser atendido'} por ${attName}` : "";
-                            if (hasPast) {
-                                let verb = "aconteceu";
-                                if (clean.includes("quando")) verb = "foi";
-                                responseText = `Encontrei ${eventsList.length} ${pluralEvent}. O último ${verb} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
-                            } else {
-                                responseText = `Encontrei ${eventsList.length} ${pluralEvent}. O próximo evento será ${getArticleForEvent(fType)} ${fType} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
-                            }
-                        }
+                        responseText = window.generateVoiceResponseText(eventsList, text, tenseDetected);
                     }
                 }
 
@@ -5607,8 +5636,7 @@
                 if (state.autoVoiceResponse || state.liveVoiceMode) {
                     window.applyVoiceFilter(parsed);
                 } else {
-                    // Modo normal: fala a resposta imediatamente e exibe chips de confirmação
-                    window.speakVoiceResponse(parsed.responseText);
+                    // Modo normal: exibe chips de confirmação e aguarda clique em OK para falar
                     window.showVoiceConfirmation(
                         correctedText, 
                         tenseDetected, 
