@@ -4453,6 +4453,7 @@
             },
             closeVoiceAssistant: () => {
                 state.liveVoiceMode = false;
+                window.__liveVoiceHistory = null; // Limpa histórico ao fechar
                 if (window.speechSynthesis) {
                     window.speechSynthesis.cancel();
                 }
@@ -4479,6 +4480,7 @@
             },
             startLiveVoiceMode: () => {
                 state.liveVoiceMode = true;
+                window.__liveVoiceHistory = []; // Inicia histórico vazio ao entrar no Modo Live
                 // Restart listening immediately
                 window.retryVoiceAssistant();
             },
@@ -4563,12 +4565,12 @@
                             <div id="voice-response" class="text-sm font-bold text-navy mt-4 leading-relaxed max-h-[85px] overflow-y-auto"></div>
                         </div>
                         
-                        <div class="w-full flex gap-3 mt-6">
-                            <button onclick="window.retryVoiceAssistant()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
-                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Ouvir
+                        <div class="w-full flex gap-2 mt-6">
+                            <button onclick="window.retryVoiceAssistant()" class="px-5 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center" title="Ouvir novamente">
+                                <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
                             </button>
-                            <button onclick="window.closeVoiceAssistant()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all">
-                                Fechar
+                            <button onclick="window.closeVoiceAssistant()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5" title="Fechar">
+                                <i data-lucide="x" class="w-4 h-4"></i> Fechar
                             </button>
                         </div>
                     `;
@@ -4697,8 +4699,11 @@
                             cidades: [...new Set(state.locations.map(l => l.cidade).filter(Boolean))].slice(0, 80)
                         };
 
+                        // Captura snapshot do histórico antes da chamada (para multi-turn no Live Mode)
+                        const liveHistory = (state.liveVoiceMode && Array.isArray(window.__liveVoiceHistory))
+                            ? [...window.__liveVoiceHistory] : [];
                         const { data, error } = await supabaseClient.functions.invoke('gemini-proxy', {
-                            body: { query: rawText, context }
+                            body: { query: rawText, context, history: liveHistory }
                         });
 
                         if (!error && data && !data.error) {
@@ -4933,9 +4938,19 @@
 
                             window.__pendingVoiceFilter = parsed;
 
+                            // Atualiza histórico do Modo Live com par pergunta/resposta
+                            if (state.liveVoiceMode && Array.isArray(window.__liveVoiceHistory)) {
+                                window.__liveVoiceHistory.push(
+                                    { role: 'user', parts: [{ text: rawText }] },
+                                    { role: 'model', parts: [{ text: JSON.stringify(data) }] }
+                                );
+                            }
+
                             if (state.autoVoiceResponse || state.liveVoiceMode) {
                                 window.applyVoiceFilter(parsed);
                             } else {
+                                // Modo normal: fala a resposta imediatamente e exibe chips de confirmação
+                                window.speakVoiceResponse(parsed.responseText);
                                 window.showVoiceConfirmation(
                                     rawText, tenseDetected, matchedType, matchedLoc,
                                     matchedCidade, matchedSetor, matchedAdm, matchedAtt,
@@ -5551,6 +5566,8 @@
                 if (state.autoVoiceResponse || state.liveVoiceMode) {
                     window.applyVoiceFilter(parsed);
                 } else {
+                    // Modo normal: fala a resposta imediatamente e exibe chips de confirmação
+                    window.speakVoiceResponse(parsed.responseText);
                     window.showVoiceConfirmation(
                         correctedText, 
                         tenseDetected, 
@@ -5742,15 +5759,15 @@
                             <div id="voice-status" class="text-[9px] font-black ${isLive ? 'text-emerald-600' : 'text-orange-custom'} uppercase tracking-widest">${isLive ? 'Modo Live: Respondendo...' : 'Filtrado com Sucesso'}</div>
                             <div id="voice-response" class="text-xs font-bold text-navy mt-4 leading-relaxed max-h-[110px] overflow-y-auto scrollbar-none">${pending.responseText}</div>
                         </div>
-                        <div id="voice-done-actions" class="w-full flex gap-3 mt-6 hidden shrink-0">
-                            <button onclick="window.retryVoiceAssistant()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
-                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Ouvir
+                        <div id="voice-done-actions" class="w-full flex gap-2 mt-6 hidden shrink-0">
+                            <button onclick="window.retryVoiceAssistant()" class="px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center" title="Ouvir novamente">
+                                <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
                             </button>
-                            <button id="voice-live-btn" onclick="${isLive ? 'window.stopLiveVoiceMode()' : 'window.startLiveVoiceMode()'}" class="flex-1 py-3 ${isLive ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'} rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5">
-                                <i data-lucide="${isLive ? 'circle-stop' : 'radio'}" class="w-4 h-4"></i> ${isLive ? 'Parar Live' : 'Modo Live'}
+                            <button id="voice-live-btn" onclick="${isLive ? 'window.stopLiveVoiceMode()' : 'window.startLiveVoiceMode()'}" class="flex-1 py-3 ${isLive ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'} rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5" title="${isLive ? 'Parar Modo Live' : 'Iniciar Modo Live'}">
+                                <i data-lucide="${isLive ? 'circle-stop' : 'radio'}" class="w-4 h-4"></i> ${isLive ? 'Parar' : 'Live'}
                             </button>
-                            <button onclick="window.closeVoiceAssistant()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all">
-                                Fechar
+                            <button onclick="window.closeVoiceAssistant()" class="px-4 py-3 bg-navy text-white rounded-xl font-black active:scale-95 transition-all flex items-center justify-center shadow-md" title="Fechar">
+                                <i data-lucide="x" class="w-5 h-5"></i>
                             </button>
                         </div>
                     `;

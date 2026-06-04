@@ -18,7 +18,7 @@ serve(async (req) => {
             throw new Error("GOOGLE_AI_KEY não configurada. Use: supabase secrets set GOOGLE_AI_KEY=sua_chave")
         }
 
-        const { query, context } = await req.json()
+        const { query, context, history } = await req.json()
 
         if (!query || typeof query !== 'string' || query.trim().length === 0) {
             return new Response(JSON.stringify({ error: "Query vazia" }), {
@@ -75,12 +75,19 @@ REGRAS IMPORTANTES:
 - Para perguntas sobre "último batismo", "último evento", use tense "inativos"
 - Se o usuário perguntar "quantos", identifique que é uma consulta de quantidade`
 
+        // Monta conteúdo multi-turn: histórico anterior (Live Mode) + turno atual
+        const historyTurns: Array<{ role: string; parts: Array<{ text: string }> }> =
+            Array.isArray(history) && history.length > 0 ? history : []
+        const currentTurn = {
+            role: 'user',
+            parts: [{ text: `Pergunta do usuário: "${query}"` }]
+        }
+        const allContents = historyTurns.length > 0
+            ? [...historyTurns, currentTurn]
+            : [currentTurn]
+
         const payload = {
-            contents: [{
-                parts: [{
-                    text: `Pergunta do usuário: "${query}"`
-                }]
-            }],
+            contents: allContents,
             systemInstruction: {
                 parts: [{
                     text: systemPrompt
