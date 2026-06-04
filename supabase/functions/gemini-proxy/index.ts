@@ -49,7 +49,8 @@ INSTRUÇÕES:
 1. Interprete a pergunta do usuário e identifique os filtros de busca
 2. Corrija possíveis erros de transcrição de voz (ex: "marco" pode ser "marcos", "santa luz" pode ser "santaluz")
 3. Tente corresponder nomes parciais ou aproximados com os dados disponíveis
-4. Retorne APENAS um JSON válido (sem markdown, sem explicação)
+4. Para conversas sequenciais (Modo Live/multi-turn com histórico), se a pergunta atual for um acompanhamento (ex: "e a de Valente?", "quando será?", "e em Santaluz?"), você deve MANTER os filtros do turno anterior (como "type", "tense", "dateStart", "attendant", etc.) que continuam fazendo sentido, apenas atualizando ou adicionando o novo filtro mencionado (como "cidade" ou "location").
+5. Retorne APENAS um JSON válido (sem markdown, sem explicação)
 
 FORMATO DO JSON DE RESPOSTA:
 {
@@ -69,11 +70,12 @@ FORMATO DO JSON DE RESPOSTA:
 REGRAS IMPORTANTES:
 - "tense" deve ser "inativos" para perguntas sobre o passado, "ativos" para futuro, "todos" se não especificado
 - Use os nomes EXATAMENTE como estão nos dados disponíveis
-- Se não conseguir identificar um filtro, use null
+- Se não conseguir identificar um filtro, use null (ou mantenha o do histórico se for acompanhamento)
 - O "responseText" será gerado posteriormente pelo sistema, então pode ser uma frase genérica como "Buscando resultados..."
 - Para datas, considere "esse mês", "mês que vem", "este ano", "hoje", "amanhã", "semana que vem", "último mês" etc.
 - Para perguntas sobre "último batismo", "último evento", use tense "inativos"
 - Se o usuário perguntar "quantos", identifique que é uma consulta de quantidade`
+
 
         // Monta conteúdo multi-turn: histórico anterior (Live Mode) + turno atual
         const historyTurns: Array<{ role: string; parts: Array<{ text: string }> }> =

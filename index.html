@@ -460,6 +460,33 @@
         // Gerenciamento de canais com proteção contra duplicidade
         const activeChannels = new Map();
 
+        const getPluralEventName = (typeName, count) => {
+            if (count === 1) return typeName;
+            if (!typeName) return "eventos";
+            const nameLower = typeName.toLowerCase();
+            if (nameLower === "santa ceia") return "Santa Ceias";
+            if (nameLower === "batismo") return "batismos";
+            if (nameLower.startsWith("reunião") || nameLower.startsWith("reun.")) {
+                return typeName.replace(/^Reunião/i, "Reuniões").replace(/^Reun\./i, "Reuniões");
+            }
+            if (nameLower.startsWith("apresentação") || nameLower.startsWith("apres.")) {
+                return typeName.replace(/^Apresentação/i, "Apresentações").replace(/^Apres\./i, "Apresentações");
+            }
+            if (nameLower.startsWith("ordenação")) {
+                return typeName.replace(/^Ordenação/i, "Ordenações");
+            }
+            return `${typeName}s`;
+        };
+
+        const getArticleForEvent = (typeName) => {
+            if (!typeName) return "um";
+            const lower = typeName.toLowerCase();
+            if (lower.includes("santa ceia") || lower.includes("assembleia") || lower.includes("reunião") || lower.includes("reun.") || lower.includes("apresentação") || lower.includes("apres.") || lower.includes("ordenação") || lower.includes("oficialização") || lower.includes("abertura") || lower.includes("reabertura") || lower.includes("busca")) {
+                return "uma";
+            }
+            return "um";
+        };
+
         // Centraliza a criação de todos os listeners do Realtime
         function cleanupListeners() {
             console.log("[Realtime] Removendo todos os canais ativos...");
@@ -4818,13 +4845,13 @@
                                 const verbLabel = isPastQuery ? "foi realizado" : (isFutureQuery ? "está agendado" : "está cadastrado");
                                 responseText = `Não encontrei nenhum ${typeLabel}${areaLabel}${periodLabelText} que ${verbLabel}.`;
                             } else {
-                                if (isQuantityQuery) {
-                                    const typeLabel = matchedType ? matchedType.name : "evento";
-                                    const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
-                                    const pluralEvent = eventsList.length === 1 ? typeLabel : (matchedType ? `${typeLabel}s` : "eventos");
-                                    const refEvent = mostRecentPast || eventsList[0];
-                                    const isPastRef = eventTs(refEvent) < now.getTime();
+                                const typeLabel = matchedType ? matchedType.name : "evento";
+                                const pluralEvent = eventsList.length === 1 ? typeLabel : getPluralEventName(typeLabel, eventsList.length);
+                                const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
+                                const refEvent = mostRecentPast || eventsList[0];
+                                const isPastRef = eventTs(refEvent) < now.getTime();
 
+                                if (isQuantityQuery) {
                                     if (matchedType && matchedType.name.toLowerCase().includes("batismo")) {
                                         if (eventsList.length === 1) {
                                             const refAttName = getEventAttendantsText(refEvent);
@@ -4878,7 +4905,7 @@
                                             const refAttName = getEventAttendantsText(refEvent);
                                             const nextType = state.types.find(t => t.id === refEvent.type_id)?.name || "evento";
                                             const pluralText = eventsList.length === 1 ? 'agendado' : 'agendados';
-                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${pluralText}${areaLabel}${periodLabelText}. O próximo evento será um ${nextType}${refAttName ? ' a ser atendido por ' + refAttName : ''}.`;
+                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${pluralText}${areaLabel}${periodLabelText}. O próximo evento será ${getArticleForEvent(nextType)} ${nextType}${refAttName ? ' a ser atendido por ' + refAttName : ''}.`;
                                         }
                                     }
                                 } else {
@@ -4886,7 +4913,6 @@
                                     if (isLastQuery) {
                                         const first = mostRecentPast;
                                         if (!first) {
-                                            const typeLabel = matchedType ? matchedType.name : "evento";
                                             responseText = `Não encontrei nenhum ${typeLabel}${areaLabel} já realizado.`;
                                         } else {
                                             const fDateParts = first.date.split('-'); const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
@@ -4897,7 +4923,7 @@
                                             const locText = fLoc ? ` em ${fLoc}` : "";
                                             if (fType.toLowerCase().includes("batismo")) {
                                                 const irmaos = first.irmaos || 0; const irmas = first.irmas || 0; const total = irmaos + irmas;
-                                                responseText = `O último batismo${attText}${locText} foi no dia ${fDateFormatted} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
+                                                responseText = `O último batismo${attText}${locText} foi no dia ${fDateFormatted} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmaos === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
                                             } else responseText = `O último ${fType}${attText}${locText} foi no dia ${fDateFormatted} às ${first.time}.`;
                                         }
                                     } else {
@@ -4910,9 +4936,9 @@
                                         if (hasPast) {
                                             let verb = "aconteceu";
                                             if (cleanQuery.includes("quando")) verb = "foi";
-                                            responseText = `Encontrei ${eventsList.length} ${eventsList.length === 1 ? 'evento' : 'eventos'}. O último ${verb} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
+                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent}. O último ${verb} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
                                         } else {
-                                            responseText = `Encontrei ${eventsList.length} ${eventsList.length === 1 ? 'evento' : 'eventos'}. O próximo evento será um ${fType} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
+                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent}. O próximo evento será ${getArticleForEvent(fType)} ${fType} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
                                         }
                                     }
                                 }
@@ -5438,12 +5464,13 @@
                     const verbLabel = isPastQuery ? "foi realizado" : (isFutureQuery ? "está agendado" : "está cadastrado");
                     responseText = `Não encontrei nenhum ${typeLabel}${areaLabel}${periodLabelText} que ${verbLabel}.`;
                 } else {
+                    const typeLabel = matchedType ? matchedType.name : "evento";
+                    const pluralEvent = eventsList.length === 1 ? typeLabel : getPluralEventName(typeLabel, eventsList.length);
+                    const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
+                    const refEvent = mostRecentPast || eventsList[0];
+                    const isPastRef = eventTs(refEvent) < now.getTime();
+
                     if (isQuantityQuery) {
-                        const typeLabel = matchedType ? matchedType.name : "evento";
-                        const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
-                        const pluralEvent = eventsList.length === 1 ? typeLabel : (matchedType ? `${typeLabel}s` : "eventos");
-                        const refEvent = mostRecentPast || eventsList[0];
-                        const isPastRef = eventTs(refEvent) < now.getTime();
                         let verb = isPastRef ? (eventsList.length === 1 ? "foi realizado" : "foram realizados") : (eventsList.length === 1 ? "está agendado" : "estão agendados");
 
                         if (matchedType && matchedType.name.toLowerCase().includes("batismo")) {
@@ -5500,7 +5527,7 @@
                                 const refAttName = getEventAttendantsText(refEvent);
                                 const nextType = state.types.find(t => t.id === refEvent.type_id)?.name || "evento";
                                 const pluralText = eventsList.length === 1 ? 'agendado' : 'agendados';
-                                responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${pluralText}${areaLabel}${periodLabelText}. O próximo evento será um ${nextType}${refAttName ? ' a ser atendido por ' + refAttName : ''}.`;
+                                responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${pluralText}${areaLabel}${periodLabelText}. O próximo evento será ${getArticleForEvent(nextType)} ${nextType}${refAttName ? ' a ser atendido por ' + refAttName : ''}.`;
                             }
                         }
                     } else {
@@ -5508,7 +5535,6 @@
                         if (isLastQuery) {
                             const first = mostRecentPast;
                             if (!first) {
-                                const typeLabel = matchedType ? matchedType.name : "evento";
                                 responseText = `Não encontrei nenhum ${typeLabel}${areaLabel} já realizado.`;
                             } else {
                                 const fDateParts = first.date.split('-'); const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
@@ -5519,7 +5545,7 @@
                                 const locText = fLoc ? ` em ${fLoc}` : "";
                                 if (fType.toLowerCase().includes("batismo")) {
                                     const irmaos = first.irmaos || 0; const irmas = first.irmas || 0; const total = irmaos + irmas;
-                                    responseText = `O último batismo${attText}${locText} foi no dia ${fDateFormatted} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
+                                    responseText = `O último batismo${attText}${locText} foi no dia ${fDateFormatted} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmaos === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
                                 } else responseText = `O último ${fType}${attText}${locText} foi no dia ${fDateFormatted} às ${first.time}.`;
                             }
                         } else {
@@ -5532,9 +5558,9 @@
                             if (hasPast) {
                                 let verb = "aconteceu";
                                 if (clean.includes("quando")) verb = "foi";
-                                responseText = `Encontrei ${eventsList.length} ${eventsList.length === 1 ? 'evento' : 'eventos'}. O último ${verb} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
+                                responseText = `Encontrei ${eventsList.length} ${pluralEvent}. O último ${verb} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
                             } else {
-                                responseText = `Encontrei ${eventsList.length} ${eventsList.length === 1 ? 'evento' : 'eventos'}. O próximo evento será um ${fType} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
+                                responseText = `Encontrei ${eventsList.length} ${pluralEvent}. O próximo evento será ${getArticleForEvent(fType)} ${fType} no dia ${fDateFormatted} às ${first.time}${attText} em ${fLoc}.`;
                             }
                         }
                     }
