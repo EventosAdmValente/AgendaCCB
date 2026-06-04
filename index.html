@@ -2243,12 +2243,9 @@
                 return `
                     <button onclick="
                         window.saveTtsVoice('${v.value}');
-                        document.querySelectorAll('#aiVoicePickerList button').forEach(b => b.classList.remove('bg-slate-50'));
-                        this.classList.add('bg-slate-50');
-                        document.querySelectorAll('#aiVoicePickerList .ai-check').forEach(c => c.style.display='none');
-                        this.querySelector('.ai-check') && (this.querySelector('.ai-check').style.display='');
                         const d = document.getElementById('ai-voice-selected-display');
                         if (d) d.textContent = '${v.name}';
+                        window.closeModal();
                     "
                         class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100 ${isSelected ? 'bg-slate-50' : ''}">
                         <div class="flex flex-col">
