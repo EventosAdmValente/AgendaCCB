@@ -4852,11 +4852,34 @@
                 const pluralEvent = getPluralEventName(fType, eventsList.length);
 
                 if (isPlural) {
-                    // Plural: Encontrei X eventos e o próximo X será na localidade X, no dia X às X horas, atendido por X.
-                    if (isPastQuery) {
-                        return `Encontrei ${eventsList.length} ${pluralEvent} e ${gender.art === 'a' ? 'a última' : 'o último'} ${fType} foi na localidade ${fLoc}, no dia ${fDateFormatted} às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
+                    // Detecta se a pergunta tem "quantos" ou "quais"
+                    const hasQuantosQuais = /\b(quantos|quantas|quais)\b/i.test(cleanQuery);
+
+                    // Verifica se o tipo de evento foi mencionado na pergunta
+                    const cleanType = fType ? fType.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
+                    const typeInQuery = cleanType && cleanQuery.includes(cleanType.split(' ')[0]);
+
+                    // Monta o início da resposta
+                    let countPhrase;
+                    if (hasQuantosQuais) {
+                        countPhrase = typeInQuery
+                            ? `Encontrei ${eventsList.length} ${pluralEvent}.`
+                            : `Encontrei ${eventsList.length} eventos.`;
                     } else {
-                        return `Encontrei ${eventsList.length} ${pluralEvent} e ${gender.art === 'a' ? 'a próxima' : 'o próximo'} ${fType} será na localidade ${fLoc}, no dia ${fDateFormatted} às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
+                        countPhrase = `Encontrei ${eventsList.length} ${pluralEvent} e`;
+                    }
+
+                    // Monta os detalhes do próximo/último evento (mesmo formato do singular)
+                    if (isPastQuery) {
+                        const detail = hasQuantosQuais
+                            ? `${gender.art === 'a' ? 'A última' : 'O último'} ${fType}, da localidade ${fLoc}, foi no dia ${fDateFormatted}, às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`
+                            : `${gender.art === 'a' ? 'a última' : 'o último'} ${fType} foi na localidade ${fLoc}, no dia ${fDateFormatted} às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
+                        return `${countPhrase} ${detail}`;
+                    } else {
+                        const detail = hasQuantosQuais
+                            ? `${gender.art === 'a' ? 'A próxima' : 'O próximo'} ${fType}, da localidade ${fLoc}, será no dia ${fDateFormatted}, às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`
+                            : `${gender.art === 'a' ? 'a próxima' : 'o próximo'} ${fType} será na localidade ${fLoc}, no dia ${fDateFormatted} às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
+                        return `${countPhrase} ${detail}`;
                     }
                 } else {
                     // Singular: A próxima X, da localidade X, será no dia X, às X horas, atendida por X.
