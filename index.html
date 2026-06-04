@@ -1895,6 +1895,10 @@
                                     <i data-lucide="shield-check" class="w-4 h-4 text-green-500 shrink-0 mt-0.5"></i>
                                     <span class="text-sm font-medium text-slate-600 leading-tight">Gestão de usuários e permissões.</span>
                                 </div>
+                                <div class="flex items-start gap-3">
+                                    <i data-lucide="mic-2" class="w-4 h-4 text-green-500 shrink-0 mt-0.5"></i>
+                                    <span class="text-sm font-medium text-slate-600 leading-tight">Pesquisas e respostas por voz (IA).</span>
+                                </div>
                             </div>
                         </div>
 
@@ -1999,24 +2003,11 @@
                             <div class="flex flex-col gap-1 mb-4">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Selecionar Voz</label>
                                 ${ttsAiEnabled ? `
-                                    <div class="flex flex-col gap-1.5" id="tts-voice-list">
-                                        ${[
-                                            { value: 'Puck',   label: 'Puck',   desc: 'Masculino Realista', badge: 'Padrão' },
-                                            { value: 'Aoede',  label: 'Aoede',  desc: 'Feminino Expressivo', badge: '' },
-                                            { value: 'Kore',   label: 'Kore',   desc: 'Feminino Profissional', badge: '' },
-                                            { value: 'Charon', label: 'Charon', desc: 'Masculino Calmo', badge: '' },
-                                            { value: 'Fenrir', label: 'Fenrir', desc: 'Masculino Jovem', badge: '' }
-                                        ].map(v => `
-                                            <button onclick="window.saveTtsVoice('${v.value}'); document.querySelectorAll('#tts-voice-list button').forEach(b=>b.classList.remove('border-orange-custom','bg-orange-50')); this.classList.add('border-orange-custom','bg-orange-50');" 
-                                                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-left transition-all active:scale-[0.98] ${savedTtsVoice === v.value ? 'border-orange-custom bg-orange-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}">
-                                                <div class="flex flex-col">
-                                                    <span class="text-[13px] font-black text-navy">Gemini ${v.label}</span>
-                                                    <span class="text-[10px] text-slate-400 font-semibold">${v.desc}</span>
-                                                </div>
-                                                ${v.badge ? `<span class="text-[9px] font-black uppercase tracking-widest text-orange-custom bg-orange-50 border border-orange-custom/30 px-2 py-0.5 rounded-full">${v.badge}</span>` : `<div class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${savedTtsVoice === v.value ? 'border-orange-custom' : 'border-slate-300'}"><div class="w-2 h-2 rounded-full ${savedTtsVoice === v.value ? 'bg-orange-custom' : ''}"></div></div>`}
-                                            </button>
-                                        `).join('')}
-                                    </div>
+                                    <button onclick="window.openAiVoicePickerModal()"
+                                        class="w-full flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-navy transition-all active:bg-slate-100 text-left">
+                                        <span id="ai-voice-selected-display">${savedTtsVoice ? 'Gemini ' + savedTtsVoice : 'Gemini Puck (Padrão)'}</span>
+                                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                                    </button>
                                     <span class="text-[9px] text-slate-400 ml-1 mt-0.5">Vozes baseadas no Gemini 3.1 Flash. Requer conexão com a internet.</span>
                                 ` : `
                                     <button onclick="window.openVoicePickerModal()"
@@ -2236,7 +2227,62 @@
             });
         }
 
-        // --- NOTIFICAÇÕES PUSH (OneSignal) ---
+        window.openAiVoicePickerModal = () => {
+            const AI_VOICES = [
+                { value: 'Puck',   name: 'Gemini Puck',   desc: 'Masculino Realista',    badge: 'Padrão' },
+                { value: 'Aoede',  name: 'Gemini Aoede',  desc: 'Feminino Expressivo',   badge: '' },
+                { value: 'Kore',   name: 'Gemini Kore',   desc: 'Feminino Profissional', badge: '' },
+                { value: 'Charon', name: 'Gemini Charon', desc: 'Masculino Calmo',       badge: '' },
+                { value: 'Fenrir', name: 'Gemini Fenrir', desc: 'Masculino Jovem',       badge: '' }
+            ];
+
+            const getSelected = () => localStorage.getItem('ttsVoice') || 'Puck';
+
+            const renderList = () => AI_VOICES.map(v => {
+                const isSelected = v.value === getSelected();
+                return `
+                    <button onclick="
+                        window.saveTtsVoice('${v.value}');
+                        document.querySelectorAll('#aiVoicePickerList button').forEach(b => b.classList.remove('bg-slate-50'));
+                        this.classList.add('bg-slate-50');
+                        document.querySelectorAll('#aiVoicePickerList .ai-check').forEach(c => c.style.display='none');
+                        this.querySelector('.ai-check') && (this.querySelector('.ai-check').style.display='');
+                        const d = document.getElementById('ai-voice-selected-display');
+                        if (d) d.textContent = '${v.name}';
+                    "
+                        class="w-full p-4 text-left font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-50 flex justify-between items-center group active:bg-slate-100 ${isSelected ? 'bg-slate-50' : ''}">
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-sm text-navy leading-tight">${v.name}</span>
+                                ${v.badge ? `<span class="text-[9px] font-black uppercase tracking-widest text-orange-custom bg-orange-50 border border-orange-custom/30 px-1.5 py-0.5 rounded-full">${v.badge}</span>` : ''}
+                            </div>
+                            <span class="text-[10px] text-slate-400 font-medium">${v.desc}</span>
+                        </div>
+                        <i data-lucide="check" class="ai-check w-4 h-4 text-orange-custom shrink-0" style="display:${isSelected ? '' : 'none'}"></i>
+                    </button>
+                `;
+            }).join('');
+
+            showModal(`
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+                    <div class="p-5 flex justify-between items-center bg-white border-b border-slate-50">
+                        <div class="flex items-center gap-3 text-navy">
+                            <i data-lucide="sparkles" class="w-5 h-5 text-orange-custom"></i>
+                            <h3 class="font-bold text-lg">Vozes Google AI</h3>
+                        </div>
+                        <button onclick="window.closeModal()" class="text-slate-400 p-1">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <div id="aiVoicePickerList" class="flex-1 overflow-y-auto pb-4 scrollbar-none">
+                        ${renderList()}
+                    </div>
+                </div>
+            `);
+            renderIcons();
+        };
+
+
         const ONESIGNAL_APP_ID = "6e52759b-9b46-47cb-a241-d5b2b396e38d";
 
         window.initOneSignal = async () => {
