@@ -5046,7 +5046,10 @@
                                 res = res.replace(/\bAux\.\s*/gi, 'Auxiliares ');
                                 res = res.replace(/\bConj\.\s*/gi, 'Conjunto ');
                                 res = res.replace(/\bHab\.\s*/gi, 'Habitacional ');
-                                return res.replace(/\s+/g, ' ').trim();
+                                res = res.replace(/\s+/g, ' ').trim();
+                                // Capitaliza a primeira letra após ponto e espaço
+                                res = res.replace(/\.\s+([a-záàâãéèêíìîóòôõúùûç])/g, (m, c) => '. ' + c.toUpperCase());
+                                return res;
                             };
 
                             // Geração local do responseText
@@ -5160,13 +5163,18 @@
                                     } else {
                                         if (isPastRef) {
                                             const refAttName = getEventAttendantsText(refEvent);
-                                            const refAttText = refAttName ? ` atendido por ${refAttName}` : "";
+                                            const _nextTypeGemini = state.types.find(t => t.id === refEvent.type_id)?.name || "evento";
+                                            const _artGemini = getArticleForEvent(_nextTypeGemini);
+                                            const _atendidoGemini = (_artGemini === 'uma') ? 'atendida' : 'atendido';
+                                            const refAttText = refAttName ? ` ${_atendidoGemini} por ${refAttName}` : "";
                                             responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${eventsList.length === 1 ? 'realizado' : 'realizados'}${refAttText}${areaLabel}${periodLabelText}.`;
                                         } else {
                                             const refAttName = getEventAttendantsText(refEvent);
                                             const nextType = state.types.find(t => t.id === refEvent.type_id)?.name || "evento";
+                                            const _artNext = getArticleForEvent(nextType);
+                                            const _atendidoNext = (_artNext === 'uma') ? 'atendida' : 'atendido';
                                             const pluralText = eventsList.length === 1 ? 'agendado' : 'agendados';
-                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${pluralText}${areaLabel}${periodLabelText}. O próximo evento será ${getArticleForEvent(nextType)} ${nextType}${refAttName ? ' a ser atendido por ' + refAttName : ''}.`;
+                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${pluralText}${areaLabel}${periodLabelText}. O próximo evento será ${_artNext} ${nextType}${refAttName ? ' a ser ' + _atendidoNext + ' por ' + refAttName : ''}.`;
                                         }
                                     }
                                 } else {
@@ -5292,7 +5300,10 @@
                     res = res.replace(/\bConj\.\s*/gi, 'Conjunto ');
                     res = res.replace(/\bHab\.\s*/gi, 'Habitacional ');
                     
-                    return res.replace(/\s+/g, ' ').trim();
+                    res = res.replace(/\s+/g, ' ').trim();
+                    // Capitaliza a primeira letra após ponto e espaço
+                    res = res.replace(/\.\s+([a-záàâãéèêíìîóòôõúùûç])/g, (m, c) => '. ' + c.toUpperCase());
+                    return res;
                 };
 
                 // Normaliza nome: minúsculas + remove acentos + remove H mudo inicial + expande abreviaturas
@@ -5565,6 +5576,8 @@
                 const isPastQuery = tenseDetected === 'inativos';
                 const isFutureQuery = tenseDetected === 'ativos';
 
+                const hasCriteria = !!(matchedType || matchedLoc || matchedAtt || matchedCidade || matchedSetor || matchedAdm || dateStart || dateEnd || periodLabel);
+
                 let eventsList = [...state.events];
                 const now = new Date();
 
@@ -5574,39 +5587,41 @@
                     return isNaN(d.getTime()) ? 0 : d.getTime();
                 };
 
-                if (dateStart || dateEnd) {
-                    eventsList = eventsList.filter(e => (!dateStart || e.date >= dateStart) && (!dateEnd || e.date <= dateEnd));
-                }
+                if (hasCriteria) {
+                    if (dateStart || dateEnd) {
+                        eventsList = eventsList.filter(e => (!dateStart || e.date >= dateStart) && (!dateEnd || e.date <= dateEnd));
+                    }
 
-                if (isPastQuery && !isFutureQuery) {
-                    // Passado: só eventos já ocorridos (inativos)
-                    eventsList = eventsList.filter(e => eventTs(e) < now.getTime());
-                } else if (isFutureQuery && !isPastQuery) {
-                    // Futuro: só eventos ainda não ocorridos (ativos)
-                    eventsList = eventsList.filter(e => eventTs(e) >= now.getTime());
-                }
+                    if (isPastQuery && !isFutureQuery) {
+                        // Passado: só eventos já ocorridos (inativos)
+                        eventsList = eventsList.filter(e => eventTs(e) < now.getTime());
+                    } else if (isFutureQuery && !isPastQuery) {
+                        // Futuro: só eventos ainda não ocorridos (ativos)
+                        eventsList = eventsList.filter(e => eventTs(e) >= now.getTime());
+                    }
 
-                if (matchedType) {
-                    eventsList = eventsList.filter(e => e.type_id === matchedType.id);
-                }
-                if (matchedLoc) {
-                    eventsList = eventsList.filter(e => e.location_id === matchedLoc.id);
-                }
-                if (matchedAtt) {
-                    eventsList = eventsList.filter(e => e.attendant_id === matchedAtt.id || e.attendant2_id === matchedAtt.id
-                        || (matchedAtt2 && (e.attendant_id === matchedAtt2.id || e.attendant2_id === matchedAtt2.id)));
-                }
-                if (!matchedLoc) {
-                    if (matchedAdm || matchedSetor || matchedCidade) {
-                        const normF = normName;
-                        eventsList = eventsList.filter(e => {
-                            const loc = state.locations.find(l => l.id === e.location_id);
-                            if (!loc) return false;
-                            if (matchedAdm && normF(loc.adm) !== normF(matchedAdm)) return false;
-                            if (matchedSetor && normF(loc.setor) !== normF(matchedSetor)) return false;
-                            if (matchedCidade && normF(loc.cidade) !== normF(matchedCidade)) return false;
-                            return true;
-                        });
+                    if (matchedType) {
+                        eventsList = eventsList.filter(e => e.type_id === matchedType.id);
+                    }
+                    if (matchedLoc) {
+                        eventsList = eventsList.filter(e => e.location_id === matchedLoc.id);
+                    }
+                    if (matchedAtt) {
+                        eventsList = eventsList.filter(e => e.attendant_id === matchedAtt.id || e.attendant2_id === matchedAtt.id
+                            || (matchedAtt2 && (e.attendant_id === matchedAtt2.id || e.attendant2_id === matchedAtt2.id)));
+                    }
+                    if (!matchedLoc) {
+                        if (matchedAdm || matchedSetor || matchedCidade) {
+                            const normF = normName;
+                            eventsList = eventsList.filter(e => {
+                                const loc = state.locations.find(l => l.id === e.location_id);
+                                if (!loc) return false;
+                                if (matchedAdm && normF(loc.adm) !== normF(matchedAdm)) return false;
+                                if (matchedSetor && normF(loc.setor) !== normF(matchedSetor)) return false;
+                                if (matchedCidade && normF(loc.cidade) !== normF(matchedCidade)) return false;
+                                return true;
+                            });
+                        }
                     }
                 }
 
@@ -5647,7 +5662,10 @@
                 pastOnly.sort((a, b) => eventTs(b) - eventTs(a));
                 const mostRecentPast = pastOnly[0] || null;
 
-                if (eventsList.length === 0) {
+                if (!hasCriteria) {
+                    responseText = "Pergunta fora de contexto. Por favor, seja mais específico!";
+                    eventsList = [];
+                } else if (eventsList.length === 0) {
                     const typeLabel = matchedType ? matchedType.name : "evento";
                     const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
                     const verbLabel = isPastQuery ? "foi realizado" : (isFutureQuery ? "está agendado" : "está cadastrado");
@@ -5738,13 +5756,18 @@
                         } else {
                             if (isPastRef) {
                                 const refAttName = getEventAttendantsText(refEvent);
-                                const refAttText = refAttName ? ` atendido por ${refAttName}` : "";
+                                const _nextTypeLoc = state.types.find(t => t.id === refEvent.type_id)?.name || "evento";
+                                const _artLoc = getArticleForEvent(_nextTypeLoc);
+                                const _atendidoLoc = (_artLoc === 'uma') ? 'atendida' : 'atendido';
+                                const refAttText = refAttName ? ` ${_atendidoLoc} por ${refAttName}` : "";
                                 responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${eventsList.length === 1 ? 'realizado' : 'realizados'}${refAttText}${areaLabel}${periodLabelText}.`;
                             } else {
                                 const refAttName = getEventAttendantsText(refEvent);
                                 const nextType = state.types.find(t => t.id === refEvent.type_id)?.name || "evento";
+                                const _artNextLoc = getArticleForEvent(nextType);
+                                const _atendidoNextLoc = (_artNextLoc === 'uma') ? 'atendida' : 'atendido';
                                 const pluralText = eventsList.length === 1 ? 'agendado' : 'agendados';
-                                responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${pluralText}${areaLabel}${periodLabelText}. O próximo evento será ${getArticleForEvent(nextType)} ${nextType}${refAttName ? ' a ser atendido por ' + refAttName : ''}.`;
+                                responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${pluralText}${areaLabel}${periodLabelText}. O próximo evento será ${_artNextLoc} ${nextType}${refAttName ? ' a ser ' + _atendidoNextLoc + ' por ' + refAttName : ''}.`;
                             }
                         }
                     } else {
