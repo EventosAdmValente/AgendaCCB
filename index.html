@@ -4536,7 +4536,7 @@
                     if (window.__pendingVoiceFilter) {
                         window.__pendingVoiceFilter.text = newText;
                     }
-                    window.interpretVoiceQuery(newText);
+                    window.interpretVoiceQuery(newText, true);
                 }, 750);
             },
             closeVoiceAssistant: () => {
@@ -5268,7 +5268,7 @@
                 if (statusEl) statusEl.innerText = 'Processando...';
                 window.interpretVoiceQuery(rawText);
             },
-            interpretVoiceQuery: (text) => {
+            interpretVoiceQuery: (text, isEditing = false) => {
                 // Pre-processing corrections for speech-to-text engine errors
                 let correctedText = window.correctVoiceTranscription(text);
 
@@ -5844,10 +5844,10 @@
                 window.__pendingVoiceFilter = parsed;
 
                 // Check for Automatic Response vs Manual Confirmation
-                if (state.autoVoiceResponse || state.liveVoiceMode) {
+                if ((state.autoVoiceResponse || state.liveVoiceMode) && !isEditing) {
                     window.applyVoiceFilter(parsed);
                 } else {
-                    // Modo normal: exibe chips de confirmação e aguarda clique em OK para falar
+                    // Modo normal ou Edição: exibe chips de confirmação e aguarda clique em OK para falar
                     window.showVoiceConfirmation(
                         correctedText, 
                         tenseDetected, 
@@ -5942,7 +5942,7 @@
                             <div class="w-full text-left mb-2.5 bg-slate-50 border border-slate-100 p-2.5 rounded-2xl shrink-0">
                                 <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Editar Pergunta:</span>
                                 <div class="relative w-full flex items-center bg-white border border-slate-200 rounded-xl px-2 py-1.5 focus-within:ring-1 focus-within:ring-navy/20">
-                                    <input type="text" id="voice-edit-input" class="w-full bg-transparent text-xs font-bold text-navy italic focus:outline-none pr-6" value="${text}" oninput="window.handleVoiceTextEdit(this.value)">
+                                    <input type="text" id="voice-edit-input" class="w-full bg-transparent text-xs font-bold text-navy italic focus:outline-none pr-6" value="${text}" oninput="window.handleVoiceTextEdit(this.value)" onkeydown="if(event.key === 'Enter') window.confirmVoiceFilter()">
                                     <i data-lucide="edit-3" class="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none"></i>
                                 </div>
                             </div>
@@ -5981,7 +5981,7 @@
                         window.__voice_edit_timeout = null;
                     }
                     // Synchronously re-interpret current text to ensure __pendingVoiceFilter is fresh
-                    window.interpretVoiceQuery(editInput.value);
+                    window.interpretVoiceQuery(editInput.value, true);
                 }
                 
                 const pending = window.__pendingVoiceFilter;
