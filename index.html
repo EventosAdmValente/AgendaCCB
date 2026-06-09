@@ -5128,6 +5128,8 @@
                                             const totalParticipantes = totalIrmaos + totalIrmas;
                                             
                                             const emArea = areaLabel.trim() ? (areaLabel.trim().charAt(0).toUpperCase() + areaLabel.trim().slice(1)) : "No total";
+                                            const lastLocName = state.locations.find(l => l.id === refEvent.location_id)?.localidade || "";
+                                            const lastLocStr = lastLocName ? `, na localidade ${lastLocName}` : "";
                                             
                                             if (isPastRef) {
                                                 // Frase 1 — contagem simples
@@ -5139,14 +5141,14 @@
                                                 const lastTimeStr = refEvent.time ? `, às ${refEvent.time.substring(0,5)} horas` : '';
                                                 const lastAttStr = lastAttName ? `, atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : '';
                                                 // Frase 2 — detalhes do último evento
-                                                responseText += `${isBatismoType ? 'O último batismo' : 'A última Santa Ceia'} foi no dia ${lastDateFormatted}${lastTimeStr}${lastAttStr}. `;
+                                                responseText += `${isBatismoType ? 'O último batismo' : 'A última Santa Ceia'}${lastLocStr} foi no dia ${lastDateFormatted}${lastTimeStr}${lastAttStr}. `;
                                                 const verbParticiparCap = verbParticipar.charAt(0).toUpperCase() + verbParticipar.slice(1);
                                                 responseText += `${verbParticiparCap} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
                                                 // Frase 3 — total acumulado
                                                 responseText += `No total, ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
                                             } else {
                                                 responseText = `Encontrei ${eventsList.length} ${evtPlural} ${evtAgendadoPlural}${areaLabel}${periodLabelText}. `;
-                                                responseText += `${isBatismoType ? 'O próximo batismo será' : 'A próxima Santa Ceia será'}${lastAttText}. `;
+                                                responseText += `${isBatismoType ? 'O próximo batismo' : 'A próxima Santa Ceia'}${lastLocStr} será${lastAttText}. `;
                                                 if (totalParticipantes > 0) {
                                                     responseText += `Para ${isBatismoType ? 'o próximo' : 'a próxima'}, são ${lastTotal} ${lastTotal === 1 ? participanteSingular : participantePlural}, sendo ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}. `;
                                                     responseText += `${emArea} são ${totalParticipantes} ${totalParticipantes === 1 ? participanteSingular : participantePlural} estimados, sendo ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}.`;
@@ -5704,6 +5706,8 @@
                                 const totalParticipantes = totalIrmaos + totalIrmas;
                                 
                                 const emArea = areaLabel.trim() ? (areaLabel.trim().charAt(0).toUpperCase() + areaLabel.trim().slice(1)) : "No total";
+                                const lastLocName = state.locations.find(l => l.id === refEvent.location_id)?.localidade || "";
+                                const lastLocStr = lastLocName ? `, na localidade ${lastLocName}` : "";
                                 
                                 if (isPastRef) {
                                     // Frase 1 — contagem simples
@@ -5715,14 +5719,14 @@
                                     const lastTimeStr = refEvent.time ? `, às ${refEvent.time.substring(0,5)} horas` : '';
                                     const lastAttStr = lastAttName ? `, atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : '';
                                     // Frase 2 — detalhes do último evento
-                                    responseText += `${isBatismoType ? 'O último batismo' : 'A última Santa Ceia'} foi no dia ${lastDateFormatted}${lastTimeStr}${lastAttStr}. `;
+                                    responseText += `${isBatismoType ? 'O último batismo' : 'A última Santa Ceia'}${lastLocStr} foi no dia ${lastDateFormatted}${lastTimeStr}${lastAttStr}. `;
                                     const verbParticiparCap = verbParticipar.charAt(0).toUpperCase() + verbParticipar.slice(1);
                                     responseText += `${verbParticiparCap} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
                                     // Frase 3 — total acumulado
                                     responseText += `No total, ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
                                 } else {
                                     responseText = `Encontrei ${eventsList.length} ${evtPlural} ${evtAgendadoPlural}${areaLabel}${periodLabelText}. `;
-                                    responseText += `${isBatismoType ? 'O próximo batismo será' : 'A próxima Santa Ceia será'}${lastAttText}. `;
+                                    responseText += `${isBatismoType ? 'O próximo batismo' : 'A próxima Santa Ceia'}${lastLocStr} será${lastAttText}. `;
                                     if (totalParticipantes > 0) {
                                         responseText += `Para ${isBatismoType ? 'o próximo' : 'a próxima'}, são ${lastTotal} ${lastTotal === 1 ? participanteSingular : participantePlural}, sendo ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}. `;
                                         responseText += `${emArea} são ${totalParticipantes} ${totalParticipantes === 1 ? participanteSingular : participantePlural} estimados, sendo ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}.`;
