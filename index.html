@@ -1545,17 +1545,30 @@
                 });
             }
 
-            // Ordena decrescente (mais novo → mais antigo) se: masterFilter=inativos OU advancedFilter indica passados
+            // Ordena inteligente: futuros primeiro (mais próximo em cima), passados depois (mais recente em cima)
             const isInativosView = state.masterEventFilter === 'inativos' ||
                 (state.advancedFilter?.active && state.advancedFilter?.eventos?.enabled && state.advancedFilter?.eventos?.status === 'passados');
 
-            if (isInativosView) {
-                // Inativos/Passados: do mais novo para o mais velho (ordem decrescente)
-                return filtered.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
-            } else {
-                // Ativos/Padrão: do mais próximo para o mais distante (ordem crescente)
-                return filtered.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
-            }
+            return filtered.sort((a, b) => {
+                if (isInativosView) {
+                    // Se a visualização for estritamente de inativos/passados: do mais recente para o mais antigo
+                    return (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || '');
+                }
+                
+                const isPastA = isEventPast(a.date, a.time);
+                const isPastB = isEventPast(b.date, b.time);
+                
+                if (!isPastA && !isPastB) {
+                    // Ambos futuros: mais próximo primeiro (ordem crescente)
+                    return (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || '');
+                }
+                if (isPastA && isPastB) {
+                    // Ambos passados: mais recente primeiro (ordem decrescente)
+                    return (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || '');
+                }
+                // Um futuro e um passado: futuros vêm antes
+                return isPastA ? 1 : -1;
+            });
         }
 
         function getFilterDescription(context = 'home') {
@@ -4848,13 +4861,24 @@
                 }
 
                 // Ordena
-                if (isPastQuery) {
+                if (tenseDetected === 'inativos') {
                     eventsList.sort((a, b) => eventTs(b) - eventTs(a));
-                } else {
+                } else if (tenseDetected === 'ativos') {
                     eventsList.sort((a, b) => eventTs(a) - eventTs(b));
+                } else {
+                    // Sem tempo explícito: futuros primeiro (mais próximo em cima), passados depois (mais recente em cima)
+                    const nowTs = now.getTime();
+                    eventsList.sort((a, b) => {
+                        const aFut = eventTs(a) >= nowTs;
+                        const bFut = eventTs(b) >= nowTs;
+                        if (aFut && bFut) return eventTs(a) - eventTs(b);
+                        if (!aFut && !bFut) return eventTs(b) - eventTs(a);
+                        return aFut ? -1 : 1;
+                    });
                 }
 
                 const first = eventsList[0];
+                const isPastRef = eventTs(first) < now.getTime();
                 const fType = state.types.find(t => t.id === first.type_id)?.name || "evento";
                 const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
                 const fDateParts = first.date.split('-');
@@ -4913,7 +4937,7 @@
                     }
 
                     // Monta os detalhes do próximo/último evento (mesmo formato do singular)
-                    if (isPastQuery) {
+                    if (isPastRef) {
                         const detail = hasQuantosQuais
                             ? `${gender.art === 'a' ? 'A última' : 'O último'} ${fType}, da localidade ${fLoc}, foi no dia ${fDateFormatted}, às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`
                             : `${gender.art === 'a' ? 'a última' : 'o último'} ${fType} foi na localidade ${fLoc}, no dia ${fDateFormatted} às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
@@ -4926,7 +4950,7 @@
                     }
                 } else {
                     // Singular: A próxima X, da localidade X, será no dia X, às X horas, atendida por X.
-                    if (isPastQuery) {
+                    if (isPastRef) {
                         return `${gender.art === 'a' ? 'A última' : 'O último'} ${fType}, da localidade ${fLoc}, foi no dia ${fDateFormatted}, às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
                     } else {
                         return `${gender.art === 'a' ? 'A próxima' : 'O próximo'} ${fType}, da localidade ${fLoc}, será no dia ${fDateFormatted}, às ${first.time} horas, ${gender.atendido} por ${attName || 'um servo'}.`;
@@ -5011,10 +5035,20 @@
                             }
 
                             // Ordena
+                            const nowTs = now.getTime();
                             if (tenseDetected === 'inativos') {
                                 eventsList.sort((a, b) => eventTs(b) - eventTs(a));
-                            } else {
+                            } else if (tenseDetected === 'ativos') {
                                 eventsList.sort((a, b) => eventTs(a) - eventTs(b));
+                            } else {
+                                // Sem tempo explícito: futuros primeiro (mais próximo em cima), passados depois (mais recente em cima)
+                                eventsList.sort((a, b) => {
+                                    const aFut = eventTs(a) >= nowTs;
+                                    const bFut = eventTs(b) >= nowTs;
+                                    if (aFut && bFut) return eventTs(a) - eventTs(b);
+                                    if (!aFut && !bFut) return eventTs(b) - eventTs(a);
+                                    return aFut ? -1 : 1;
+                                });
                             }
 
                             // Auxiliares locais para gerar o texto da resposta
@@ -5068,10 +5102,6 @@
                                 if (parts.length > 0) areaLabel = ` ${parts.join(" ")}`;
                             }
 
-                            const pastOnly = [...eventsList].filter(e => eventTs(e) < now.getTime());
-                            pastOnly.sort((a, b) => eventTs(b) - eventTs(a));
-                            const mostRecentPast = pastOnly[0] || null;
-
                             const isPastQuery = tenseDetected === 'inativos';
                             const isFutureQuery = tenseDetected === 'ativos';
 
@@ -5089,7 +5119,7 @@
                                 const typeLabel = matchedType ? matchedType.name : "evento";
                                 const pluralEvent = eventsList.length === 1 ? typeLabel : getPluralEventName(typeLabel, eventsList.length);
                                 const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
-                                const refEvent = mostRecentPast || eventsList[0];
+                                const refEvent = eventsList[0];
                                 const isPastRef = eventTs(refEvent) < now.getTime();
 
                                 if (isQuantityQuery) {
@@ -5676,9 +5706,7 @@
                     }
                 }
 
-                const pastOnly = [...eventsList].filter(e => eventTs(e) < now.getTime());
-                pastOnly.sort((a, b) => eventTs(b) - eventTs(a));
-                const mostRecentPast = pastOnly[0] || null;
+
 
                 if (!hasCriteria) {
                     responseText = "Pergunta fora de contexto. Por favor, seja mais específico!";
@@ -5692,7 +5720,7 @@
                     const typeLabel = matchedType ? matchedType.name : "evento";
                     const pluralEvent = eventsList.length === 1 ? typeLabel : getPluralEventName(typeLabel, eventsList.length);
                     const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
-                    const refEvent = mostRecentPast || eventsList[0];
+                    const refEvent = eventsList[0];
                     const isPastRef = eventTs(refEvent) < now.getTime();
 
                     if (isQuantityQuery) {
@@ -6044,8 +6072,13 @@
                 concise = concise.replace(/\.?\s*No total,\s*(?:são|estimados,?\s*são)?\s*\d+\s*(?:candidatos|irmãos|irmãs)[\s\S]*$/, '.');
                 
                 // Simplifica a locução de batismo
-                concise = concise.replace(/\.?\s*(?:O batismo foi|O próximo batismo será|O último batismo foi)[\s\S]*?dia\s*(\d{2}\/\d{2})\/\d{4}/gi, (match, date) => {
-                    return `. O próximo será no dia ${date}`;
+                concise = concise.replace(/\.?\s*(O próximo batismo será|O batismo foi|O último batismo foi)[\s\S]*?dia\s*(\d{2}\/\d{2})\/\d{4}/gi, (match, type, date) => {
+                    const normType = type.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    if (normType.includes("proximo")) {
+                        return `. O próximo será no dia ${date}`;
+                    } else {
+                        return `. O último foi no dia ${date}`;
+                    }
                 });
                 
                 // Simplifica a listagem de eventos com data, hora, atendente e local
