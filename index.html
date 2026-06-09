@@ -5085,7 +5085,22 @@
                                 const isPastRef = eventTs(refEvent) < now.getTime();
 
                                 if (isQuantityQuery) {
-                                    if (matchedType && matchedType.name.toLowerCase().includes("batismo")) {
+                                    const isBatismoType = matchedType && matchedType.name.toLowerCase().includes("batismo");
+                                    const isSantaCeiaType = matchedType && matchedType.name.toLowerCase().includes("santa ceia");
+
+                                    if (isBatismoType || isSantaCeiaType) {
+                                        // Rótulos adaptados por tipo de evento
+                                        const evtSingular = isBatismoType ? 'batismo' : 'Santa Ceia';
+                                        const evtPlural = isBatismoType ? 'batismos' : 'Santa Ceias';
+                                        const evtRealizadoSingular = isBatismoType ? 'realizado' : 'realizada';
+                                        const evtRealizadoPlural = isBatismoType ? 'realizados' : 'realizadas';
+                                        const evtAgendadoSingular = isBatismoType ? 'agendado' : 'agendada';
+                                        const evtAgendadoPlural = isBatismoType ? 'agendados' : 'agendadas';
+                                        const participanteSingular = isBatismoType ? 'candidato' : 'participante';
+                                        const participantePlural = isBatismoType ? 'candidatos' : 'participantes';
+                                        const verbParticipar = isBatismoType ? 'foram batizados' : 'participaram';
+                                        const semParticipantes = isBatismoType ? 'Ainda não há candidatos registrados.' : 'Ainda não há participantes registrados.';
+
                                         if (eventsList.length === 1) {
                                             const refAttName = getEventAttendantsText(refEvent);
                                             const refAttText = refAttName ? ` atendido por ${refAttName}` : "";
@@ -5093,12 +5108,12 @@
                                             const irmas = refEvent.irmas || 0;
                                             const total = irmaos + irmas;
                                             if (isPastRef) {
-                                                responseText = `Encontrei 1 batismo realizado${areaLabel}${periodLabelText}. O batismo foi${refAttText} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
+                                                responseText = `Encontrei 1 ${evtSingular} ${evtRealizadoSingular}${areaLabel}${periodLabelText}. ${isBatismoType ? 'O batismo foi' : 'A Santa Ceia foi'}${refAttText} e ${verbParticipar} ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
                                             } else {
                                                 if (total > 0) {
-                                                    responseText = `Encontrei 1 batismo agendado${areaLabel}${periodLabelText}${refAttText}. No total, são ${total} ${total === 1 ? 'candidato' : 'candidatos'}, sendo ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}.`;
+                                                    responseText = `Encontrei 1 ${evtSingular} ${evtAgendadoSingular}${areaLabel}${periodLabelText}${refAttText}. No total, são ${total} ${total === 1 ? participanteSingular : participantePlural}, sendo ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}.`;
                                                 } else {
-                                                    responseText = `Encontrei 1 batismo agendado${areaLabel}${periodLabelText}${refAttText}. Ainda não há candidatos registrados.`;
+                                                    responseText = `Encontrei 1 ${evtSingular} ${evtAgendadoSingular}${areaLabel}${periodLabelText}${refAttText}. ${semParticipantes}`;
                                                 }
                                             }
                                         } else {
@@ -5110,22 +5125,22 @@
                                             
                                             let totalIrmaos = 0; let totalIrmas = 0;
                                             eventsList.forEach(e => { totalIrmaos += (e.irmaos || 0); totalIrmas += (e.irmas || 0); });
-                                            const totalCandidatos = totalIrmaos + totalIrmas;
+                                            const totalParticipantes = totalIrmaos + totalIrmas;
                                             
                                             const emArea = areaLabel.trim() ? (areaLabel.trim().charAt(0).toUpperCase() + areaLabel.trim().slice(1)) : "No total";
-                                            let verbEncontrei = isPastRef ? "realizados" : "agendados";
-                                            responseText = `Encontrei ${eventsList.length} batismos ${verbEncontrei}${areaLabel}${periodLabelText}. `;
+                                            let verbEncontrei = isPastRef ? evtRealizadoPlural : evtAgendadoPlural;
+                                            responseText = `Encontrei ${eventsList.length} ${evtPlural} ${verbEncontrei}${areaLabel}${periodLabelText}. `;
                                             
                                             if (isPastRef) {
-                                                responseText += `O último batismo foi${lastAttText} e foram batizados ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
-                                                responseText += `${emArea} já aconteceram ${eventsList.length} ${eventsList.length === 1 ? 'batismo' : 'batismos'} e foram batizados ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalCandidatos}.`;
+                                                responseText += `${isBatismoType ? 'O último batismo foi' : 'A última Santa Ceia foi'}${lastAttText} e ${verbParticipar} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
+                                                responseText += `${emArea} já aconteceram ${eventsList.length} ${evtPlural} e ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
                                             } else {
-                                                responseText += `O próximo batismo será${lastAttText}. `;
-                                                if (totalCandidatos > 0) {
-                                                    responseText += `Para o próximo, são ${lastTotal} ${lastTotal === 1 ? 'candidato' : 'candidatos'}, sendo ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}. `;
-                                                    responseText += `${emArea} são ${totalCandidatos} ${totalCandidatos === 1 ? 'candidato' : 'candidatos'} estimados, sendo ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}.`;
+                                                responseText += `${isBatismoType ? 'O próximo batismo será' : 'A próxima Santa Ceia será'}${lastAttText}. `;
+                                                if (totalParticipantes > 0) {
+                                                    responseText += `Para ${isBatismoType ? 'o próximo' : 'a próxima'}, são ${lastTotal} ${lastTotal === 1 ? participanteSingular : participantePlural}, sendo ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}. `;
+                                                    responseText += `${emArea} são ${totalParticipantes} ${totalParticipantes === 1 ? participanteSingular : participantePlural} estimados, sendo ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}.`;
                                                 } else {
-                                                    responseText += `Ainda não há candidatos registrados.`;
+                                                    responseText += semParticipantes;
                                                 }
                                             }
                                         }
@@ -5394,6 +5409,17 @@
                     }
                 }
 
+                // Lógica especial de Santa Ceia: se o usuário utilizar termos relacionados a Santa Ceia,
+                // seleciona automaticamente o tipo de evento "Santa Ceia"
+                const santaCeiaKeywords = ["santa ceia", "ceia", "comunhao", "comunhão", "participante", "participantes"];
+                const hasSantaCeiaKeyword = santaCeiaKeywords.some(kw => clean.includes(kw));
+                if (hasSantaCeiaKeyword && !hasBatismoKeyword) {
+                    const santaCeiaType = state.types.find(t => t.name.toLowerCase().includes("santa ceia"));
+                    if (santaCeiaType) {
+                        matchedType = santaCeiaType;
+                    }
+                }
+
                 let matchedAtt = null;
                 let matchedAtt2 = null;
                 for (const att of state.attendants) {
@@ -5623,7 +5649,22 @@
                     if (isQuantityQuery) {
                         let verb = isPastRef ? (eventsList.length === 1 ? "foi realizado" : "foram realizados") : (eventsList.length === 1 ? "está agendado" : "estão agendados");
 
-                        if (matchedType && matchedType.name.toLowerCase().includes("batismo")) {
+                        const isBatismoType = matchedType && matchedType.name.toLowerCase().includes("batismo");
+                        const isSantaCeiaType = matchedType && matchedType.name.toLowerCase().includes("santa ceia");
+
+                        if (isBatismoType || isSantaCeiaType) {
+                            // Rótulos adaptados por tipo de evento
+                            const evtSingular = isBatismoType ? 'batismo' : 'Santa Ceia';
+                            const evtPlural = isBatismoType ? 'batismos' : 'Santa Ceias';
+                            const evtRealizadoSingular = isBatismoType ? 'realizado' : 'realizada';
+                            const evtRealizadoPlural = isBatismoType ? 'realizados' : 'realizadas';
+                            const evtAgendadoSingular = isBatismoType ? 'agendado' : 'agendada';
+                            const evtAgendadoPlural = isBatismoType ? 'agendados' : 'agendadas';
+                            const participanteSingular = isBatismoType ? 'candidato' : 'participante';
+                            const participantePlural = isBatismoType ? 'candidatos' : 'participantes';
+                            const verbParticipar = isBatismoType ? 'foram batizados' : 'participaram';
+                            const semParticipantes = isBatismoType ? 'Ainda não há candidatos registrados.' : 'Ainda não há participantes registrados.';
+
                             if (eventsList.length === 1) {
                                 const refAttName = getEventAttendantsText(refEvent);
                                 const refAttText = refAttName ? ` atendido por ${refAttName}` : "";
@@ -5631,16 +5672,16 @@
                                 const irmas = refEvent.irmas || 0;
                                 const total = irmaos + irmas;
                                 if (isPastRef) {
-                                    responseText = `Encontrei 1 batismo realizado${areaLabel}${periodLabelText}. O batismo foi${refAttText} e foram batizados ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
+                                    responseText = `Encontrei 1 ${evtSingular} ${evtRealizadoSingular}${areaLabel}${periodLabelText}. ${isBatismoType ? 'O batismo foi' : 'A Santa Ceia foi'}${refAttText} e ${verbParticipar} ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
                                 } else {
                                     if (total > 0) {
-                                        responseText = `Encontrei 1 batismo agendado${areaLabel}${periodLabelText}${refAttText}. No total, são ${total} ${total === 1 ? 'candidato' : 'candidatos'}, sendo ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}.`;
+                                        responseText = `Encontrei 1 ${evtSingular} ${evtAgendadoSingular}${areaLabel}${periodLabelText}${refAttText}. No total, são ${total} ${total === 1 ? participanteSingular : participantePlural}, sendo ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}.`;
                                     } else {
-                                        responseText = `Encontrei 1 batismo agendado${areaLabel}${periodLabelText}${refAttText}. Ainda não há candidatos registrados.`;
+                                        responseText = `Encontrei 1 ${evtSingular} ${evtAgendadoSingular}${areaLabel}${periodLabelText}${refAttText}. ${semParticipantes}`;
                                     }
                                 }
                             } else {
-                                // Mais de um batismo
+                                // Mais de um evento
                                 const lastAttName = getEventAttendantsText(refEvent);
                                 const lastAttText = lastAttName ? ` atendido por ${lastAttName}` : "";
                                 const lastIrmaos = refEvent.irmaos || 0;
@@ -5649,22 +5690,22 @@
                                 
                                 let totalIrmaos = 0; let totalIrmas = 0;
                                 eventsList.forEach(e => { totalIrmaos += (e.irmaos || 0); totalIrmas += (e.irmas || 0); });
-                                const totalCandidatos = totalIrmaos + totalIrmas;
+                                const totalParticipantes = totalIrmaos + totalIrmas;
                                 
                                 const emArea = areaLabel.trim() ? (areaLabel.trim().charAt(0).toUpperCase() + areaLabel.trim().slice(1)) : "No total";
-                                let verbEncontrei = isPastRef ? "realizados" : "agendados";
-                                responseText = `Encontrei ${eventsList.length} batismos ${verbEncontrei}${areaLabel}${periodLabelText}. `;
+                                let verbEncontrei = isPastRef ? evtRealizadoPlural : evtAgendadoPlural;
+                                responseText = `Encontrei ${eventsList.length} ${evtPlural} ${verbEncontrei}${areaLabel}${periodLabelText}. `;
                                 
                                 if (isPastRef) {
-                                    responseText += `O último batismo foi${lastAttText} e foram batizados ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
-                                    responseText += `${emArea} já aconteceram ${eventsList.length} ${eventsList.length === 1 ? 'batismo' : 'batismos'} e foram batizados ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalCandidatos}.`;
+                                    responseText += `${isBatismoType ? 'O último batismo foi' : 'A última Santa Ceia foi'}${lastAttText} e ${verbParticipar} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
+                                    responseText += `${emArea} já aconteceram ${eventsList.length} ${evtPlural} e ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
                                 } else {
-                                    responseText += `O próximo batismo será${lastAttText}. `;
-                                    if (totalCandidatos > 0) {
-                                        responseText += `Para o próximo, são ${lastTotal} ${lastTotal === 1 ? 'candidato' : 'candidatos'}, sendo ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}. `;
-                                        responseText += `${emArea} são ${totalCandidatos} ${totalCandidatos === 1 ? 'candidato' : 'candidatos'} estimados, sendo ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}.`;
+                                    responseText += `${isBatismoType ? 'O próximo batismo será' : 'A próxima Santa Ceia será'}${lastAttText}. `;
+                                    if (totalParticipantes > 0) {
+                                        responseText += `Para ${isBatismoType ? 'o próximo' : 'a próxima'}, são ${lastTotal} ${lastTotal === 1 ? participanteSingular : participantePlural}, sendo ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}. `;
+                                        responseText += `${emArea} são ${totalParticipantes} ${totalParticipantes === 1 ? participanteSingular : participantePlural} estimados, sendo ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}.`;
                                     } else {
-                                        responseText += `Ainda não há candidatos registrados.`;
+                                        responseText += semParticipantes;
                                     }
                                 }
                             }
