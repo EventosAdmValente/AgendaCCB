@@ -5103,7 +5103,7 @@
 
                                         if (eventsList.length === 1) {
                                             const refAttName = getEventAttendantsText(refEvent);
-                                            const refAttText = refAttName ? ` atendido por ${refAttName}` : "";
+                                            const refAttText = refAttName ? ` atendid${isBatismoType ? 'o' : 'a'} por ${refAttName}` : "";
                                             const irmaos = refEvent.irmaos || 0;
                                             const irmas = refEvent.irmas || 0;
                                             const total = irmaos + irmas;
@@ -5118,7 +5118,7 @@
                                             }
                                         } else {
                                             const lastAttName = getEventAttendantsText(refEvent);
-                                            const lastAttText = lastAttName ? ` atendido por ${lastAttName}` : "";
+                                            const lastAttText = lastAttName ? ` atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : "";
                                             const lastIrmaos = refEvent.irmaos || 0;
                                             const lastIrmas = refEvent.irmas || 0;
                                             const lastTotal = lastIrmaos + lastIrmas;
@@ -5140,7 +5140,8 @@
                                                 const lastAttStr = lastAttName ? `, atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : '';
                                                 // Frase 2 — detalhes do último evento
                                                 responseText += `${isBatismoType ? 'O último batismo' : 'A última Santa Ceia'} foi no dia ${lastDateFormatted}${lastTimeStr}${lastAttStr}. `;
-                                                responseText += `${verbParticipar} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
+                                                const verbParticiparCap = verbParticipar.charAt(0).toUpperCase() + verbParticipar.slice(1);
+                                                responseText += `${verbParticiparCap} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
                                                 // Frase 3 — total acumulado
                                                 responseText += `No total, ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
                                             } else {
@@ -5677,7 +5678,7 @@
 
                             if (eventsList.length === 1) {
                                 const refAttName = getEventAttendantsText(refEvent);
-                                const refAttText = refAttName ? ` atendido por ${refAttName}` : "";
+                                const refAttText = refAttName ? ` atendid${isBatismoType ? 'o' : 'a'} por ${refAttName}` : "";
                                 const irmaos = refEvent.irmaos || 0;
                                 const irmas = refEvent.irmas || 0;
                                 const total = irmaos + irmas;
@@ -5693,7 +5694,7 @@
                             } else {
                                 // Mais de um evento
                                 const lastAttName = getEventAttendantsText(refEvent);
-                                const lastAttText = lastAttName ? ` atendido por ${lastAttName}` : "";
+                                const lastAttText = lastAttName ? ` atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : "";
                                 const lastIrmaos = refEvent.irmaos || 0;
                                 const lastIrmas = refEvent.irmas || 0;
                                 const lastTotal = lastIrmaos + lastIrmas;
@@ -5715,7 +5716,8 @@
                                     const lastAttStr = lastAttName ? `, atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : '';
                                     // Frase 2 — detalhes do último evento
                                     responseText += `${isBatismoType ? 'O último batismo' : 'A última Santa Ceia'} foi no dia ${lastDateFormatted}${lastTimeStr}${lastAttStr}. `;
-                                    responseText += `${verbParticipar} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
+                                    const verbParticiparCap = verbParticipar.charAt(0).toUpperCase() + verbParticipar.slice(1);
+                                    responseText += `${verbParticiparCap} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
                                     // Frase 3 — total acumulado
                                     responseText += `No total, ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
                                 } else {
