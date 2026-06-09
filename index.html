@@ -5417,10 +5417,11 @@
                 const sortedTypes = [...state.types].sort((a, b) => b.name.length - a.name.length);
                 for (const type of sortedTypes) {
                     const typeName = normName(type.name);
-                    const typeSigla = type.sigla.toLowerCase();
-                    // Use word-boundary matching for the type name words
-                    const typeWords = typeName.trim().split(/\s+/);
-                    const typeMatches = typeWords.every(w => w.length >= 3 && new RegExp(`\\b${w}\\b`).test(clean));
+                    const typeSigla = (type.sigla || '').toLowerCase();
+                    // Split name into words; skip stopwords (< 3 chars like "de", "da", "do")
+                    // and require all significant words to appear as whole words in the query
+                    const typeWords = typeName.trim().split(/\s+/).filter(w => w.length >= 3);
+                    const typeMatches = typeWords.length > 0 && typeWords.every(w => new RegExp(`\\b${w}\\b`).test(clean));
                     if (typeMatches || (typeSigla.length >= 2 && clean.split(/\s+/).includes(typeSigla))) {
                         matchedType = type;
                         break;
