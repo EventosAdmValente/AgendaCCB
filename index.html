@@ -5075,7 +5075,12 @@
                             const isPastQuery = tenseDetected === 'inativos';
                             const isFutureQuery = tenseDetected === 'ativos';
 
-                            if (eventsList.length === 0) {
+                            const hasCriteria = !!(matchedType || matchedLoc || matchedAtt || matchedCidade || matchedSetor || matchedAdm || dateStart || dateEnd || periodLabel);
+
+                            if (!hasCriteria) {
+                                responseText = "Pergunta fora de contexto. Por favor, seja mais específico!";
+                                eventsList = [];
+                            } else if (eventsList.length === 0) {
                                 const typeLabel = matchedType ? matchedType.name : "evento";
                                 const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
                                 const verbLabel = isPastQuery ? "foi realizado" : (isFutureQuery ? "está agendado" : "está cadastrado");
