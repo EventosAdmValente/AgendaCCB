@@ -5128,13 +5128,23 @@
                                             const totalParticipantes = totalIrmaos + totalIrmas;
                                             
                                             const emArea = areaLabel.trim() ? (areaLabel.trim().charAt(0).toUpperCase() + areaLabel.trim().slice(1)) : "No total";
-                                            let verbEncontrei = isPastRef ? evtRealizadoPlural : evtAgendadoPlural;
-                                            responseText = `Encontrei ${eventsList.length} ${evtPlural} ${verbEncontrei}${areaLabel}${periodLabelText}. `;
                                             
                                             if (isPastRef) {
-                                                responseText += `${isBatismoType ? 'O último batismo foi' : 'A última Santa Ceia foi'}${lastAttText} e ${verbParticipar} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
-                                                responseText += `${emArea} já aconteceram ${eventsList.length} ${evtPlural} e ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
+                                                // Frase 1 — contagem simples
+                                                responseText = `Encontrei ${eventsList.length} ${evtPlural}${areaLabel}${periodLabelText}. `;
+                                                // Formatar data e hora do último evento
+                                                const _lastDateParts = refEvent.date.split('-');
+                                                const _monthNamesAI = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+                                                const lastDateFormatted = `${parseInt(_lastDateParts[2])} de ${_monthNamesAI[parseInt(_lastDateParts[1]) - 1]} de ${_lastDateParts[0]}`;
+                                                const lastTimeStr = refEvent.time ? `, às ${refEvent.time.substring(0,5)} horas` : '';
+                                                const lastAttStr = lastAttName ? `, atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : '';
+                                                // Frase 2 — detalhes do último evento
+                                                responseText += `${isBatismoType ? 'O último batismo' : 'A última Santa Ceia'} foi no dia ${lastDateFormatted}${lastTimeStr}${lastAttStr}. `;
+                                                responseText += `${verbParticipar} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
+                                                // Frase 3 — total acumulado
+                                                responseText += `No total, ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
                                             } else {
+                                                responseText = `Encontrei ${eventsList.length} ${evtPlural} ${evtAgendadoPlural}${areaLabel}${periodLabelText}. `;
                                                 responseText += `${isBatismoType ? 'O próximo batismo será' : 'A próxima Santa Ceia será'}${lastAttText}. `;
                                                 if (totalParticipantes > 0) {
                                                     responseText += `Para ${isBatismoType ? 'o próximo' : 'a próxima'}, são ${lastTotal} ${lastTotal === 1 ? participanteSingular : participantePlural}, sendo ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}. `;
@@ -5693,13 +5703,23 @@
                                 const totalParticipantes = totalIrmaos + totalIrmas;
                                 
                                 const emArea = areaLabel.trim() ? (areaLabel.trim().charAt(0).toUpperCase() + areaLabel.trim().slice(1)) : "No total";
-                                let verbEncontrei = isPastRef ? evtRealizadoPlural : evtAgendadoPlural;
-                                responseText = `Encontrei ${eventsList.length} ${evtPlural} ${verbEncontrei}${areaLabel}${periodLabelText}. `;
                                 
                                 if (isPastRef) {
-                                    responseText += `${isBatismoType ? 'O último batismo foi' : 'A última Santa Ceia foi'}${lastAttText} e ${verbParticipar} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
-                                    responseText += `${emArea} já aconteceram ${eventsList.length} ${evtPlural} e ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
+                                    // Frase 1 — contagem simples
+                                    responseText = `Encontrei ${eventsList.length} ${evtPlural}${areaLabel}${periodLabelText}. `;
+                                    // Formatar data e hora do último evento
+                                    const _lastDateParts = refEvent.date.split('-');
+                                    const _monthNamesLoc = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+                                    const lastDateFormatted = `${parseInt(_lastDateParts[2])} de ${_monthNamesLoc[parseInt(_lastDateParts[1]) - 1]} de ${_lastDateParts[0]}`;
+                                    const lastTimeStr = refEvent.time ? `, às ${refEvent.time.substring(0,5)} horas` : '';
+                                    const lastAttStr = lastAttName ? `, atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : '';
+                                    // Frase 2 — detalhes do último evento
+                                    responseText += `${isBatismoType ? 'O último batismo' : 'A última Santa Ceia'} foi no dia ${lastDateFormatted}${lastTimeStr}${lastAttStr}. `;
+                                    responseText += `${verbParticipar} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
+                                    // Frase 3 — total acumulado
+                                    responseText += `No total, ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
                                 } else {
+                                    responseText = `Encontrei ${eventsList.length} ${evtPlural} ${evtAgendadoPlural}${areaLabel}${periodLabelText}. `;
                                     responseText += `${isBatismoType ? 'O próximo batismo será' : 'A próxima Santa Ceia será'}${lastAttText}. `;
                                     if (totalParticipantes > 0) {
                                         responseText += `Para ${isBatismoType ? 'o próximo' : 'a próxima'}, são ${lastTotal} ${lastTotal === 1 ? participanteSingular : participantePlural}, sendo ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}. `;
