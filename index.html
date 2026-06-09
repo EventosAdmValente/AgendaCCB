@@ -4641,8 +4641,8 @@
                         </div>
                         
                         <div class="w-full flex gap-2 mt-6">
-                            <button onclick="window.retryVoiceAssistant()" class="px-5 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center" title="Ouvir novamente">
-                                <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                            <button onclick="window.retryVoiceAssistant()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center gap-1.5" title="Ouvir novamente">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Ouvir
                             </button>
                             <button onclick="window.closeVoiceAssistant()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5" title="Fechar">
                                 <i data-lucide="x" class="w-4 h-4"></i> Fechar
@@ -5632,9 +5632,21 @@
                 }
 
                 if (isPastQuery && !isFutureQuery) {
+                    // Passado: mais recente primeiro
                     eventsList.sort((a, b) => eventTs(b) - eventTs(a));
-                } else {
+                } else if (isFutureQuery && !isPastQuery) {
+                    // Futuro: mais próximo primeiro
                     eventsList.sort((a, b) => eventTs(a) - eventTs(b));
+                } else {
+                    // Sem tempo explícito: futuros primeiro (ASC), passados por último (DESC)
+                    const nowTs = new Date().getTime();
+                    eventsList.sort((a, b) => {
+                        const aFut = eventTs(a) >= nowTs;
+                        const bFut = eventTs(b) >= nowTs;
+                        if (aFut && bFut) return eventTs(a) - eventTs(b);   // ambos futuros: mais próximo primeiro
+                        if (!aFut && !bFut) return eventTs(b) - eventTs(a); // ambos passados: mais recente primeiro
+                        return aFut ? -1 : 1; // futuros antes de passados
+                    });
                 }
 
                 let responseText = "";
@@ -6000,14 +6012,14 @@
                             <div id="voice-response" class="text-xs font-bold text-navy mt-4 leading-relaxed max-h-[110px] overflow-y-auto scrollbar-none">${pending.responseText}</div>
                         </div>
                         <div id="voice-done-actions" class="w-full flex gap-2 mt-6 hidden shrink-0">
-                            <button onclick="window.retryVoiceAssistant()" class="px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold active:scale-95 transition-all flex items-center justify-center" title="Ouvir novamente">
-                                <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                            <button onclick="window.retryVoiceAssistant()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-1.5" title="Ouvir novamente">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Ouvir
                             </button>
                             <button id="voice-live-btn" onclick="${isLive ? 'window.stopLiveVoiceMode()' : 'window.startLiveVoiceMode()'}" class="flex-1 py-3 ${isLive ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'} rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5" title="${isLive ? 'Parar Modo Live' : 'Iniciar Modo Live'}">
                                 <i data-lucide="${isLive ? 'circle-stop' : 'radio'}" class="w-4 h-4"></i> ${isLive ? 'Parar' : 'Live'}
                             </button>
-                            <button onclick="window.closeVoiceAssistant()" class="px-4 py-3 bg-navy text-white rounded-xl font-black active:scale-95 transition-all flex items-center justify-center shadow-md" title="Fechar">
-                                <i data-lucide="x" class="w-5 h-5"></i>
+                            <button onclick="window.closeVoiceAssistant()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-md" title="Fechar">
+                                <i data-lucide="x" class="w-4 h-4"></i> Fechar
                             </button>
                         </div>
                     `;
