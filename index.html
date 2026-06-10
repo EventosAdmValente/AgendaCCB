@@ -4524,6 +4524,11 @@
                     </div>
                 `);
                 renderIcons();
+                // Inicializa histórico universal e contexto ao abrir o modal
+                if (!Array.isArray(window.__voiceConversationHistory)) {
+                    window.__voiceConversationHistory = [];
+                }
+                window.__voiceConversationContext = window.__voiceConversationContext || null;
                 window.runVoiceRecognition();
             },
              toggleAutoVoiceResponse: (checked) => {
@@ -4541,7 +4546,14 @@
             },
             closeVoiceAssistant: () => {
                 state.liveVoiceMode = false;
-                window.__liveVoiceHistory = null; // Limpa histórico ao fechar
+                // Limpa histórico e contexto ao fechar o modal — próxima abertura começa do zero
+                window.__voiceConversationHistory = [];
+                window.__voiceConversationContext = null;
+                // Cancela debounce pendente se houver
+                if (window.__voice_result_debounce) {
+                    clearTimeout(window.__voice_result_debounce);
+                    window.__voice_result_debounce = null;
+                }
                 if (window.speechSynthesis) {
                     window.speechSynthesis.cancel();
                 }
@@ -4568,8 +4580,9 @@
             },
             startLiveVoiceMode: () => {
                 state.liveVoiceMode = true;
-                window.__liveVoiceHistory = []; // Inicia histórico vazio ao entrar no Modo Live
-                // Restart listening immediately
+                // O histórico universal (window.__voiceConversationHistory) já está ativo
+                // desde que o modal foi aberto — não precisa reiniciar aqui.
+                // Reinicia apenas o microfone.
                 window.retryVoiceAssistant();
             },
             stopLiveVoiceMode: () => {
@@ -4713,15 +4726,30 @@
                 };
 
                 recognition.onresult = (event) => {
+                    // Debounce: aguarda 400ms para garantir que a fala terminou antes de processar.
+                    // Evita respostas prematuras especialmente no modo offline, onde o motor
+                    // de fala do navegador pode encerrar o reconhecimento mais cedo.
+                    if (window.__voice_result_debounce) clearTimeout(window.__voice_result_debounce);
+
                     let speechResult = event.results[0][0].transcript;
                     speechResult = window.correctVoiceTranscription(speechResult);
                     const isLive = state.liveVoiceMode;
+
+                    // Mostra imediatamente o que foi capturado (feedback visual)
+                    if (queryEl) queryEl.innerText = `Você disse: "${speechResult}"`;
                     if (statusEl) {
                         statusEl.className = `text-xs font-bold ${isLive ? 'text-emerald-600' : 'text-orange-custom'} uppercase tracking-wide`;
-                        statusEl.innerText = isLive ? "Modo Live: Processando com IA..." : "Processando com IA...";
+                        statusEl.innerText = isLive ? "Modo Live: Ouvindo conclusão..." : "Aguardando conclusão...";
                     }
-                    if (queryEl) queryEl.innerText = `Você disse: "${speechResult}"`;
-                    window.interpretVoiceQueryWithAI(speechResult);
+
+                    window.__voice_result_debounce = setTimeout(() => {
+                        window.__voice_result_debounce = null;
+                        if (statusEl) {
+                            statusEl.className = `text-xs font-bold ${isLive ? 'text-emerald-600' : 'text-orange-custom'} uppercase tracking-wide`;
+                            statusEl.innerText = isLive ? "Modo Live: Processando com IA..." : "Processando com IA...";
+                        }
+                        window.interpretVoiceQueryWithAI(speechResult);
+                    }, 400);
                 };
 
                 recognition.onerror = (event) => {
@@ -4975,11 +5003,13 @@
                             cidades: [...new Set(state.locations.map(l => l.cidade).filter(Boolean))].slice(0, 80)
                         };
 
-                        // Captura snapshot do histórico antes da chamada (para multi-turn no Live Mode)
-                        const liveHistory = (state.liveVoiceMode && Array.isArray(window.__liveVoiceHistory))
-                            ? [...window.__liveVoiceHistory] : [];
+                        // Captura snapshot do histórico universal (funciona em qualquer modo, não só Live)
+                        if (!Array.isArray(window.__voiceConversationHistory)) {
+                            window.__voiceConversationHistory = [];
+                        }
+                        const conversationHistory = [...window.__voiceConversationHistory];
                         const { data, error } = await supabaseClient.functions.invoke('gemini-proxy', {
-                            body: { query: correctedText, context, history: liveHistory }
+                            body: { query: correctedText, context, history: conversationHistory }
                         });
 
                         if (!error && data && !data.error) {
@@ -5237,13 +5267,30 @@
 
                             window.__pendingVoiceFilter = parsed;
 
-                            // Atualiza histórico do Modo Live com par pergunta/resposta
-                            if (state.liveVoiceMode && Array.isArray(window.__liveVoiceHistory)) {
-                                window.__liveVoiceHistory.push(
-                                    { role: 'user', parts: [{ text: rawText }] },
-                                    { role: 'model', parts: [{ text: JSON.stringify(data) }] }
-                                );
+                            // Salva o contexto resolvido desta pergunta para uso na próxima
+                            // (funciona tanto online quanto offline, e mesmo fora do Modo Live)
+                            window.__voiceConversationContext = {
+                                matchedType,
+                                matchedLoc,
+                                matchedCidade,
+                                matchedSetor,
+                                matchedAdm,
+                                matchedAtt,
+                                dateStart,
+                                dateEnd,
+                                periodLabel,
+                                tense: tenseDetected
+                            };
+
+                            // Atualiza histórico universal com par pergunta/resposta
+                            // (usado pelo Gemini no próximo turno, independente do Modo Live)
+                            if (!Array.isArray(window.__voiceConversationHistory)) {
+                                window.__voiceConversationHistory = [];
                             }
+                            window.__voiceConversationHistory.push(
+                                { role: 'user', parts: [{ text: rawText }] },
+                                { role: 'model', parts: [{ text: JSON.stringify(data) }] }
+                            );
 
                             if (state.autoVoiceResponse || state.liveVoiceMode) {
                                 window.applyVoiceFilter(parsed);
@@ -5614,6 +5661,57 @@
 
                 const hasCriteria = !!(matchedType || matchedLoc || matchedAtt || matchedCidade || matchedSetor || matchedAdm || dateStart || dateEnd || periodLabel);
 
+                // ── HERANÇA DE CONTEXTO ──────────────────────────────────────────────────
+                // Se há contexto de pergunta anterior E a nova pergunta pode ser um acompanhamento,
+                // herda os filtros que fazem sentido manter.
+                //
+                // Estratégia ampla (recomendada): herdar o tipo quando a pergunta atual tem
+                // localização mas não tem tipo — ex: "e na Central de Valente?" após "quantas
+                // pessoas participaram da Santa Ceia da Cidade Nova?"
+                const prevCtx = window.__voiceConversationContext;
+                if (prevCtx) {
+                    // Caso 1: acompanhamento explícito ("e", "mas", "ou" no início)
+                    const looksLikeFollowUp = /^\s*(e|mas|ou)\s/i.test(clean);
+
+                    // Caso 2: pergunta tem localização mas não tem tipo (herança de tipo)
+                    const hasLocButNoType = !matchedType && (matchedLoc || matchedCidade || matchedSetor || matchedAdm);
+
+                    if (looksLikeFollowUp || hasLocButNoType) {
+                        // Herda tipo se não foi identificado
+                        if (!matchedType && prevCtx.matchedType) matchedType = prevCtx.matchedType;
+                        // Herda atendente se não foi mencionado
+                        if (!matchedAtt && prevCtx.matchedAtt) matchedAtt = prevCtx.matchedAtt;
+                        // Herda período se não foi mencionado
+                        if (!dateStart && prevCtx.dateStart) {
+                            dateStart = prevCtx.dateStart;
+                            dateEnd = prevCtx.dateEnd;
+                            periodLabel = prevCtx.periodLabel || '';
+                        }
+                        // Herda tempo verbal se a pergunta atual não especificou
+                        if (tenseDetected === 'todos' && prevCtx.tense !== 'todos') {
+                            tenseDetected = prevCtx.tense;
+                        }
+                        // Se era acompanhamento total (sem nenhum critério próprio), herda tudo
+                        if (looksLikeFollowUp && !hasCriteria) {
+                            if (!matchedLoc && prevCtx.matchedLoc) matchedLoc = prevCtx.matchedLoc;
+                            if (!matchedCidade && prevCtx.matchedCidade) matchedCidade = prevCtx.matchedCidade;
+                            if (!matchedSetor && prevCtx.matchedSetor) matchedSetor = prevCtx.matchedSetor;
+                            if (!matchedAdm && prevCtx.matchedAdm) matchedAdm = prevCtx.matchedAdm;
+                        }
+                        console.log('[VoiceContext] Herdou contexto anterior:', {
+                            matchedType: matchedType?.name,
+                            matchedLoc: matchedLoc?.localidade,
+                            tense: tenseDetected
+                        });
+                    }
+                }
+                // ─────────────────────────────────────────────────────────────────────────
+
+                // Recalcula após possível herança de contexto
+                const isPastQueryFinal = tenseDetected === 'inativos';
+                const isFutureQueryFinal = tenseDetected === 'ativos';
+                const hasCriteriaFinal = !!(matchedType || matchedLoc || matchedAtt || matchedCidade || matchedSetor || matchedAdm || dateStart || dateEnd || periodLabel);
+
                 let eventsList = [...state.events];
                 const now = new Date();
 
@@ -5623,15 +5721,15 @@
                     return isNaN(d.getTime()) ? 0 : d.getTime();
                 };
 
-                if (hasCriteria) {
+                if (hasCriteriaFinal) {
                     if (dateStart || dateEnd) {
                         eventsList = eventsList.filter(e => (!dateStart || e.date >= dateStart) && (!dateEnd || e.date <= dateEnd));
                     }
 
-                    if (isPastQuery && !isFutureQuery) {
+                    if (isPastQueryFinal && !isFutureQueryFinal) {
                         // Passado: só eventos já ocorridos (inativos)
                         eventsList = eventsList.filter(e => eventTs(e) < now.getTime());
-                    } else if (isFutureQuery && !isPastQuery) {
+                    } else if (isFutureQueryFinal && !isPastQueryFinal) {
                         // Futuro: só eventos ainda não ocorridos (ativos)
                         eventsList = eventsList.filter(e => eventTs(e) >= now.getTime());
                     }
@@ -5661,10 +5759,10 @@
                     }
                 }
 
-                if (isPastQuery && !isFutureQuery) {
+                if (isPastQueryFinal && !isFutureQueryFinal) {
                     // Passado: mais recente primeiro
                     eventsList.sort((a, b) => eventTs(b) - eventTs(a));
-                } else if (isFutureQuery && !isPastQuery) {
+                } else if (isFutureQueryFinal && !isPastQueryFinal) {
                     // Futuro: mais próximo primeiro
                     eventsList.sort((a, b) => eventTs(a) - eventTs(b));
                 } else {
@@ -5842,6 +5940,30 @@
                 };
 
                 window.__pendingVoiceFilter = parsed;
+
+                // Salva contexto para uso na próxima pergunta (offline ou quando voltar online)
+                if (!isEditing) {
+                    window.__voiceConversationContext = {
+                        matchedType,
+                        matchedLoc,
+                        matchedCidade,
+                        matchedSetor,
+                        matchedAdm,
+                        matchedAtt,
+                        dateStart,
+                        dateEnd,
+                        periodLabel,
+                        tense: tenseDetected
+                    };
+                    // Atualiza histórico textual para o Gemini usar quando voltar online
+                    if (!Array.isArray(window.__voiceConversationHistory)) {
+                        window.__voiceConversationHistory = [];
+                    }
+                    window.__voiceConversationHistory.push(
+                        { role: 'user', parts: [{ text: correctedText }] },
+                        { role: 'model', parts: [{ text: responseText }] }
+                    );
+                }
 
                 // Check for Automatic Response vs Manual Confirmation
                 if ((state.autoVoiceResponse || state.liveVoiceMode) && !isEditing) {
