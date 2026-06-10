@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const GOOGLE_AI_KEY = Deno.env.get("GOOGLE_AI_KEY")
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -17,8 +20,11 @@ serve(async (req) => {
         if (!GOOGLE_AI_KEY) {
             throw new Error("GOOGLE_AI_KEY não configurada. Use: supabase secrets set GOOGLE_AI_KEY=sua_chave")
         }
+        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+            throw new Error("Credenciais do Supabase não configuradas no ambiente.")
+        }
 
-        const { query, context, history } = await req.json()
+        const { query, history } = await req.json()
 
         if (!query || typeof query !== 'string' || query.trim().length === 0) {
             return new Response(JSON.stringify({ error: "Query vazia" }), {
@@ -27,145 +33,272 @@ serve(async (req) => {
             })
         }
 
-        // Monta o prompt do sistema com contexto dos dados disponíveis
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+        // 1. Normaliza a pergunta para busca em cache único
+        const queryLimpa = query.toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
+            .replace(/\s+/g, " ")
+            .trim()
+
+        console.log(`[Gemini Proxy] Pergunta normalizada: "${queryLimpa}"`)
+
+        // 2. Consulta no cache (Aprendizado Prévio)
+        const { data: cached, error: cacheErr } = await supabase
+            .from('pesquisas_voz_aprendizado')
+            .select('filtros_resolvidos, resposta_voz, frequencia')
+            .eq('pergunta_normalizada', queryLimpa)
+            .maybeSingle()
+
+        if (cached) {
+            console.log(`[Gemini Proxy] Hit de cache/aprendizado encontrado! Resposta: "${cached.resposta_voz}"`)
+            // Incrementa frequência de forma assíncrona (background)
+            supabase
+                .from('pesquisas_voz_aprendizado')
+                .update({ 
+                    frequencia: (cached.frequencia || 1) + 1,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('pergunta_normalizada', queryLimpa)
+                .then(({ error }) => {
+                    if (error) console.error("[Gemini Proxy] Erro ao incrementar frequência:", error)
+                })
+
+            return new Response(JSON.stringify({
+                responseText: cached.resposta_voz,
+                filterAction: cached.filtros_resolvidos
+            }), {
+                status: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" }
+            })
+        }
+
+        // 3. Se não houver cache, roda a IA. Primeiro, obtém as entidades do banco
+        console.log("[Gemini Proxy] Cache miss. Buscando entidades de referência...")
+        const [typesRes, locationsRes, attendantsRes] = await Promise.all([
+            supabase.from('types').select('id, name, sigla'),
+            supabase.from('locations').select('id, localidade, cidade, setor, adm'),
+            supabase.from('attendants').select('id, name')
+        ])
+
         const todayStr = new Intl.DateTimeFormat('sv-SE', {
             timeZone: 'America/Sao_Paulo',
             year: 'numeric', month: '2-digit', day: '2-digit'
         }).format(new Date())
 
-        const systemPrompt = `Você é o assistente de voz da Agenda CCB, um sistema de gestão de eventos da Congregação Cristã no Brasil.
+        // FASE 1: Gemini extrai os critérios / filtros
+        const systemPromptFase1 = `Você é o assistente de voz da Agenda CCB, um sistema de gestão de eventos da Congregação Cristã no Brasil.
+Sua missão na FASE 1 é ler a pergunta do usuário e mapear os IDs das entidades correspondentes.
 
 A data de hoje é: ${todayStr}
 
-DADOS DISPONÍVEIS NO SISTEMA:
-- Tipos de eventos: ${(context?.types || []).join(', ') || 'nenhum'}
-- Localidades (casas de oração): ${(context?.locations || []).slice(0, 80).join(', ') || 'nenhuma'}
-- Atendentes (anciãos/diáconos): ${(context?.attendants || []).slice(0, 80).join(', ') || 'nenhum'}
-- ADMs disponíveis: ${(context?.adms || []).join(', ') || 'nenhuma'}
-- Setores disponíveis: ${(context?.setores || []).join(', ') || 'nenhum'}
-- Cidades disponíveis: ${(context?.cidades || []).join(', ') || 'nenhuma'}
+DADOS DISPONÍVEIS NO BANCO (Use estritamente estes IDs):
+- Tipos de eventos: ${JSON.stringify(typesRes.data || [])}
+- Localidades: ${JSON.stringify((locationsRes.data || []).map(l => ({ id: l.id, localidade: l.localidade, cidade: l.cidade, setor: l.setor, adm: l.adm })))}
+- Atendentes: ${JSON.stringify(attendantsRes.data || [])}
 
 INSTRUÇÕES:
-1. Interprete a pergunta do usuário e identifique os filtros de busca
-2. Corrija possíveis erros de transcrição de voz (ex: "marco" pode ser "marcos", "santa luz" pode ser "santaluz", "ermirio" ou "ermírio" deve ser mapeado para "Hermírio")
-3. Tente corresponder nomes parciais ou aproximados com os dados disponíveis. Lembre-se que em português nomes falados com H mudo inicial (ex: Hermírio) podem ser transcritos sem o H (ex: Ermírio), então trate-os como idênticos ao fazer a correspondência.
-4. Para conversas sequenciais (Modo Live/multi-turn com histórico), se a pergunta atual for um acompanhamento (ex: "e a de Valente?", "quando será?", "e em Santaluz?"), você deve MANTER os filtros do turno anterior (como "type", "tense", "dateStart", "attendant", etc.) que continuam fazendo sentido, apenas atualizando ou adicionando o novo filtro mencionado (como "cidade" ou "location").
-5. Retorne APENAS um JSON válido (sem markdown, sem explicação)
+1. Interprete a pergunta do usuário e retorne os filtros correspondentes.
+2. Corrija erros de transcrição fonética (ex: "santa luz" -> localidade ID correspondente a "Santaluz").
+3. Para conversas sequenciais (histórico), se a pergunta atual for um acompanhamento (ex: "e em Santaluz?", "e o próximo?"), mantenha os filtros anteriores que fazem sentido, atualizando o novo critério.
+4. Retorne APENAS um JSON válido.
 
-FORMATO DO JSON DE RESPOSTA:
+FORMATO DO JSON DE RETORNO:
 {
-    "type": "nome exato do tipo de evento ou null",
-    "location": "nome exato da localidade ou null",
-    "cidade": "nome da cidade ou null",
-    "adm": "nome da ADM ou null",
-    "setor": "nome do setor ou null",
-    "attendant": "nome do atendente ou null",
+    "type_id": number ou null,
+    "location_id": number ou null,
+    "attendant_id": number ou null,
+    "cidade": "nome da cidade correspondente ou null",
+    "adm": "nome da ADM correspondente ou null",
+    "setor": "nome do setor correspondente ou null",
     "dateStart": "YYYY-MM-DD ou null",
     "dateEnd": "YYYY-MM-DD ou null",
     "tense": "ativos ou inativos ou todos",
-    "periodLabel": "rótulo do período em português (ex: 'Janeiro de 2026', 'Hoje', 'Esta Semana') ou null",
-    "responseText": "resposta natural em português para ser lida em voz alta - NÃO use abreviações, escreva por extenso"
+    "periodLabel": "rótulo amigável (ex: 'Esta Semana', 'Janeiro de 2026', 'Hoje') ou null"
 }
 
-REGRAS IMPORTANTES:
-- "tense" DEVE ser classificado ESTRITAMENTE com base no tempo verbal da pergunta: se a pergunta contiver verbos no PASSADO (foi, teve, aconteceu, atendeu, realizou, ocorreu, participou, assistiu, houve, fez, foram, tiveram, etc.) → use "inativos"; se a pergunta contiver verbos no FUTURO ou indicadores de futuro (será, serão, vai, irá, irão, próximo, próxima, próximos, próximas, agendado, programado, haverá, etc.) → use "ativos"; use "todos" SOMENTE se a pergunta não contiver nenhum indicador temporal claro
-- Use os nomes EXATAMENTE como estão nos dados disponíveis
-- Se não conseguir identificar um filtro, use null (ou mantenha o do histórico se for acompanhamento)
-- O "responseText" será gerado posteriormente pelo sistema, então pode ser uma frase genérica como "Buscando resultados..."
-- Para datas, considere "esse mês", "mês que vem", "este ano", "hoje", "amanhã", "semana que vem", "último mês" etc.
-- Para perguntas sobre "último batismo", "último evento", use tense "inativos"
-- Se o usuário perguntar "quantos", identifique que é uma consulta de quantidade`
+REGRAS:
+- "tense" DEVE ser "inativos" se a pergunta for no passado ("qual foi", "quem atendeu o último", "quantos participaram da anterior") ou "ativos" se for futuro/agendado. Use "todos" apenas em ausência de tempo claro.`
 
-
-        // Monta conteúdo multi-turn: histórico anterior (Live Mode) + turno atual
-        const historyTurns: Array<{ role: string; parts: Array<{ text: string }> }> =
-            Array.isArray(history) && history.length > 0 ? history : []
+        const historyTurns = Array.isArray(history) && history.length > 0 ? history : []
         const currentTurn = {
             role: 'user',
             parts: [{ text: `Pergunta do usuário: "${query}"` }]
         }
-        const allContents = historyTurns.length > 0
-            ? [...historyTurns, currentTurn]
-            : [currentTurn]
+        const contentsFase1 = historyTurns.length > 0 ? [...historyTurns, currentTurn] : [currentTurn]
 
-        const payload = {
-            contents: allContents,
-            systemInstruction: {
-                parts: [{
-                    text: systemPrompt
-                }]
-            },
-            generationConfig: {
-                temperature: 0,
-                maxOutputTokens: 300,
-                responseMimeType: "application/json"
-            }
-        }
-
-        console.log(`[Gemini Proxy] Interpretando: "${query}"`)
-
-        const response = await fetch(
+        const geminiRes1 = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_AI_KEY}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    contents: contentsFase1,
+                    systemInstruction: { parts: [{ text: systemPromptFase1 }] },
+                    generationConfig: { temperature: 0, responseMimeType: "application/json" }
+                })
             }
         )
 
-        if (!response.ok) {
-            const errBody = await response.text()
-            console.error(`[Gemini Proxy] Erro Gemini (${response.status}):`, errBody)
-            return new Response(JSON.stringify({
-                error: `Gemini retornou ${response.status}`,
-                details: errBody
-            }), {
-                status: response.status,
-                headers: { ...corsHeaders, "Content-Type": "application/json" }
-            })
+        if (!geminiRes1.ok) {
+            throw new Error(`Erro Gemini Fase 1: ${await geminiRes1.text()}`)
         }
 
-        const data = await response.json()
+        const data1 = await geminiRes1.json()
+        const text1 = data1?.candidates?.[0]?.content?.parts?.[0]?.text
+        if (!text1) throw new Error("Retorno vazio do Gemini na Fase 1")
 
-        // Extrai o texto gerado pelo Gemini
-        const generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text
-        if (!generatedText) {
-            console.error("[Gemini Proxy] Resposta vazia do Gemini:", JSON.stringify(data))
-            return new Response(JSON.stringify({ error: "Gemini retornou resposta vazia" }), {
-                status: 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" }
-            })
+        const cleanJson = text1.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+        const parsedCriteria = JSON.parse(cleanJson)
+
+        console.log("[Gemini Proxy] Filtros extraídos:", JSON.stringify(parsedCriteria))
+
+        // FASE 2: Consultar dados no banco de dados e formular a resposta
+        let queryBuilder = supabase
+            .from('agenda')
+            .select('id, date, time, location_id, type_id, attendant_id, attendant2_id, irmaos, irmas')
+
+        if (parsedCriteria.dateStart) queryBuilder = queryBuilder.gte('date', parsedCriteria.dateStart)
+        if (parsedCriteria.dateEnd) queryBuilder = queryBuilder.lte('date', parsedCriteria.dateEnd)
+
+        if (parsedCriteria.tense === 'ativos') {
+            queryBuilder = queryBuilder.gte('date', todayStr)
+        } else if (parsedCriteria.tense === 'inativos') {
+            queryBuilder = queryBuilder.lt('date', todayStr)
         }
 
-        // Parse do JSON retornado pelo Gemini
-        let parsedResult
-        try {
-            // Limpa possíveis artefatos de markdown
-            const cleanJson = generatedText
-                .replace(/```json\s*/g, '')
-                .replace(/```\s*/g, '')
-                .trim()
-            parsedResult = JSON.parse(cleanJson)
-        } catch (parseErr) {
-            console.error("[Gemini Proxy] Erro ao parsear JSON do Gemini:", generatedText)
-            return new Response(JSON.stringify({
-                error: "Gemini retornou JSON inválido",
-                raw: generatedText
-            }), {
-                status: 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" }
-            })
+        if (parsedCriteria.type_id) {
+            queryBuilder = queryBuilder.eq('type_id', parsedCriteria.type_id)
+        }
+        if (parsedCriteria.location_id) {
+            queryBuilder = queryBuilder.eq('location_id', parsedCriteria.location_id)
+        }
+        if (parsedCriteria.attendant_id) {
+            queryBuilder = queryBuilder.or(`attendant_id.eq.${parsedCriteria.attendant_id},attendant2_id.eq.${parsedCriteria.attendant_id}`)
         }
 
-        console.log(`[Gemini Proxy] Resultado:`, JSON.stringify(parsedResult))
+        // Critérios geográficos se localidade direta não foi identificada
+        if (!parsedCriteria.location_id && (parsedCriteria.cidade || parsedCriteria.setor || parsedCriteria.adm)) {
+            let locsQuery = supabase.from('locations').select('id')
+            if (parsedCriteria.cidade) locsQuery = locsQuery.ilike('cidade', parsedCriteria.cidade)
+            if (parsedCriteria.setor) locsQuery = locsQuery.ilike('setor', parsedCriteria.setor)
+            if (parsedCriteria.adm) locsQuery = locsQuery.ilike('adm', parsedCriteria.adm)
+            
+            const { data: matchedLocs } = await locsQuery
+            if (matchedLocs && matchedLocs.length > 0) {
+                const locIds = matchedLocs.map((l: any) => l.id)
+                queryBuilder = queryBuilder.in('location_id', locIds)
+            } else {
+                queryBuilder = queryBuilder.eq('location_id', -1) // Força vazio
+            }
+        }
 
-        return new Response(JSON.stringify(parsedResult), {
+        const { data: eventsList, error: queryErr } = await queryBuilder
+        if (queryErr) throw queryErr
+
+        console.log(`[Gemini Proxy] Query no banco retornou ${eventsList?.length || 0} eventos.`)
+
+        // Formata os eventos em linguagem legível para a IA Fase 2 formular a resposta
+        const eventsFormatted = (eventsList || []).map(e => {
+            const typeName = typesRes.data?.find(t => t.id === e.type_id)?.name || 'Evento'
+            const loc = locationsRes.data?.find(l => l.id === e.location_id)
+            const locName = loc ? `${loc.localidade} (${loc.cidade})` : 'Local desconhecido'
+            const attName = attendantsRes.data?.find(a => a.id === e.attendant_id)?.name || ''
+            const att2Name = attendantsRes.data?.find(a => a.id === e.attendant2_id)?.name || ''
+            
+            return {
+                data: e.date,
+                hora: e.time ? e.time.substring(0, 5) : '',
+                tipo: typeName,
+                localidade: locName,
+                atendente: attName + (att2Name ? ` e ${att2Name}` : ''),
+                irmaos: e.irmaos || 0,
+                irmas: e.irmas || 0
+            }
+        })
+
+        // Ordena por data (futuros crescente, passados decrescente)
+        if (parsedCriteria.tense === 'inativos') {
+            eventsFormatted.sort((a, b) => b.data.localeCompare(a.data))
+        } else {
+            eventsFormatted.sort((a, b) => a.data.localeCompare(b.data))
+        }
+
+        const systemPromptFase2 = `Você é o assistente de voz da Agenda CCB.
+Sua missão na FASE 2 é formular uma resposta natural em português do Brasil (para leitura em voz alta por síntese de voz) baseando-se na pergunta do usuário e nos dados REAIS obtidos do banco de dados.
+
+REGRAS:
+1. Responda de forma direta, clara e fluida por extenso.
+2. Escreva números e abreviações POR EXTENSO (ex: "São Paulo" em vez de "SP", "Administração" em vez de "ADM", "Conceição do Coité" em vez de "C. do Coité").
+3. Se houver informações de batismo (irmãos/irmãs batizados) ou Santa Ceia (participantes), mencione-os de forma natural.
+4. Responda ESTRITAMENTE baseando-se nos dados fornecidos abaixo. Se a lista estiver vazia, diga educadamente que não encontrou nenhum evento agendado ou realizado com esses critérios.
+
+Pergunta do usuário: "${query}"
+Filtros aplicados: ${JSON.stringify(parsedCriteria)}
+Dados reais retornados do banco:
+${JSON.stringify(eventsFormatted.slice(0, 15))} (Total de eventos encontrados: ${eventsFormatted.length})`
+
+        const geminiRes2 = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_AI_KEY}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ role: 'user', parts: [{ text: "Gere a resposta por voz com base nos dados fornecidos." }] }],
+                    systemInstruction: { parts: [{ text: systemPromptFase2 }] },
+                    generationConfig: { temperature: 0.2 }
+                })
+            }
+        )
+
+        if (!geminiRes2.ok) {
+            throw new Error(`Erro Gemini Fase 2: ${await geminiRes2.text()}`)
+        }
+
+        const data2 = await geminiRes2.json()
+        let responseText = data2?.candidates?.[0]?.content?.parts?.[0]?.text
+        if (!responseText) throw new Error("Retorno vazio do Gemini na Fase 2")
+
+        responseText = responseText.trim()
+
+        const filterAction = {
+            type_id: parsedCriteria.type_id,
+            location_id: parsedCriteria.location_id,
+            cidade: parsedCriteria.cidade,
+            adm: parsedCriteria.adm,
+            setor: parsedCriteria.setor,
+            dateStart: parsedCriteria.dateStart,
+            dateEnd: parsedCriteria.dateEnd,
+            tense: parsedCriteria.tense,
+            periodLabel: parsedCriteria.periodLabel
+        }
+
+        // 4. Salva no banco de dados (Aprendizado Centralizado)
+        const { error: insertErr } = await supabase
+            .from('pesquisas_voz_aprendizado')
+            .insert({
+                pergunta_normalizada: queryLimpa,
+                pergunta_original: query,
+                filtros_resolvidos: filterAction,
+                resposta_voz: responseText,
+                frequencia: 1
+            })
+
+        if (insertErr) {
+            console.error("[Gemini Proxy] Erro ao gravar aprendizado no banco (pode ser duplicidade concorrente):", insertErr)
+        } else {
+            console.log(`[Gemini Proxy] Pergunta "${queryLimpa}" aprendida com sucesso no banco de dados!`)
+        }
+
+        return new Response(JSON.stringify({ responseText, filterAction }), {
             status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
         })
 
     } catch (error: any) {
-        console.error("[Gemini Proxy] Erro:", error)
+        console.error("[Gemini Proxy] Erro Geral:", error)
         return new Response(JSON.stringify({
             error: error.message || String(error)
         }), {

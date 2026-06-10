@@ -5013,31 +5013,24 @@
                         });
 
                         if (!error && data && !data.error) {
-                            console.log('[Voice AI] Gemini interpretou:', data);
+                            console.log('[Voice AI] Resposta do backend:', data);
 
-                            // Mapeia os nomes retornados pelo Gemini para os objetos reais do state
-                            const normName = (s) => {
-                                let name = (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-                                name = name.replace(/\bh(?=[aeiou])/g, '');
-                                return name;
-                            };
+                            const responseText = data.responseText;
+                            const filterAction = data.filterAction; // critérios de filtro vindos do backend
 
-                            const matchedType = data.type ? state.types.find(t => normName(t.name) === normName(data.type)) : null;
-                            const matchedLoc = data.location ? state.locations.find(l => normName(l.localidade) === normName(data.location)) : null;
-                            const matchedAtt = data.attendant ? state.attendants.find(a => normName(a.name) === normName(data.attendant)) : null;
-                            const matchedCidade = data.cidade || '';
-                            const matchedAdm = data.adm || '';
-                            const matchedSetor = data.setor || '';
-                            const dateStart = data.dateStart || '';
-                            const dateEnd = data.dateEnd || '';
-                            const periodLabel = data.periodLabel || '';
-                            let tenseDetected = data.tense || 'todos';
-                            const localTense = window.detectVerbTense(correctedText);
-                            if (tenseDetected === 'todos' && localTense !== 'todos') {
-                                tenseDetected = localTense;
-                            }
+                            // Mapeia os IDs retornados pelo backend para os objetos reais do state (para exibir chips)
+                            const matchedType = filterAction.type_id ? state.types.find(t => t.id === filterAction.type_id) : null;
+                            const matchedLoc = filterAction.location_id ? state.locations.find(l => l.id === filterAction.location_id) : null;
+                            const matchedCidade = filterAction.cidade || '';
+                            const matchedSetor = filterAction.setor || '';
+                            const matchedAdm = filterAction.adm || '';
+                            const matchedAtt = filterAction.attendant_id ? state.attendants.find(a => a.id === filterAction.attendant_id) : null;
+                            const dateStart = filterAction.dateStart || '';
+                            const dateEnd = filterAction.dateEnd || '';
+                            const periodLabel = filterAction.periodLabel || '';
+                            const tenseDetected = filterAction.tense || 'todos';
 
-                            // Aplica os filtros da mesma forma que a interpretação local
+                            // Calcula localmente eventsList apenas para fins de exibição nos chips / contagem de resultados
                             let eventsList = [...state.events];
                             const now = new Date();
                             const eventTs = e => { const d = new Date(`${e.date}T${e.time || '00:00'}`); return isNaN(d.getTime()) ? 0 : d.getTime(); };
@@ -5057,197 +5050,13 @@
                                 eventsList = eventsList.filter(e => {
                                     const loc = state.locations.find(l => l.id === e.location_id);
                                     if (!loc) return false;
-                                    if (matchedAdm && normName(loc.adm) !== normName(matchedAdm)) return false;
-                                    if (matchedSetor && normName(loc.setor) !== normName(matchedSetor)) return false;
-                                    if (matchedCidade && normName(loc.cidade) !== normName(matchedCidade)) return false;
+                                    const normF = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+                                    if (matchedAdm && normF(loc.adm) !== normF(matchedAdm)) return false;
+                                    if (matchedSetor && normF(loc.setor) !== normF(matchedSetor)) return false;
+                                    if (matchedCidade && normF(loc.cidade) !== normF(matchedCidade)) return false;
                                     return true;
                                 });
                             }
-
-                            // Ordena
-                            const nowTs = now.getTime();
-                            if (tenseDetected === 'inativos') {
-                                eventsList.sort((a, b) => eventTs(b) - eventTs(a));
-                            } else if (tenseDetected === 'ativos') {
-                                eventsList.sort((a, b) => eventTs(a) - eventTs(b));
-                            } else {
-                                // Sem tempo explícito: futuros primeiro (mais próximo em cima), passados depois (mais recente em cima)
-                                eventsList.sort((a, b) => {
-                                    const aFut = eventTs(a) >= nowTs;
-                                    const bFut = eventTs(b) >= nowTs;
-                                    if (aFut && bFut) return eventTs(a) - eventTs(b);
-                                    if (!aFut && !bFut) return eventTs(b) - eventTs(a);
-                                    return aFut ? -1 : 1;
-                                });
-                            }
-
-                            // Auxiliares locais para gerar o texto da resposta
-                            const getEventAttendantsText = (event) => {
-                                if (!event) return "";
-                                const att1 = state.attendants.find(a => a.id === event.attendant_id)?.name || "";
-                                const att2 = state.attendants.find(a => a.id === event.attendant2_id)?.name || "";
-                                if (att1 && att2) return `${att1} e ${att2}`;
-                                return att1 || att2 || "";
-                            };
-
-                            const expandAbbrForSpeech = (t) => {
-                                if (!t) return "";
-                                let res = t;
-                                res = res.replace(/\bCentral de C\.\s*do Coité/gi, 'Central de Conceição do Coité');
-                                res = res.replace(/\bCentral de R\.\s*do Jacuípe/gi, 'Central de Riachão do Jacuípe');
-                                res = res.replace(/\bSanta R\.\s*de Cássia/gi, 'Santa Rita de Cássia');
-                                res = res.replace(/\bC\.\s*de Oração/gi, 'Casa de Oração');
-                                res = res.replace(/\bFeira X\b/gi, 'Feira dez');
-                                res = res.replace(/\b[Ss]\.\s*/g, (m) => m.startsWith('S') ? 'São ' : 'são ');
-                                res = res.replace(/\bApres\.\s*/gi, 'Apresentação ');
-                                res = res.replace(/\bCoop\.\s*/gi, 'Cooperador ');
-                                res = res.replace(/\bReun\.\s*/gi, 'Reunião ');
-                                res = res.replace(/\bAtend\.\s*/gi, 'Atendimento ');
-                                res = res.replace(/\bEnc\.\s*/gi, 'Encarregado ');
-                                res = res.replace(/\bReg\.\s*/gi, 'Regional ');
-                                res = res.replace(/\bLoc\.\s*/gi, 'Local ');
-                                res = res.replace(/\bExam\.\s*/gi, 'Examinadora ');
-                                res = res.replace(/\bAux\.\s*/gi, 'Auxiliares ');
-                                res = res.replace(/\bConj\.\s*/gi, 'Conjunto ');
-                                res = res.replace(/\bHab\.\s*/gi, 'Habitacional ');
-                                res = res.replace(/\s+/g, ' ').trim();
-                                // Capitaliza a primeira letra após ponto e espaço
-                                res = res.replace(/\.\s+([a-záàâãéèêíìîóòôõúùûç])/g, (m, c) => '. ' + c.toUpperCase());
-                                return res;
-                            };
-
-                            // Geração local do responseText
-                            let responseText = "";
-                            const cleanQuery = rawText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-                            const isQuantityQuery = cleanQuery.match(/\b(quanto|quanta|quantidade|numero|total)\b/i);
-
-                            let areaLabel = "";
-                            if (matchedLoc) {
-                                areaLabel = ` em ${matchedLoc.localidade}`;
-                            } else {
-                                const parts = [];
-                                if (matchedSetor) parts.push(`no ${matchedSetor}`);
-                                if (matchedAdm) parts.push(`da ADM de ${matchedAdm}`);
-                                if (matchedCidade) parts.push(`em ${matchedCidade}`);
-                                if (parts.length > 0) areaLabel = ` ${parts.join(" ")}`;
-                            }
-
-                            const isPastQuery = tenseDetected === 'inativos';
-                            const isFutureQuery = tenseDetected === 'ativos';
-
-                            const hasCriteria = !!(matchedType || matchedLoc || matchedAtt || matchedCidade || matchedSetor || matchedAdm || dateStart || dateEnd || periodLabel);
-
-                            if (!hasCriteria) {
-                                responseText = "Pergunta fora de contexto. Por favor, seja mais específico!";
-                                eventsList = [];
-                            } else if (eventsList.length === 0) {
-                                const typeLabel = matchedType ? matchedType.name : "evento";
-                                const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
-                                const verbLabel = isPastQuery ? "foi realizado" : (isFutureQuery ? "está agendado" : "está cadastrado");
-                                responseText = `Não encontrei nenhum ${typeLabel}${areaLabel}${periodLabelText} que ${verbLabel}.`;
-                            } else {
-                                const typeLabel = matchedType ? matchedType.name : "evento";
-                                const pluralEvent = eventsList.length === 1 ? typeLabel : getPluralEventName(typeLabel, eventsList.length);
-                                const periodLabelText = periodLabel ? ` para ${periodLabel}` : "";
-                                const refEvent = eventsList[0];
-                                const isPastRef = eventTs(refEvent) < now.getTime();
-
-                                if (isQuantityQuery) {
-                                    const isBatismoType = matchedType && matchedType.name.toLowerCase().includes("batismo");
-                                    const isSantaCeiaType = matchedType && matchedType.name.toLowerCase().includes("santa ceia");
-
-                                    if (isBatismoType || isSantaCeiaType) {
-                                        // Rótulos adaptados por tipo de evento
-                                        const evtSingular = isBatismoType ? 'batismo' : 'Santa Ceia';
-                                        const evtPlural = isBatismoType ? 'batismos' : 'Santa Ceias';
-                                        const evtRealizadoSingular = isBatismoType ? 'realizado' : 'realizada';
-                                        const evtRealizadoPlural = isBatismoType ? 'realizados' : 'realizadas';
-                                        const evtAgendadoSingular = isBatismoType ? 'agendado' : 'agendada';
-                                        const evtAgendadoPlural = isBatismoType ? 'agendados' : 'agendadas';
-                                        const participanteSingular = isBatismoType ? 'candidato' : 'participante';
-                                        const participantePlural = isBatismoType ? 'candidatos' : 'participantes';
-                                        const verbParticipar = isBatismoType ? 'foram batizados' : 'participaram';
-                                        const semParticipantes = isBatismoType ? 'Ainda não há candidatos registrados.' : 'Ainda não há participantes registrados.';
-
-                                        if (eventsList.length === 1) {
-                                            const refAttName = getEventAttendantsText(refEvent);
-                                            const refAttText = refAttName ? ` atendid${isBatismoType ? 'o' : 'a'} por ${refAttName}` : "";
-                                            const irmaos = refEvent.irmaos || 0;
-                                            const irmas = refEvent.irmas || 0;
-                                            const total = irmaos + irmas;
-                                            if (isPastRef) {
-                                                responseText = `Encontrei 1 ${evtSingular} ${evtRealizadoSingular}${areaLabel}${periodLabelText}. ${isBatismoType ? 'O batismo foi' : 'A Santa Ceia foi'}${refAttText} e ${verbParticipar} ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${total}.`;
-                                            } else {
-                                                if (total > 0) {
-                                                    responseText = `Encontrei 1 ${evtSingular} ${evtAgendadoSingular}${areaLabel}${periodLabelText}${refAttText}. No total, são ${total} ${total === 1 ? participanteSingular : participantePlural}, sendo ${irmaos} ${irmaos === 1 ? 'irmão' : 'irmãos'} e ${irmas} ${irmas === 1 ? 'irmã' : 'irmãs'}.`;
-                                                } else {
-                                                    responseText = `Encontrei 1 ${evtSingular} ${evtAgendadoSingular}${areaLabel}${periodLabelText}${refAttText}. ${semParticipantes}`;
-                                                }
-                                            }
-                                        } else {
-                                            const lastAttName = getEventAttendantsText(refEvent);
-                                            const lastAttText = lastAttName ? ` atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : "";
-                                            const lastIrmaos = refEvent.irmaos || 0;
-                                            const lastIrmas = refEvent.irmas || 0;
-                                            const lastTotal = lastIrmaos + lastIrmas;
-                                            
-                                            let totalIrmaos = 0; let totalIrmas = 0;
-                                            eventsList.forEach(e => { totalIrmaos += (e.irmaos || 0); totalIrmas += (e.irmas || 0); });
-                                            const totalParticipantes = totalIrmaos + totalIrmas;
-                                            
-                                            const emArea = areaLabel.trim() ? (areaLabel.trim().charAt(0).toUpperCase() + areaLabel.trim().slice(1)) : "No total";
-                                            const lastLocName = state.locations.find(l => l.id === refEvent.location_id)?.localidade || "";
-                                            const lastLocStr = lastLocName ? `, na localidade ${lastLocName}` : "";
-                                            
-                                            if (isPastRef) {
-                                                // Frase 1 — contagem simples
-                                                responseText = `Encontrei ${eventsList.length} ${evtPlural}${areaLabel}${periodLabelText}. `;
-                                                // Formatar data e hora do último evento
-                                                const _lastDateParts = refEvent.date.split('-');
-                                                const _monthNamesAI = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-                                                const lastDateFormatted = `${parseInt(_lastDateParts[2])} de ${_monthNamesAI[parseInt(_lastDateParts[1]) - 1]} de ${_lastDateParts[0]}`;
-                                                const lastTimeStr = refEvent.time ? `, às ${refEvent.time.substring(0,5)} horas` : '';
-                                                const lastAttStr = lastAttName ? `, atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : '';
-                                                // Frase 2 — detalhes do último evento
-                                                responseText += `${isBatismoType ? 'O último batismo' : 'A última Santa Ceia'}${lastLocStr} foi no dia ${lastDateFormatted}${lastTimeStr}${lastAttStr}. `;
-                                                const verbParticiparCap = verbParticipar.charAt(0).toUpperCase() + verbParticipar.slice(1);
-                                                responseText += `${verbParticiparCap} ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${lastTotal}. `;
-                                                // Frase 3 — total acumulado
-                                                responseText += `No total, ${verbParticipar} ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}, totalizando ${totalParticipantes}.`;
-                                            } else {
-                                                responseText = `Encontrei ${eventsList.length} ${evtPlural} ${evtAgendadoPlural}${areaLabel}${periodLabelText}. `;
-                                                responseText += `${isBatismoType ? 'O próximo batismo' : 'A próxima Santa Ceia'}${lastLocStr} será${lastAttText}. `;
-                                                if (totalParticipantes > 0) {
-                                                    responseText += `Para ${isBatismoType ? 'o próximo' : 'a próxima'}, são ${lastTotal} ${lastTotal === 1 ? participanteSingular : participantePlural}, sendo ${lastIrmaos} ${lastIrmaos === 1 ? 'irmão' : 'irmãos'} e ${lastIrmas} ${lastIrmas === 1 ? 'irmã' : 'irmãs'}. `;
-                                                    responseText += `${emArea} são ${totalParticipantes} ${totalParticipantes === 1 ? participanteSingular : participantePlural} estimados, sendo ${totalIrmaos} ${totalIrmaos === 1 ? 'irmão' : 'irmãos'} e ${totalIrmas} ${totalIrmas === 1 ? 'irmã' : 'irmãs'}.`;
-                                                } else {
-                                                    responseText += semParticipantes;
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        if (isPastRef) {
-                                            const refAttName = getEventAttendantsText(refEvent);
-                                            const _nextTypeGemini = state.types.find(t => t.id === refEvent.type_id)?.name || "evento";
-                                            const _artGemini = getArticleForEvent(_nextTypeGemini);
-                                            const _atendidoGemini = (_artGemini === 'uma') ? 'atendida' : 'atendido';
-                                            const refAttText = refAttName ? ` ${_atendidoGemini} por ${refAttName}` : "";
-                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${eventsList.length === 1 ? 'realizado' : 'realizados'}${refAttText}${areaLabel}${periodLabelText}.`;
-                                        } else {
-                                            const refAttName = getEventAttendantsText(refEvent);
-                                            const nextType = state.types.find(t => t.id === refEvent.type_id)?.name || "evento";
-                                            const _artNext = getArticleForEvent(nextType);
-                                            const _atendidoNext = (_artNext === 'uma') ? 'atendida' : 'atendido';
-                                            const pluralText = eventsList.length === 1 ? 'agendado' : 'agendados';
-                                            responseText = `Encontrei ${eventsList.length} ${pluralEvent} ${pluralText}${areaLabel}${periodLabelText}. O próximo evento será ${_artNext} ${nextType}${refAttName ? ' a ser ' + _atendidoNext + ' por ' + refAttName : ''}.`;
-                                        }
-                                    }
-                                } else {
-                                    responseText = window.generateVoiceResponseText(eventsList, rawText, tenseDetected);
-                                }
-                            }
-
-                            responseText = expandAbbrForSpeech(responseText);
 
                             const parsed = {
                                 text: rawText,
@@ -5267,8 +5076,7 @@
 
                             window.__pendingVoiceFilter = parsed;
 
-                            // Salva o contexto resolvido desta pergunta para uso na próxima
-                            // (funciona tanto online quanto offline, e mesmo fora do Modo Live)
+                            // Salva o contexto resolvido desta pergunta para uso na próxima pergunta no histórico temporário
                             window.__voiceConversationContext = {
                                 matchedType,
                                 matchedLoc,
@@ -5282,27 +5090,26 @@
                                 tense: tenseDetected
                             };
 
-                            // Atualiza histórico universal com par pergunta/resposta
-                            // (usado pelo Gemini no próximo turno, independente do Modo Live)
+                            // Atualiza histórico universal de conversa na memória do app
                             if (!Array.isArray(window.__voiceConversationHistory)) {
                                 window.__voiceConversationHistory = [];
                             }
                             window.__voiceConversationHistory.push(
                                 { role: 'user', parts: [{ text: rawText }] },
-                                { role: 'model', parts: [{ text: JSON.stringify(data) }] }
+                                { role: 'model', parts: [{ text: responseText }] }
                             );
 
                             if (state.autoVoiceResponse || state.liveVoiceMode) {
                                 window.applyVoiceFilter(parsed);
                             } else {
-                                // Modo normal: exibe chips de confirmação e aguarda clique em OK para falar
+                                // Modo normal: exibe chips de confirmação e aguarda clique em OK para falar e filtrar
                                 window.showVoiceConfirmation(
                                     rawText, tenseDetected, matchedType, matchedLoc,
                                     matchedCidade, matchedSetor, matchedAdm, matchedAtt,
                                     periodLabel, eventsList
                                 );
                             }
-                            return; // Sucesso com Gemini — não usa fallback
+                            return; // Sucesso com Gemini
                         }
                         console.warn('[Voice AI] Gemini falhou, usando fallback local:', error || data?.error);
                     } catch (e) {
