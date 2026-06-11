@@ -137,7 +137,7 @@ REGRAS:
 
         let data1 = null;
         let lastErr1 = null;
-        const modelsFase1 = ['gemini-2.5-flash'];
+        const modelsFase1 = ['gemini-flash-lite-latest'];
         
         for (const model of modelsFase1) {
             try {
@@ -268,7 +268,7 @@ ${JSON.stringify(eventsFormatted.slice(0, 15))} (Total de eventos encontrados: $
 
         let data2 = null;
         let lastErr2 = null;
-        const modelsFase2 = ['gemini-2.0-flash-lite', 'gemini-flash-lite-latest'];
+        const modelsFase2 = ['gemini-flash-lite-latest'];
         
         for (const model of modelsFase2) {
             try {
