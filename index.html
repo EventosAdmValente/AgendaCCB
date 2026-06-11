@@ -5016,7 +5016,7 @@
                             console.log('[Voice AI] Resposta do backend:', data);
 
                             const responseText = data.responseText;
-                            const filterAction = data.filterAction; // critérios de filtro vindos do backend
+                            let filterAction = data.filterAction || {}; // fallback para objeto vazio se for null
 
                             // Mapeia os IDs retornados pelo backend para os objetos reais do state (para exibir chips)
                             const matchedType = filterAction.type_id ? state.types.find(t => t.id === filterAction.type_id) : null;

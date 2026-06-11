@@ -129,24 +129,44 @@ REGRAS:
         }
         const contentsFase1 = historyTurns.length > 0 ? [...historyTurns, currentTurn] : [currentTurn]
 
-        const geminiRes1 = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_AI_KEY}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: contentsFase1,
-                    systemInstruction: { parts: [{ text: systemPromptFase1 }] },
-                    generationConfig: { temperature: 0, responseMimeType: "application/json" }
-                })
-            }
-        )
-
-        if (!geminiRes1.ok) {
-            throw new Error(`Erro Gemini Fase 1: ${await geminiRes1.text()}`)
+        const payloadFase1 = {
+            contents: contentsFase1,
+            systemInstruction: { parts: [{ text: systemPromptFase1 }] },
+            generationConfig: { temperature: 0, responseMimeType: "application/json" }
         }
 
-        const data1 = await geminiRes1.json()
+        let data1 = null;
+        let lastErr1 = null;
+        const modelsFase1 = ['gemini-2.5-flash'];
+        
+        for (const model of modelsFase1) {
+            try {
+                let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_AI_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadFase1)
+                });
+                
+                if (res.status === 503 || res.status === 429) {
+                    await new Promise(r => setTimeout(r, 1500)); // wait 1.5s
+                    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_AI_KEY}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payloadFase1)
+                    });
+                }
+                
+                if (!res.ok) throw new Error(`Erro ${model}: ${await res.text()}`);
+                data1 = await res.json();
+                break; // Sucesso, sai do loop
+            } catch (err) {
+                lastErr1 = err;
+                console.warn(`[Gemini Proxy] Falha com ${model} na Fase 1:`, err);
+            }
+        }
+
+        if (!data1) throw new Error(`Erro Gemini Fase 1 após fallback: ${lastErr1}`);
+
         const text1 = data1?.candidates?.[0]?.content?.parts?.[0]?.text
         if (!text1) throw new Error("Retorno vazio do Gemini na Fase 1")
 
@@ -240,24 +260,42 @@ Filtros aplicados: ${JSON.stringify(parsedCriteria)}
 Dados reais retornados do banco:
 ${JSON.stringify(eventsFormatted.slice(0, 15))} (Total de eventos encontrados: ${eventsFormatted.length})`
 
-        const geminiRes2 = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_AI_KEY}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: 'user', parts: [{ text: "Gere a resposta por voz com base nos dados fornecidos." }] }],
-                    systemInstruction: { parts: [{ text: systemPromptFase2 }] },
-                    generationConfig: { temperature: 0.2 }
-                })
-            }
-        )
+        const payloadFase2 = {
+            contents: [{ role: 'user', parts: [{ text: "Gere a resposta por voz com base nos dados fornecidos." }] }],
+            systemInstruction: { parts: [{ text: systemPromptFase2 }] },
+            generationConfig: { temperature: 0.2 }
+        };
 
-        if (!geminiRes2.ok) {
-            throw new Error(`Erro Gemini Fase 2: ${await geminiRes2.text()}`)
+        let data2 = null;
+        let lastErr2 = null;
+        for (const model of modelsFase1) {
+            try {
+                let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_AI_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadFase2)
+                });
+                
+                if (res.status === 503 || res.status === 429) {
+                    await new Promise(r => setTimeout(r, 1500));
+                    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_AI_KEY}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payloadFase2)
+                    });
+                }
+
+                if (!res.ok) throw new Error(`Erro ${model}: ${await res.text()}`);
+                data2 = await res.json();
+                break;
+            } catch (err) {
+                lastErr2 = err;
+                console.warn(`[Gemini Proxy] Falha com ${model} na Fase 2:`, err);
+            }
         }
 
-        const data2 = await geminiRes2.json()
+        if (!data2) throw new Error(`Erro Gemini Fase 2 após fallback: ${lastErr2}`);
+
         let responseText = data2?.candidates?.[0]?.content?.parts?.[0]?.text
         if (!responseText) throw new Error("Retorno vazio do Gemini na Fase 2")
 
@@ -292,13 +330,27 @@ ${JSON.stringify(eventsFormatted.slice(0, 15))} (Total de eventos encontrados: $
             console.log(`[Gemini Proxy] Pergunta "${queryLimpa}" aprendida com sucesso no banco de dados!`)
         }
 
-        return new Response(JSON.stringify({ responseText, filterAction }), {
+        return new Response(JSON.stringify({ responseText, filterAction, debug_insert_error: insertErr }), {
             status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
         })
 
     } catch (error: any) {
         console.error("[Gemini Proxy] Erro Geral:", error)
+        
+        // Se após todos os fallbacks ainda falhar, retornamos uma mensagem amigável de voz
+        const isUnavailable = error.message?.includes("503") || error.message?.includes("UNAVAILABLE") || error.message?.includes("429");
+        
+        if (isUnavailable) {
+            return new Response(JSON.stringify({
+                responseText: "No momento o assistente está recebendo muitos pedidos e está sobrecarregado. Por favor, aguarde alguns segundos e tente novamente.",
+                filterAction: null
+            }), {
+                status: 200, // Retornamos 200 para a UI falar o texto amigavelmente
+                headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+        }
+
         return new Response(JSON.stringify({
             error: error.message || String(error)
         }), {
