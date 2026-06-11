@@ -268,7 +268,9 @@ ${JSON.stringify(eventsFormatted.slice(0, 15))} (Total de eventos encontrados: $
 
         let data2 = null;
         let lastErr2 = null;
-        for (const model of modelsFase1) {
+        const modelsFase2 = ['gemini-2.0-flash-lite', 'gemini-flash-lite-latest'];
+        
+        for (const model of modelsFase2) {
             try {
                 let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_AI_KEY}`, {
                     method: 'POST',
