@@ -1,13 +1,78 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
-const GOOGLE_AI_KEY = Deno.env.get("GOOGLE_AI_KEY")
+// Chave gratuita (tenta primeiro - sem custo)
+const GOOGLE_AI_KEY_FREE = Deno.env.get("GOOGLE_AI_KEY_FREE")
+// Chave paga (fallback automático quando a gratuita esgotar a cota)
+const GOOGLE_AI_KEY_PAID = Deno.env.get("GOOGLE_AI_KEY_PAID")
+// Compatibilidade retroativa: se só tiver GOOGLE_AI_KEY, usa como paga
+const GOOGLE_AI_KEY_LEGACY = Deno.env.get("GOOGLE_AI_KEY")
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform',
+}
+
+// Helper: chama a API do Gemini tentando a chave gratuita primeiro, depois a paga
+async function callGemini(model: string, payload: object): Promise<{ data: any, keyUsed: 'free' | 'paid' | 'legacy' }> {
+    // Monta lista de chaves na ordem de prioridade
+    const keyOptions: { key: string, label: 'free' | 'paid' | 'legacy' }[] = []
+    if (GOOGLE_AI_KEY_FREE)  keyOptions.push({ key: GOOGLE_AI_KEY_FREE,  label: 'free'   })
+    if (GOOGLE_AI_KEY_PAID)  keyOptions.push({ key: GOOGLE_AI_KEY_PAID,  label: 'paid'   })
+    if (GOOGLE_AI_KEY_LEGACY && !GOOGLE_AI_KEY_FREE && !GOOGLE_AI_KEY_PAID) {
+        keyOptions.push({ key: GOOGLE_AI_KEY_LEGACY, label: 'legacy' })
+    }
+
+    if (keyOptions.length === 0) {
+        throw new Error("Nenhuma chave de API do Google configurada. Use: supabase secrets set GOOGLE_AI_KEY_FREE=... e/ou GOOGLE_AI_KEY_PAID=...")
+    }
+
+    let lastError: Error | null = null
+    for (const { key, label } of keyOptions) {
+        try {
+            let res = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+            )
+
+            // Retry uma vez em caso de sobrecarga temporária (503)
+            if (res.status === 503) {
+                await new Promise(r => setTimeout(r, 1500))
+                res = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+                    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+                )
+            }
+
+            // Cota excedida nesta chave → tenta a próxima
+            if (res.status === 429) {
+                const errText = await res.text()
+                console.warn(`[Gemini Proxy] Cota excedida na chave '${label}'. Tentando próxima chave...`)
+                lastError = new Error(`Cota excedida (${label}): ${errText}`)
+                continue
+            }
+
+            if (!res.ok) {
+                throw new Error(`Erro Gemini (${label}/${model}): ${await res.text()}`)
+            }
+
+            const data = await res.json()
+            console.log(`[Gemini Proxy] Requisição bem-sucedida usando chave '${label}'.`)
+            return { data, keyUsed: label }
+
+        } catch (err: any) {
+            // Só propaga se não for erro de cota (cota já foi tratado acima com 'continue')
+            if (!err.message?.includes('Cota excedida')) {
+                throw err
+            }
+            lastError = err
+        }
+    }
+
+    throw new Error(`Todas as chaves esgotaram a cota. Último erro: ${lastError?.message}`)
 }
 
 serve(async (req) => {
@@ -17,9 +82,6 @@ serve(async (req) => {
     }
 
     try {
-        if (!GOOGLE_AI_KEY) {
-            throw new Error("GOOGLE_AI_KEY não configurada. Use: supabase secrets set GOOGLE_AI_KEY=sua_chave")
-        }
         if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
             throw new Error("Credenciais do Supabase não configuradas no ambiente.")
         }
@@ -135,37 +197,8 @@ REGRAS:
             generationConfig: { temperature: 0, responseMimeType: "application/json" }
         }
 
-        let data1 = null;
-        let lastErr1 = null;
-        const modelsFase1 = ['gemini-flash-lite-latest'];
-        
-        for (const model of modelsFase1) {
-            try {
-                let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_AI_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payloadFase1)
-                });
-                
-                if (res.status === 503 || res.status === 429) {
-                    await new Promise(r => setTimeout(r, 1500)); // wait 1.5s
-                    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_AI_KEY}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payloadFase1)
-                    });
-                }
-                
-                if (!res.ok) throw new Error(`Erro ${model}: ${await res.text()}`);
-                data1 = await res.json();
-                break; // Sucesso, sai do loop
-            } catch (err) {
-                lastErr1 = err;
-                console.warn(`[Gemini Proxy] Falha com ${model} na Fase 1:`, err);
-            }
-        }
-
-        if (!data1) throw new Error(`Erro Gemini Fase 1 após fallback: ${lastErr1}`);
+        console.log("[Gemini Proxy] Iniciando Fase 1 (interpretação)...")
+        const { data: data1 } = await callGemini('gemini-flash-lite-latest', payloadFase1)
 
         const text1 = data1?.candidates?.[0]?.content?.parts?.[0]?.text
         if (!text1) throw new Error("Retorno vazio do Gemini na Fase 1")
@@ -266,37 +299,8 @@ ${JSON.stringify(eventsFormatted.slice(0, 15))} (Total de eventos encontrados: $
             generationConfig: { temperature: 0.2 }
         };
 
-        let data2 = null;
-        let lastErr2 = null;
-        const modelsFase2 = ['gemini-flash-lite-latest'];
-        
-        for (const model of modelsFase2) {
-            try {
-                let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_AI_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payloadFase2)
-                });
-                
-                if (res.status === 503 || res.status === 429) {
-                    await new Promise(r => setTimeout(r, 1500));
-                    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_AI_KEY}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payloadFase2)
-                    });
-                }
-
-                if (!res.ok) throw new Error(`Erro ${model}: ${await res.text()}`);
-                data2 = await res.json();
-                break;
-            } catch (err) {
-                lastErr2 = err;
-                console.warn(`[Gemini Proxy] Falha com ${model} na Fase 2:`, err);
-            }
-        }
-
-        if (!data2) throw new Error(`Erro Gemini Fase 2 após fallback: ${lastErr2}`);
+        console.log("[Gemini Proxy] Iniciando Fase 2 (formulação da resposta)...")
+        const { data: data2 } = await callGemini('gemini-flash-lite-latest', payloadFase2)
 
         let responseText = data2?.candidates?.[0]?.content?.parts?.[0]?.text
         if (!responseText) throw new Error("Retorno vazio do Gemini na Fase 2")
