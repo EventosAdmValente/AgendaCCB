@@ -4910,8 +4910,7 @@
                 const fType = state.types.find(t => t.id === first.type_id)?.name || "evento";
                 const fLoc = state.locations.find(l => l.id === first.location_id)?.localidade || "";
                 const fDateParts = first.date.split('-');
-                const _monthNames = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-                const fDateFormatted = `${parseInt(fDateParts[2])} de ${_monthNames[parseInt(fDateParts[1]) - 1] || fDateParts[1]} de ${fDateParts[0]}`;
+                const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
 
                 const getEventAttendantsText = (event) => {
                     if (!event) return "";
@@ -5684,8 +5683,7 @@
                                     responseText = `Encontrei ${eventsList.length} ${evtPlural}${areaLabel}${periodLabelText}. `;
                                     // Formatar data e hora do último evento
                                     const _lastDateParts = refEvent.date.split('-');
-                                    const _monthNamesLoc = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-                                    const lastDateFormatted = `${parseInt(_lastDateParts[2])} de ${_monthNamesLoc[parseInt(_lastDateParts[1]) - 1]} de ${_lastDateParts[0]}`;
+                                    const lastDateFormatted = `${_lastDateParts[2]}/${_lastDateParts[1]}/${_lastDateParts[0]}`;
                                     const lastTimeStr = refEvent.time ? `, às ${refEvent.time.substring(0,5)} horas` : '';
                                     const lastAttStr = lastAttName ? `, atendid${isBatismoType ? 'o' : 'a'} por ${lastAttName}` : '';
                                     // Frase 2 — detalhes do último evento

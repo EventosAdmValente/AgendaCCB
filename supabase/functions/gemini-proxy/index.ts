@@ -182,7 +182,8 @@ FORMATO DO JSON DE RETORNO:
 }
 
 REGRAS:
-- "tense" DEVE ser "inativos" se a pergunta for no passado ("qual foi", "quem atendeu o último", "quantos participaram da anterior") ou "ativos" se for futuro/agendado. Use "todos" apenas em ausência de tempo claro.`
+- "tense" DEVE ser "inativos" se a pergunta for no passado ("qual foi", "quem atendeu o último", "quantos participaram da anterior") ou "ativos" se for futuro/agendado. Use "todos" apenas em ausência de tempo claro.
+- IMPORTANTÍSSIMO: Se o usuário mencionar "ADM [Nome]" ou "Administração [Nome]" (ex: "adm valente", "administração de valente"), você deve preencher APENAS o campo "adm" com o nome correspondente. Deixe os campos "cidade" e "location_id" obrigatoriamente como null, pois uma administração abrange múltiplas cidades e localidades.`
 
         const historyTurns = Array.isArray(history) && history.length > 0 ? history : []
         const currentTurn = {
@@ -279,18 +280,33 @@ REGRAS:
             eventsFormatted.sort((a, b) => a.data.localeCompare(b.data))
         }
 
+        // Calcula os totais agregados de todos os eventos reais encontrados
+        let totalIrmaos = 0
+        let totalIrmas = 0
+        eventsFormatted.forEach(e => {
+            totalIrmaos += e.irmaos
+            totalIrmas += e.irmas
+        })
+        const totalGeral = totalIrmaos + totalIrmas
+
         const systemPromptFase2 = `Você é o assistente de voz da Agenda CCB.
 Sua missão na FASE 2 é formular uma resposta natural em português do Brasil (para leitura em voz alta por síntese de voz) baseando-se na pergunta do usuário e nos dados REAIS obtidos do banco de dados.
 
 REGRAS:
-1. Responda de forma direta, clara e fluida por extenso.
-2. Escreva números e abreviações POR EXTENSO (ex: "São Paulo" em vez de "SP", "Administração" em vez de "ADM", "Conceição do Coité" em vez de "C. do Coité").
-3. Se houver informações de batismo (irmãos/irmãs batizados) ou Santa Ceia (participantes), mencione-os de forma natural.
+1. Responda de forma direta, clara e fluida.
+2. Escreva números, horas e datas no formato curto padrão brasileiro (ex: use "12/06/2026", "19:30", "15 candidatos", "1º"). NÃO escreva estes dados por extenso. Mantenha nomes de cidades e termos administrativos por extenso para melhor legibilidade (ex: "São Paulo" em vez de "SP", "Administração" em vez de "ADM", "Conceição do Coité" em vez de "C. do Coité").
+3. Se houver informações de batismo (irmãos/irmãs batizados) ou Santa Ceia (participantes), mencione-os de forma natural baseando-se estritamente nos totais agregados informados.
 4. Responda ESTRITAMENTE baseando-se nos dados fornecidos abaixo. Se a lista estiver vazia, diga educadamente que não encontrou nenhum evento agendado ou realizado com esses critérios.
 
 Pergunta do usuário: "${query}"
 Filtros aplicados: ${JSON.stringify(parsedCriteria)}
-Dados reais retornados do banco:
+
+TOTAIS REAIS AGREGADOS DO BANCO DE DADOS (Use preferencialmente estes números para responder a perguntas de quantidade ou totais):
+- Total de Irmãos (candidatos ou participantes): ${totalIrmaos}
+- Total de Irmãs (candidatas ou participantes): ${totalIrmas}
+- Total Geral de Pessoas: ${totalGeral}
+
+Dados reais detalhados retornados do banco:
 ${JSON.stringify(eventsFormatted.slice(0, 15))} (Total de eventos encontrados: ${eventsFormatted.length})`
 
         const payloadFase2 = {
@@ -349,7 +365,7 @@ ${JSON.stringify(eventsFormatted.slice(0, 15))} (Total de eventos encontrados: $
         
         if (isUnavailable) {
             return new Response(JSON.stringify({
-                responseText: "No momento o assistente está recebendo muitos pedidos e está sobrecarregado. Por favor, aguarde alguns segundos e tente novamente.",
+                responseText: "Houve um erro interno, por favor refaça a pergunta!",
                 filterAction: null
             }), {
                 status: 200, // Retornamos 200 para a UI falar o texto amigavelmente
