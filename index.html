@@ -5202,6 +5202,19 @@
                     return res;
                 };
 
+                window.formatSpeechDateToShort = (txt) => {
+                    if (!txt) return "";
+                    const monthsMap = {
+                        "janeiro": "01", "fevereiro": "02", "março": "03", "abril": "04", "maio": "05", "junho": "06",
+                        "julho": "07", "agosto": "08", "setembro": "09", "outubro": "10", "novembro": "11", "dezembro": "12"
+                    };
+                    return txt.replace(/\b(\d{1,2}|1º)\s+de\s+(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+(\d{4})\b/gi, (match, day, month, year) => {
+                        const d = day.toLowerCase() === "1º" ? "01" : day.padStart(2, "0");
+                        const m = monthsMap[month.toLowerCase()];
+                        return `${d}/${m}/${year}`;
+                    });
+                };
+
                 // Normaliza nome: minúsculas + remove acentos + remove H mudo inicial + expande abreviaturas
                 const normName = (s) => {
                     let name = (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -5980,7 +5993,7 @@
                         </div>
                         <div class="w-full mt-4 px-2 text-center shrink-0">
                             <div id="voice-status" class="text-[9px] font-black ${isLive ? 'text-emerald-600' : 'text-orange-custom'} uppercase tracking-widest">${isLive ? 'Modo Live: Respondendo...' : 'Filtrado com Sucesso'}</div>
-                            <div id="voice-response" class="text-xs font-bold text-navy mt-4 leading-relaxed max-h-[110px] overflow-y-auto scrollbar-none">${pending.responseText}</div>
+                            <div id="voice-response" class="text-xs font-bold text-navy mt-4 leading-relaxed max-h-[110px] overflow-y-auto scrollbar-none">${window.formatSpeechDateToShort(pending.responseText)}</div>
                         </div>
                         <div id="voice-done-actions" class="w-full flex gap-2 mt-6 hidden shrink-0">
                             <button onclick="window.retryVoiceAssistant()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-1.5" title="Ouvir novamente">
@@ -5999,7 +6012,7 @@
                     const statusEl = document.getElementById('voice-status');
                     const responseEl = document.getElementById('voice-response');
                     if (statusEl) statusEl.innerText = "Resposta por Voz";
-                    if (responseEl) responseEl.innerText = pending.responseText;
+                    if (responseEl) responseEl.innerText = window.formatSpeechDateToShort(pending.responseText);
                 }
 
                 // 5. Speak response report
