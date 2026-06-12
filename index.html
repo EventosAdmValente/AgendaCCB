@@ -5118,11 +5118,12 @@
                 }
 
                 // Fallback: interpretação local (regras manuais)
+                // Forçamos autoVoice=true para garantir resposta por voz mesmo quando o Gemini não está disponível
                 const statusEl = document.getElementById('voice-status');
                 if (statusEl) statusEl.innerText = 'Processando...';
-                window.interpretVoiceQuery(rawText);
+                window.interpretVoiceQuery(rawText, false, true /* forceAutoVoice */);
             },
-            interpretVoiceQuery: (text, isEditing = false) => {
+            interpretVoiceQuery: (text, isEditing = false, forceAutoVoice = false) => {
                 // Pre-processing corrections for speech-to-text engine errors
                 let correctedText = window.correctVoiceTranscription(text);
 
@@ -5773,7 +5774,8 @@
                 }
 
                 // Check for Automatic Response vs Manual Confirmation
-                if ((state.autoVoiceResponse || state.liveVoiceMode) && !isEditing) {
+                // forceAutoVoice é passado quando o Gemini falhou e o modo local foi ativado como fallback
+                if ((state.autoVoiceResponse || state.liveVoiceMode || forceAutoVoice) && !isEditing) {
                     window.applyVoiceFilter(parsed);
                 } else {
                     // Modo normal ou Edição: exibe chips de confirmação e aguarda clique em OK para falar
