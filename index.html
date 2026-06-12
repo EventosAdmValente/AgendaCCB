@@ -4811,7 +4811,7 @@
                     { regex: /\bcecebe\b/gi, replace: "ccb" },
                     { regex: /\bc\s+c\s+b\b/gi, replace: "ccb" },
                     { regex: /\bsanta\s+luz\b/gi, replace: "santaluz" },
-                    { regex: /\bsanta\s+lu\u00fa?[cç]ia\b/gi, replace: "santaluz" }
+                    { regex: /\bsanta\s*l[uú][cç]ia\b/gi, replace: "santaluz" }
                 ];
                 replacements.forEach(r => {
                     correctedText = correctedText.replace(r.regex, r.replace);
@@ -5602,6 +5602,11 @@
                         if (!aFut && !bFut) return eventTs(b) - eventTs(a); // ambos passados: mais recente primeiro
                         return aFut ? -1 : 1; // futuros antes de passados
                     });
+                }
+
+                const limitToOne = isLastQuery || clean.includes("apenas") || clean.includes("proximo") || clean.includes("proxima");
+                if (limitToOne && eventsList.length > 1) {
+                    eventsList = [eventsList[0]];
                 }
 
                 let responseText = "";
