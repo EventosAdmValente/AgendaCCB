@@ -255,12 +255,20 @@ REGRAS:
         console.log(`[Gemini Proxy] Query no banco retornou ${eventsList?.length || 0} eventos.`)
 
         // Formata os eventos em linguagem legível para a IA Fase 2 formular a resposta
+        const cleanAttendantName = (name: string): string => {
+            if (!name) return ""
+            const cleaned = name.trim().replace(/^(anci[aã]o|anc\.?|cooperador|coop\.?|di[aá]cono|di[aá]c\.?|servo)\s+/i, "")
+            return `irmão ${cleaned}`
+        }
+
         const eventsFormatted = (eventsList || []).map(e => {
             const typeName = typesRes.data?.find(t => t.id === e.type_id)?.name || 'Evento'
             const loc = locationsRes.data?.find(l => l.id === e.location_id)
             const locName = loc ? `${loc.localidade} (${loc.cidade})` : 'Local desconhecido'
-            const attName = attendantsRes.data?.find(a => a.id === e.attendant_id)?.name || ''
-            const att2Name = attendantsRes.data?.find(a => a.id === e.attendant2_id)?.name || ''
+            const rawAttName = attendantsRes.data?.find(a => a.id === e.attendant_id)?.name || ''
+            const rawAtt2Name = attendantsRes.data?.find(a => a.id === e.attendant2_id)?.name || ''
+            const attName = rawAttName ? cleanAttendantName(rawAttName) : ''
+            const att2Name = rawAtt2Name ? cleanAttendantName(rawAtt2Name) : ''
             
             return {
                 data: e.date,
@@ -294,9 +302,10 @@ Sua missão na FASE 2 é formular uma resposta natural em português do Brasil (
 
 REGRAS:
 1. Responda de forma direta, clara e fluida.
-2. Escreva números, horas e datas no formato curto padrão brasileiro (ex: use "12/06/2026", "19:30", "15 candidatos", "1º"). NÃO escreva estes dados por extenso. Mantenha nomes de cidades e termos administrativos por extenso para melhor legibilidade (ex: "São Paulo" em vez de "SP", "Administração" em vez de "ADM", "Conceição do Coité" em vez de "C. do Coité").
+2. Escreva números, horas e datas no formato curto padrão brasileiro (ex: use "12/06/2026", "19:30", "15 candidatos", "1º"). NÃO escreva estes dados por extenso. Mantenha nomes de cidades e termos administrativos por extenso para melhor legibilidade (ex: "São Paulo" in vez de "SP", "Administração" em vez de "ADM", "Conceição do Coité" em vez de "C. do Coité").
 3. Se houver informações de batismo (irmãos/irmãs batizados) ou Santa Ceia (participantes), mencione-os de forma natural baseando-se estritamente nos totais agregados informados.
-4. Responda ESTRITAMENTE baseando-se nos dados fornecidos abaixo. Se a lista estiver vazia, diga educadamente que não encontrou nenhum evento agendado ou realizado com esses critérios.
+4. Ao citar o atendente do evento, use apenas a palavra "irmão" seguido do nome dele (ex: diga "atendido pelo irmão João Silva" em vez de "atendido pelo Ancião João Silva"). NUNCA mencione o cargo ou suas abreviações (como Ancião, Cooperador, Diácono, Anc, Coop, Diac).
+5. Responda ESTRITAMENTE baseando-se nos dados fornecidos abaixo. Se a lista estiver vazia, diga educadamente que não encontrou nenhum evento agendado ou realizado com esses critérios.
 
 Pergunta do usuário: "${query}"
 Filtros aplicados: ${JSON.stringify(parsedCriteria)}

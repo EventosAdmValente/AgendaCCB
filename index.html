@@ -4912,10 +4912,17 @@
                 const fDateParts = first.date.split('-');
                 const fDateFormatted = `${fDateParts[2]}/${fDateParts[1]}/${fDateParts[0]}`;
 
+                const cleanAttendantName = (name) => {
+                    if (!name) return "";
+                    const cleaned = name.trim().replace(/^(anci[aã]o|anc\.?|cooperador|coop\.?|di[aá]cono|di[aá]c\.?|servo)\s+/i, "");
+                    return `irmão ${cleaned}`;
+                };
                 const getEventAttendantsText = (event) => {
                     if (!event) return "";
-                    const att1 = state.attendants.find(a => a.id === event.attendant_id)?.name || "";
-                    const att2 = state.attendants.find(a => a.id === event.attendant2_id)?.name || "";
+                    const rawAtt1 = state.attendants.find(a => a.id === event.attendant_id)?.name || "";
+                    const rawAtt2 = state.attendants.find(a => a.id === event.attendant2_id)?.name || "";
+                    const att1 = rawAtt1 ? cleanAttendantName(rawAtt1) : "";
+                    const att2 = rawAtt2 ? cleanAttendantName(rawAtt2) : "";
                     if (att1 && att2) return `${att1} e ${att2}`;
                     return att1 || att2 || "";
                 };
@@ -5589,8 +5596,15 @@
 
                 const getEventAttendantsText = (event) => {
                     if (!event) return "";
-                    const att1 = state.attendants.find(a => a.id === event.attendant_id)?.name || "";
-                    const att2 = state.attendants.find(a => a.id === event.attendant2_id)?.name || "";
+                    const cleanName = (n) => {
+                        if (!n) return "";
+                        const cleaned = n.trim().replace(/^(anci[aã]o|anc\.?|cooperador|coop\.?|di[aá]cono|di[aá]c\.?|servo)\s+/i, "");
+                        return `irmão ${cleaned}`;
+                    };
+                    const rawAtt1 = state.attendants.find(a => a.id === event.attendant_id)?.name || "";
+                    const rawAtt2 = state.attendants.find(a => a.id === event.attendant2_id)?.name || "";
+                    const att1 = rawAtt1 ? cleanName(rawAtt1) : "";
+                    const att2 = rawAtt2 ? cleanName(rawAtt2) : "";
                     if (att1 && att2) {
                         return `${att1} e ${att2}`;
                     }
