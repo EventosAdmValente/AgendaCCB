@@ -288,10 +288,19 @@ REGRAS:
             eventsFormatted.sort((a, b) => a.data.localeCompare(b.data))
         }
 
-        // Calcula os totais agregados de todos os eventos reais encontrados
+        // Se a pergunta contiver "último", "apenas" ou "próximo", limita o processamento apenas ao primeiro evento ordenado
+        const cleanQuery = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+        const limitToOne = cleanQuery.includes("ultimo") || cleanQuery.includes("ultima") || cleanQuery.includes("apenas") || cleanQuery.includes("proximo") || cleanQuery.includes("proxima")
+
+        let finalEvents = eventsFormatted
+        if (limitToOne && eventsFormatted.length > 0) {
+            finalEvents = [eventsFormatted[0]]
+        }
+
+        // Calcula os totais agregados baseados nos eventos finais
         let totalIrmaos = 0
         let totalIrmas = 0
-        eventsFormatted.forEach(e => {
+        finalEvents.forEach(e => {
             totalIrmaos += e.irmaos
             totalIrmas += e.irmas
         })
@@ -316,7 +325,7 @@ TOTAIS REAIS AGREGADOS DO BANCO DE DADOS (Use preferencialmente estes números p
 - Total Geral de Pessoas: ${totalGeral}
 
 Dados reais detalhados retornados do banco:
-${JSON.stringify(eventsFormatted.slice(0, 15))} (Total de eventos encontrados: ${eventsFormatted.length})`
+${JSON.stringify(finalEvents.slice(0, 15))} (Total de eventos encontrados: ${finalEvents.length})`
 
         const payloadFase2 = {
             contents: [{ role: 'user', parts: [{ text: "Gere a resposta por voz com base nos dados fornecidos." }] }],
