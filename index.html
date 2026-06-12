@@ -6045,7 +6045,34 @@
 
                 const useAI = localStorage.getItem('ttsAiEnabled') !== 'false';
                 // Não resume mais a resposta conforme solicitado pelo usuário
-                const speechText = text;
+                // Formata datas DD/MM/AAAA para extenso na fala para evitar leitura literal das barras e números
+                const formatDateForSpeech = (txt) => {
+                    if (!txt) return "";
+                    const months = [
+                        "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+                        "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
+                    ];
+                    return txt.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/g, (match, day, month, year) => {
+                        const d = parseInt(day, 10);
+                        const m = parseInt(month, 10);
+                        let y = parseInt(year, 10);
+                        if (m < 1 || m > 12) return match;
+                        if (year.length === 2) y = 2000 + y;
+                        
+                        const monthName = months[m - 1];
+                        const dayStr = d === 1 ? "primeiro" : d.toString();
+                        
+                        let yearStr = y.toString();
+                        if (y === 2026) yearStr = "dois mil e vinte e seis";
+                        else if (y === 2025) yearStr = "dois mil e vinte e cinco";
+                        else if (y === 2027) yearStr = "dois mil e vinte e sete";
+                        else if (y === 2024) yearStr = "dois mil e vinte e quatro";
+                        else if (y >= 2000 && y < 2100) yearStr = "dois mil e " + (y - 2000);
+                        
+                        return `${dayStr} de ${monthName} de ${yearStr}`;
+                    });
+                };
+                const speechText = formatDateForSpeech(text);
 
                 const onSpeechDone = () => {
                     const orb = document.getElementById('voice-assistant-orb');
