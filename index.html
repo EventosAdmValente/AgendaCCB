@@ -1763,15 +1763,15 @@
                             <div class="${showCounters ? '' : 'hidden'} grid grid-cols-2 gap-3 transition-all duration-300">
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Irmãos</label>
-                                    <input id="event-irmaos" type="number" oninput="window.state.formTempIrmaos = this.value; window.scheduleRender();" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmaos || ''}" placeholder="0">
+                                    <input id="event-irmaos" type="number" oninput="window.state.formTempIrmaos = this.value; window.updateFormButtons();" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmaos || ''}" placeholder="0">
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Irmãs</label>
-                                    <input id="event-irmas" type="number" oninput="window.state.formTempIrmas = this.value; window.scheduleRender();" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmas || ''}" placeholder="0">
+                                    <input id="event-irmas" type="number" oninput="window.state.formTempIrmas = this.value; window.updateFormButtons();" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmas || ''}" placeholder="0">
                                 </div>
                             </div>
                             
-                            <div class="flex flex-col gap-2 mt-2">
+                            <div id="form-buttons-container" class="flex flex-col gap-2 mt-2">
                                 ${isEditing ? `
                                     <div class="flex flex-col gap-3">
                                         ${hasChanges ? `
@@ -3133,6 +3133,44 @@
         let lastTapId = null;
 
         Object.assign(window, {
+            updateFormButtons: () => {
+                const isEditing = !!state.editingEventId;
+                const container = document.getElementById('form-buttons-container');
+                if (!container) return;
+
+                let hasChanges = false;
+                if (isEditing && state.originalEventSnapshot) {
+                    const snap = state.originalEventSnapshot;
+                    const currentIrmaos = parseInt(state.formTempIrmaos || '0');
+                    const currentIrmas = parseInt(state.formTempIrmas || '0');
+
+                    if (state.formTempDate !== snap.date) hasChanges = true;
+                    if (state.formTempTime !== snap.time) hasChanges = true;
+                    if (String(state.formTempLoc) !== String(snap.location_id)) hasChanges = true;
+                    if (String(state.formTempType) !== String(snap.type_id)) hasChanges = true;
+                    if (String(state.formTempAtt || '') !== String(snap.attendant_id || '')) hasChanges = true;
+                    if (String(state.formTempAtt2 || '') !== String(snap.attendant2_id || '')) hasChanges = true;
+                    if (currentIrmaos !== (snap.irmaos || 0)) hasChanges = true;
+                    if (currentIrmas !== (snap.irmas || 0)) hasChanges = true;
+                } else if (!isEditing) {
+                    hasChanges = true;
+                }
+
+                container.innerHTML = isEditing ? `
+                    <div class="flex flex-col gap-3">
+                        ${hasChanges ? `
+                            <button onclick="window.saveEvent()" class="bg-navy text-white p-4 rounded-xl font-black shadow-lg active:scale-[0.98] transition-transform uppercase text-xs tracking-widest">SALVAR ALTERAÇÕES ${!navigator.onLine ? '(OFFLINE)' : ''}</button>
+                            <button onclick="window.cancelEventChanges()" class="bg-slate-100 text-slate-500 p-4 rounded-xl font-black shadow-sm active:scale-[0.98] transition-transform uppercase text-xs tracking-widest border border-slate-200">CANCELAR ALTERAÇÕES</button>
+                        ` : `
+                            <button onclick="window.navigateTo('home')" class="bg-slate-100 text-slate-500 p-4 rounded-xl font-black shadow-sm active:scale-[0.98] transition-transform uppercase text-xs tracking-widest border border-slate-200">CANCELAR E VOLTAR</button>
+                            <button onclick="window.requestDeleteEvent('${state.editingEventId}')" class="text-red-600 p-3 text-xs font-bold border border-red-100 rounded-lg bg-red-50/30 flex items-center justify-center gap-2 active:bg-red-100 transition-colors uppercase tracking-widest"><i data-lucide="trash-2" class="w-4 h-4"></i> Excluir Evento</button>
+                        `}
+                    </div>
+                ` : `
+                    <button onclick="window.saveEvent()" class="bg-navy text-white p-4 rounded-xl font-black shadow-lg active:scale-[0.98] transition-transform uppercase text-xs tracking-widest">SALVAR EVENTO ${!navigator.onLine ? '(OFFLINE)' : ''}</button>
+                `;
+                renderIcons();
+            },
             handleEventTap: (id) => {
                 const currentTime = new Date().getTime();
                 const tapLength = currentTime - lastTapTime;
