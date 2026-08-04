@@ -1053,6 +1053,7 @@
             isOffline: !navigator.onLine,
             pushNotificationActive: false,
             pushNotificationTime: '08:00',
+            reportSortMode: 'default',
             liveVoiceMode: false
         };
 
@@ -3367,9 +3368,17 @@
                 window.scrollToAdvSection(tar);
             },
             openDateRangePicker: (t) => { state.viewDate = new Date((state.advancedFilter.period[t] || new Date().toISOString().split('T')[0]) + 'T00:00:00'); renderCalendar(t === 'start' ? 'adv_start' : 'adv_end'); },
-            openReportPreview: () => {
+            openReportPreview: (keepSort = false) => {
                 window.activeReportType = 'events';
+                if (!keepSort) {
+                    state.reportSortMode = 'default';
+                }
                 const events = getFilteredEvents();
+                if (state.reportSortMode === 'asc') {
+                    events.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+                } else if (state.reportSortMode === 'desc') {
+                    events.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
+                }
                 const filterDesc = getFilterDescription('home');
                 // Detectar se TODOS os eventos filtrados são exclusivamente Batismo ou Santa Ceia
                 const isExclusiveBatismoOuCeia = events.length > 0 && events.every(ev => {
@@ -3493,7 +3502,11 @@
                             ${pagesHtml}
                         </div>
 
-                        <div class="p-6 border-t border-white/10 bg-navy grid grid-cols-2 gap-4 shrink-0">
+                        <div class="p-6 border-t border-white/10 bg-navy grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+                            <button onclick="window.toggleReportSort()" class="py-4 bg-white/10 text-white border border-white/20 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 hover:bg-white/20">
+                                <i data-lucide="${state.reportSortMode === 'default' ? 'arrow-up-down' : (state.reportSortMode === 'asc' ? 'sort-asc' : 'sort-desc')}" class="w-5 h-5 text-orange-custom"></i>
+                                ${state.reportSortMode === 'default' ? 'Ordem: Padrão' : (state.reportSortMode === 'asc' ? 'Ordem: Crescente' : 'Ordem: Decrescente')}
+                            </button>
                             <button onclick="window.downloadPDF()" class="py-4 bg-white text-navy rounded-xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 hover:bg-slate-50">
                                 <i data-lucide="file-down" class="w-5 h-5 text-red-500"></i> PDF
                             </button>
@@ -3518,6 +3531,12 @@
                     </style>
                 `);
                 renderIcons();
+            },
+            toggleReportSort: () => {
+                if (state.reportSortMode === 'default') state.reportSortMode = 'asc';
+                else if (state.reportSortMode === 'asc') state.reportSortMode = 'desc';
+                else state.reportSortMode = 'default';
+                window.openReportPreview(true);
             },
             getFilteredLocations: () => {
                 let filtered = [...state.locations];
@@ -3821,6 +3840,11 @@
                 } else {
                     filterDesc = getFilterDescription('home');
                     const events = getFilteredEvents();
+                    if (state.reportSortMode === 'asc') {
+                        events.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+                    } else if (state.reportSortMode === 'desc') {
+                        events.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
+                    }
 
                     // Detectar se TODOS os eventos filtrados são exclusivamente Batismo ou Santa Ceia
                     const pdfIsExclusiveBatismoOuCeia = events.length > 0 && events.every(ev => {
