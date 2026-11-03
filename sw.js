@@ -1,5 +1,4 @@
-
-const CACHE_NAME = 'adm-valente-v1.4';
+const CACHE_NAME = 'adm-valente-v1.5';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -28,6 +27,24 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || event.request.url.includes('supabase.co')) return;
+
+  // Para navegação/documento HTML: Network First (busca na rede para obter a versão mais recente; se offline, usa o cache)
+  if (event.request.mode === 'navigate' || (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'))) {
+    event.respondWith(
+      fetch(event.request)
+        .then(networkResponse => {
+          if (networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Para outros recursos estáticos: Cache First com fallback para Network
   event.respondWith(
     caches.match(event.request).then(cachedResponse => {
       return cachedResponse || fetch(event.request).then(networkResponse => {
