@@ -369,6 +369,30 @@
             animation: none;
             opacity: 0;
         }
+
+        /* Animações e Estilos de Voz nos Formulários */
+        @keyframes mic-btn-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 140, 0, 0.7); }
+            70% { box-shadow: 0 0 0 8px rgba(255, 140, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 140, 0, 0); }
+        }
+
+        .mic-btn-active {
+            animation: mic-btn-pulse 1.3s infinite ease-in-out !important;
+            background-color: #ff8c00 !important;
+            color: white !important;
+            border-color: #ff8c00 !important;
+        }
+
+        @keyframes field-voice-pulse {
+            0% { transform: scale(1); background-color: #fff7ed; border-color: #fb923c; }
+            50% { transform: scale(1.02); background-color: #ffedd5; border-color: #f97316; }
+            100% { transform: scale(1); }
+        }
+
+        .field-voice-updated {
+            animation: field-voice-pulse 0.9s ease-in-out 2 !important;
+        }
     </style>
     <link rel="manifest" href="./manifest.json">
 
@@ -1720,58 +1744,114 @@
                     </div>
                     <div class="p-4 flex flex-col gap-4 max-w-xl mx-auto w-full overflow-y-auto scrollbar-none">
                         <div class="bg-white p-5 rounded-xl shadow-md flex flex-col gap-4">
+                            <!-- Preenchimento Inteligente por Voz (Geral) -->
+                            <div class="bg-gradient-to-r from-navy via-slate-800 to-navy text-white p-3.5 rounded-xl shadow-sm flex items-center justify-between gap-3 border border-navy/20">
+                                <div class="flex items-center gap-2.5 min-w-0">
+                                    <div class="w-8 h-8 rounded-lg bg-orange-custom flex items-center justify-center text-white shadow-sm shrink-0">
+                                        <i data-lucide="mic" class="w-4 h-4"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="text-xs font-bold uppercase tracking-wider truncate">Preencher por Voz</div>
+                                        <div class="text-[10px] text-slate-300 truncate">Dite o evento completo ou use os microfones dos campos</div>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="window.startEventVoiceInput('all')" class="shrink-0 px-3 py-2 bg-orange-custom hover:bg-orange-600 active:scale-95 text-white rounded-lg font-black text-[11px] uppercase tracking-wider flex items-center gap-1.5 shadow transition-all" title="Preencher evento completo por voz">
+                                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Falar Tudo
+                                </button>
+                            </div>
+
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data</label>
-                                    <button onclick="window.openFormDate()" class="flex items-center gap-2 border ${errs.includes('date') ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
-                                        <i data-lucide="calendar" class="w-4 h-4 opacity-50"></i>
-                                        ${state.formTempDate ? formatDate(state.formTempDate) : 'Selecionar'}
-                                    </button>
+                                    <div class="flex items-center gap-1.5">
+                                        <button id="form-field-date" onclick="window.openFormDate()" class="flex-1 min-w-0 flex items-center gap-2 border ${errs.includes('date') ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
+                                            <i data-lucide="calendar" class="w-4 h-4 opacity-50 shrink-0"></i>
+                                            <span class="truncate">${state.formTempDate ? formatDate(state.formTempDate) : 'Selecionar'}</span>
+                                        </button>
+                                        <button type="button" onclick="window.startEventVoiceInput('date')" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0" title="Ditar data por voz">
+                                            <i data-lucide="mic" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Hora</label>
-                                    <button onclick="window.openTimePickerModal()" class="flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
-                                        <i data-lucide="clock" class="w-4 h-4 opacity-50"></i>
-                                        ${state.formTempTime}
-                                    </button>
+                                    <div class="flex items-center gap-1.5">
+                                        <button id="form-field-time" onclick="window.openTimePickerModal()" class="flex-1 min-w-0 flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
+                                            <i data-lucide="clock" class="w-4 h-4 opacity-50 shrink-0"></i>
+                                            <span class="truncate">${state.formTempTime}</span>
+                                        </button>
+                                        <button type="button" onclick="window.startEventVoiceInput('time')" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0" title="Ditar horário por voz">
+                                            <i data-lucide="mic" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <div class="flex flex-col gap-1">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Localidade</label>
-                                <button onclick="window.openSelectPicker('locations', 'Local', 'formTempLoc')" class="flex items-center gap-2 border ${errs.includes('loc') ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
-                                    <i data-lucide="map-pin" class="w-4 h-4 opacity-50"></i>
-                                    <span>${state.locations.find((l) => l.id === state.formTempLoc)?.localidade || 'Selecionar Localidade'}</span>
-                                </button>
+                                <div class="flex items-center gap-1.5">
+                                    <button id="form-field-loc" onclick="window.openSelectPicker('locations', 'Local', 'formTempLoc')" class="flex-1 min-w-0 flex items-center gap-2 border ${errs.includes('loc') ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
+                                        <i data-lucide="map-pin" class="w-4 h-4 opacity-50 shrink-0"></i>
+                                        <span class="truncate">${state.locations.find((l) => l.id === state.formTempLoc)?.localidade || 'Selecionar Localidade'}</span>
+                                    </button>
+                                    <button type="button" onclick="window.startEventVoiceInput('location')" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0" title="Ditar localidade por voz">
+                                        <i data-lucide="mic" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="flex flex-col gap-1">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Evento</label>
-                                <button onclick="window.openSelectPicker('types', 'Tipo', 'formTempType')" class="flex items-center gap-2 border ${errs.includes('type') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
-                                    <i data-lucide="tag" class="w-4 h-4 opacity-50"></i>
-                                    <span>${state.types.find((t) => t.id === state.formTempType)?.name || 'Selecionar Tipo'}</span>
-                                </button>
+                                <div class="flex items-center gap-1.5">
+                                    <button id="form-field-type" onclick="window.openSelectPicker('types', 'Tipo', 'formTempType')" class="flex-1 min-w-0 flex items-center gap-2 border ${errs.includes('type') ? 'border-red-500 bg-red-50' : 'border-slate-100 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
+                                        <i data-lucide="tag" class="w-4 h-4 opacity-50 shrink-0"></i>
+                                        <span class="truncate">${state.types.find((t) => t.id === state.formTempType)?.name || 'Selecionar Tipo'}</span>
+                                    </button>
+                                    <button type="button" onclick="window.startEventVoiceInput('type')" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0" title="Ditar tipo de evento por voz">
+                                        <i data-lucide="mic" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="flex flex-col gap-1">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Atendente <span class="text-slate-300 font-bold normal-case">(opcional)</span></label>
-                                <button onclick="window.openSelectPicker('attendants', 'Atendente', 'formTempAtt')" class="flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
-                                    <i data-lucide="users" class="w-4 h-4 opacity-50"></i>
-                                    <span>${state.attendants.find((a) => a.id === state.formTempAtt)?.name || 'Selecionar Atendente'}</span>
-                                </button>
+                                <div class="flex items-center gap-1.5">
+                                    <button id="form-field-att" onclick="window.openSelectPicker('attendants', 'Atendente', 'formTempAtt')" class="flex-1 min-w-0 flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
+                                        <i data-lucide="users" class="w-4 h-4 opacity-50 shrink-0"></i>
+                                        <span class="truncate">${state.attendants.find((a) => a.id === state.formTempAtt)?.name || 'Selecionar Atendente'}</span>
+                                    </button>
+                                    <button type="button" onclick="window.startEventVoiceInput('attendant')" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0" title="Ditar atendente por voz">
+                                        <i data-lucide="mic" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="flex flex-col gap-1">
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Atendente 2 <span class="text-slate-300 font-bold normal-case">(opcional)</span></label>
-                                <button onclick="window.openSelectPicker('attendants', 'Atendente 2', 'formTempAtt2')" class="flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
-                                    <i data-lucide="users" class="w-4 h-4 opacity-50"></i>
-                                    <span>${state.attendants.find((a) => a.id === state.formTempAtt2)?.name || 'Selecionar Atendente 2'}</span>
-                                </button>
+                                <div class="flex items-center gap-1.5">
+                                    <button id="form-field-att2" onclick="window.openSelectPicker('attendants', 'Atendente 2', 'formTempAtt2')" class="flex-1 min-w-0 flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
+                                        <i data-lucide="users" class="w-4 h-4 opacity-50 shrink-0"></i>
+                                        <span class="truncate">${state.attendants.find((a) => a.id === state.formTempAtt2)?.name || 'Selecionar Atendente 2'}</span>
+                                    </button>
+                                    <button type="button" onclick="window.startEventVoiceInput('attendant2')" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0" title="Ditar atendente 2 por voz">
+                                        <i data-lucide="mic" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="${showCounters ? '' : 'hidden'} grid grid-cols-2 gap-3 transition-all duration-300">
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Irmãos</label>
-                                    <input id="event-irmaos" type="number" oninput="window.state.formTempIrmaos = this.value; window.updateFormButtons();" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmaos || ''}" placeholder="0">
+                                    <div class="flex items-center gap-1.5">
+                                        <input id="event-irmaos" type="number" oninput="window.state.formTempIrmaos = this.value; window.updateFormButtons();" class="flex-1 min-w-0 border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmaos || ''}" placeholder="0">
+                                        <button type="button" onclick="window.startEventVoiceInput('irmaos')" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0" title="Ditar quantidade de irmãos por voz">
+                                            <i data-lucide="mic" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Irmãs</label>
-                                    <input id="event-irmas" type="number" oninput="window.state.formTempIrmas = this.value; window.updateFormButtons();" class="w-full border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmas || ''}" placeholder="0">
+                                    <div class="flex items-center gap-1.5">
+                                        <input id="event-irmas" type="number" oninput="window.state.formTempIrmas = this.value; window.updateFormButtons();" class="flex-1 min-w-0 border border-slate-200 p-3 rounded-lg text-sm bg-slate-50 font-medium text-navy focus:ring-2 focus:ring-navy/10" value="${state.formTempIrmas || ''}" placeholder="0">
+                                        <button type="button" onclick="window.startEventVoiceInput('irmas')" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0" title="Ditar quantidade de irmãs por voz">
+                                            <i data-lucide="mic" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -3151,6 +3231,594 @@
         let lastTapId = null;
 
         Object.assign(window, {
+
+            // ==========================================
+            // MÓDULO DE ENTRADA POR VOZ PARA EVENTOS (NOVO/EDITAR)
+            // ==========================================
+
+            parseVoiceNumber: (text) => {
+                if (!text) return null;
+                const clean = text.toString().toLowerCase().trim();
+                const numDirect = clean.match(/\b\d+\b/);
+                if (numDirect) return parseInt(numDirect[0], 10);
+
+                const wordsMap = {
+                    'zero': 0, 'um': 1, 'uma': 1, 'dois': 2, 'duas': 2, 'três': 3, 'tres': 3,
+                    'quatro': 4, 'cinco': 5, 'seis': 6, 'meia': 6, 'sete': 7, 'oito': 8, 'nove': 9,
+                    'dez': 10, 'onze': 11, 'doze': 12, 'treze': 13, 'quatorze': 14, 'catorze': 14,
+                    'quinze': 15, 'dezesseis': 16, 'dezessete': 17, 'dezoito': 18, 'dezenove': 19,
+                    'vinte': 20, 'trinta': 30, 'quarenta': 40, 'cinquenta': 50, 'sessenta': 60,
+                    'setenta': 70, 'oitenta': 80, 'noventa': 90, 'cem': 100
+                };
+
+                for (const [w, val] of Object.entries(wordsMap)) {
+                    const regex = new RegExp('\\b' + w + '\\b', 'i');
+                    if (regex.test(clean)) return val;
+                }
+                return null;
+            },
+
+            parseVoiceTime: (text) => {
+                if (!text) return null;
+                let clean = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+                // 1. Padrão direto HH:MM ou HHhMM ou HHh
+                const directMatch = clean.match(/\b([01]?\d|2[0-3])[:hH]([0-5]\d)?\b/);
+                if (directMatch) {
+                    const h = directMatch[1].padStart(2, '0');
+                    const m = (directMatch[2] || '00').padStart(2, '0');
+                    return h + ':' + m;
+                }
+
+                // 2. Padrões por extenso (ex: "sete e meia da noite", "oito da noite", "duas da tarde")
+                const isNight = clean.includes('noite') || clean.includes('tarde');
+                const isHalf = clean.includes('meia') || clean.includes('30') || clean.includes('trinta');
+                const isFifteen = clean.includes('quinze') || clean.includes('15');
+                const isFortyFive = clean.includes('quarenta e cinco') || clean.includes('45');
+
+                const hourWords = {
+                    'uma': 1, 'um': 1, 'duas': 2, 'dois': 2, 'tres': 3, 'quatro': 4,
+                    'cinco': 5, 'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9, 'dez': 10,
+                    'onze': 11, 'doze': 12, 'treze': 13, 'quatorze': 14, 'quinze': 15,
+                    'dezesseis': 16, 'dezessete': 17, 'dezoito': 18, 'dezenove': 19,
+                    'vinte': 20, 'vinte e uma': 21, 'vinte e duas': 22, 'vinte e tres': 23
+                };
+
+                // Tenta achar número dígito da hora
+                const digitMatch = clean.match(/\b([1-9]|1[0-9]|2[0-3])\b/);
+                let hourFound = null;
+
+                if (digitMatch) {
+                    hourFound = parseInt(digitMatch[1], 10);
+                } else {
+                    for (const [w, hVal] of Object.entries(hourWords)) {
+                        const r = new RegExp('\\b' + w + '\\b', 'i');
+                        if (r.test(clean)) {
+                            hourFound = hVal;
+                            break;
+                        }
+                    }
+                }
+
+                if (hourFound !== null) {
+                    if (isNight && hourFound < 12) hourFound += 12;
+                    let minute = '00';
+                    if (isHalf) minute = '30';
+                    else if (isFifteen) minute = '15';
+                    else if (isFortyFive) minute = '45';
+                    else {
+                        const minMatch = clean.match(/\b(?:e\s+)?([0-5]\d)\b/);
+                        if (minMatch && parseInt(minMatch[1], 10) !== hourFound) {
+                            minute = minMatch[1].padStart(2, '0');
+                        }
+                    }
+                    return hourFound.toString().padStart(2, '0') + ':' + minute;
+                }
+
+                return null;
+            },
+
+            parseVoiceDate: (text) => {
+                if (!text) return null;
+                const clean = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                const now = new Date();
+                const formatYMD = (d) => {
+                    const y = d.getFullYear();
+                    const m = (d.getMonth() + 1).toString().padStart(2, '0');
+                    const day = d.getDate().toString().padStart(2, '0');
+                    return y + '-' + m + '-' + day;
+                };
+
+                // Relativos diretos
+                if (/\bhoje\b/.test(clean)) return formatYMD(now);
+                if (/\bdepois de amanha\b/.test(clean)) {
+                    const d = new Date(now);
+                    d.setDate(d.getDate() + 2);
+                    return formatYMD(d);
+                }
+                if (/\bamanha\b/.test(clean)) {
+                    const d = new Date(now);
+                    d.setDate(d.getDate() + 1);
+                    return formatYMD(d);
+                }
+
+                // Dias da semana
+                const weekDays = {
+                    'domingo': 0, 'segunda': 1, 'segunda-feira': 1, 'terca': 2, 'terca-feira': 2,
+                    'quarta': 3, 'quarta-feira': 3, 'quinta': 4, 'quinta-feira': 4,
+                    'sexta': 5, 'sexta-feira': 5, 'sabado': 6
+                };
+
+                for (const [dayName, targetDay] of Object.entries(weekDays)) {
+                    if (new RegExp('\\b' + dayName + '\\b', 'i').test(clean)) {
+                        const currentDay = now.getDay();
+                        let diff = targetDay - currentDay;
+                        if (diff <= 0) diff += 7; // Próximo dia
+                        const d = new Date(now);
+                        d.setDate(d.getDate() + diff);
+                        return formatYMD(d);
+                    }
+                }
+
+                // Formato numérico DD/MM ou DD/MM/AAAA ou DD-MM-AAAA
+                const numDateMatch = clean.match(/\b([0-3]?\d)[\/\-]([0-1]?\d)(?:[\/\-](\d{2,4}))?\b/);
+                if (numDateMatch) {
+                    const day = parseInt(numDateMatch[1], 10);
+                    const month = parseInt(numDateMatch[2], 10) - 1;
+                    let year = numDateMatch[3] ? parseInt(numDateMatch[3], 10) : now.getFullYear();
+                    if (year < 100) year += 2000;
+                    if (day >= 1 && day <= 31 && month >= 0 && month <= 11) {
+                        return formatYMD(new Date(year, month, day));
+                    }
+                }
+
+                // "dia X de [mês]" ou "X de [mês]"
+                const monthsMap = {
+                    'janeiro': 0, 'fevereiro': 1, 'marco': 2, 'abril': 3, 'maio': 4, 'junho': 5,
+                    'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+                };
+
+                const dayWords = {
+                    'primeiro': 1, '1o': 1, '1º': 1, 'dois': 2, 'tres': 3, 'quatro': 4, 'cinco': 5,
+                    'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9, 'dez': 10, 'onze': 11, 'doze': 12,
+                    'treze': 13, 'quatorze': 14, 'quinze': 15, 'dezesseis': 16, 'dezessete': 17,
+                    'dezoito': 18, 'dezenove': 19, 'vinte': 20, 'vinte e um': 21, 'vinte e dois': 22,
+                    'vinte e tres': 23, 'vinte e quatro': 24, 'vinte e cinco': 25, 'vinte e seis': 26,
+                    'vinte e sete': 27, 'vinte e oito': 28, 'vinte e nove': 29, 'trinta': 30, 'trinta e um': 31
+                };
+
+                for (const [monthName, mIndex] of Object.entries(monthsMap)) {
+                    if (clean.includes(monthName)) {
+                        const beforeMonth = clean.split(monthName)[0];
+                        let dayFound = null;
+
+                        const dayMatch = beforeMonth.match(/\b([0-3]?\d)\s*(?:de)?\s*$/);
+                        if (dayMatch) {
+                            dayFound = parseInt(dayMatch[1], 10);
+                        } else {
+                            for (const [dw, dNum] of Object.entries(dayWords)) {
+                                if (beforeMonth.trim().endsWith(dw)) {
+                                    dayFound = dNum;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (dayFound && dayFound >= 1 && dayFound <= 31) {
+                            let y = now.getFullYear();
+                            const yearMatch = clean.match(/\b(20\d{2})\b/);
+                            if (yearMatch) y = parseInt(yearMatch[1], 10);
+                            return formatYMD(new Date(y, mIndex, dayFound));
+                        }
+                    }
+                }
+
+                return null;
+            },
+
+            findBestMatchInList: (query, items, keyFn) => {
+                if (!query || !items || items.length === 0) return null;
+                const norm = (s) => (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\bh(?=[aeiou])/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+                const qClean = norm(query);
+
+                let bestItem = null;
+                let highestScore = 0;
+
+                for (const item of items) {
+                    const rawKey = keyFn(item);
+                    const keyClean = norm(rawKey);
+                    if (!keyClean) continue;
+
+                    let score = 0;
+                    // Coincidência exata
+                    if (qClean === keyClean) score = 100;
+                    // Um contém o outro exatamente
+                    else if (qClean.includes(keyClean)) score = 80 + (keyClean.length / qClean.length) * 10;
+                    else if (keyClean.includes(qClean)) score = 75 + (qClean.length / keyClean.length) * 10;
+                    else {
+                        // Coincidência por palavras
+                        const qTokens = qClean.split(' ').filter(w => w.length > 2);
+                        const kTokens = keyClean.split(' ').filter(w => w.length > 2);
+                        let matchedWords = 0;
+                        for (const qw of qTokens) {
+                            if (kTokens.some(kw => kw === qw || kw.includes(qw) || qw.includes(kw))) {
+                                matchedWords++;
+                            }
+                        }
+                        if (qTokens.length > 0) {
+                            score = (matchedWords / Math.max(qTokens.length, kTokens.length)) * 60;
+                        }
+                    }
+
+                    if (score > highestScore && score >= 40) {
+                        highestScore = score;
+                        bestItem = item;
+                    }
+                }
+
+                return bestItem;
+            },
+
+            startPickerVoiceInput: () => {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    alert('Reconhecimento de voz não suportado pelo navegador.');
+                    return;
+                }
+
+                const pickerInput = document.getElementById('pickerSearch');
+                if (!pickerInput) return;
+
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'pt-BR';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                pickerInput.placeholder = "Ouvindo... Fale agora...";
+                pickerInput.classList.add('border-orange-500', 'bg-orange-50');
+
+                recognition.onresult = (event) => {
+                    let result = event.results[0][0].transcript;
+                    if (window.correctVoiceTranscription) {
+                        result = window.correctVoiceTranscription(result);
+                    }
+                    pickerInput.value = result;
+                    pickerInput.dispatchEvent(new Event('input', { bubbles: true }));
+                };
+
+                recognition.onerror = (e) => {
+                    console.warn('[PickerVoice] Erro:', e.error);
+                };
+
+                recognition.onend = () => {
+                    pickerInput.placeholder = "Filtrar...";
+                    pickerInput.classList.remove('border-orange-500', 'bg-orange-50');
+                };
+
+                try { recognition.start(); } catch(e) { console.error(e); }
+            },
+
+            startEventVoiceInput: (targetField = 'all') => {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    alert('Reconhecimento de voz não suportado pelo navegador.');
+                    return;
+                }
+
+                const fieldTitles = {
+                    'all': 'Preencher Evento por Voz',
+                    'date': 'Ditar Data do Evento',
+                    'time': 'Ditar Horário do Evento',
+                    'location': 'Ditar Localidade',
+                    'type': 'Ditar Tipo de Evento',
+                    'attendant': 'Ditar Atendente Principal',
+                    'attendant2': 'Ditar Segundo Atendente',
+                    'irmaos': 'Ditar Qtd. de Irmãos',
+                    'irmas': 'Ditar Qtd. de Irmãs'
+                };
+
+                const fieldHints = {
+                    'all': 'Exemplo: "Reunião de Jovens em Valente dia 15 de maio às 19:30 com irmão Marcos"',
+                    'date': 'Exemplo: "15 de maio", "amanhã" ou "próximo sábado"',
+                    'time': 'Exemplo: "19:30", "oito da noite" ou "nove horas"',
+                    'location': 'Exemplo: "Valente", "Tanque Novo", "Santaluz"',
+                    'type': 'Exemplo: "Culto de Jovens", "Batismo", "Santa Ceia"',
+                    'attendant': 'Exemplo: "Irmão Marcos" ou "Ancião José"',
+                    'attendant2': 'Exemplo: "Irmão Lucas" ou "Diácono Paulo"',
+                    'irmaos': 'Exemplo: "12 irmãos" ou "15"',
+                    'irmas': 'Exemplo: "8 irmãs" ou "20"'
+                };
+
+                const title = fieldTitles[targetField] || 'Preenchimento por Voz';
+                const hint = fieldHints[targetField] || '';
+
+                const modalHtml = `
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col p-6 animate-scale-up">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center gap-2 text-navy">
+                                <div class="w-7 h-7 rounded-lg bg-orange-custom flex items-center justify-center text-white">
+                                    <i data-lucide="mic" class="w-4 h-4"></i>
+                                </div>
+                                <h3 class="font-black text-sm uppercase tracking-wide">${title}</h3>
+                            </div>
+                            <button onclick="window.closeModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+
+                        <!-- Orbe de Voz Animado -->
+                        <div class="voice-orb-container my-3">
+                            <div class="voice-pulse-ring"></div>
+                            <div class="voice-pulse-ring-2"></div>
+                            <div id="event-voice-orb" class="voice-orb">
+                                <i id="event-voice-mic-icon" data-lucide="mic" class="w-8 h-8 text-white"></i>
+                            </div>
+                        </div>
+
+                        <div class="text-center flex flex-col gap-1.5 my-2">
+                            <span id="event-voice-status" class="text-xs font-bold text-orange-custom uppercase tracking-wider">Ouvindo... Fale agora</span>
+                            <span class="text-[11px] text-slate-400 italic font-medium px-2">${hint}</span>
+                        </div>
+
+                        <!-- Caixa de Transcrição -->
+                        <div id="event-voice-box" class="bg-slate-50 border border-slate-200 rounded-xl p-3 min-h-[60px] flex items-center justify-center text-center my-3">
+                            <p id="event-voice-transcript" class="text-xs font-bold text-navy italic">Aguardando sua voz...</p>
+                        </div>
+
+                        <!-- Botões de Ação -->
+                        <div class="flex gap-2 mt-2">
+                            <button type="button" onclick="window.restartEventVoiceInput('${targetField}')" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Ouvir Novamente
+                            </button>
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-3 bg-navy text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all">
+                                <i data-lucide="check" class="w-4 h-4"></i> Concluir
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                showModal(modalHtml);
+                renderIcons();
+
+                window.__eventVoiceTargetField = targetField;
+                window.runEventVoiceRecognition(targetField);
+            },
+
+            restartEventVoiceInput: (targetField) => {
+                const transcriptEl = document.getElementById('event-voice-transcript');
+                if (transcriptEl) transcriptEl.innerText = "Aguardando sua voz...";
+                const statusEl = document.getElementById('event-voice-status');
+                if (statusEl) {
+                    statusEl.innerText = "Ouvindo... Fale agora";
+                    statusEl.className = "text-xs font-bold text-orange-custom uppercase tracking-wider";
+                }
+                window.runEventVoiceRecognition(targetField);
+            },
+
+            runEventVoiceRecognition: (targetField) => {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) return;
+
+                if (window.__event_voice_rec) {
+                    try {
+                        window.__event_voice_rec.abort();
+                    } catch(e){}
+                    window.__event_voice_rec = null;
+                }
+
+                const recognition = new SpeechRecognition();
+                window.__event_voice_rec = recognition;
+                recognition.lang = 'pt-BR';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                const orb = document.getElementById('event-voice-orb');
+                const micIcon = document.getElementById('event-voice-mic-icon');
+                const statusEl = document.getElementById('event-voice-status');
+                const transcriptEl = document.getElementById('event-voice-transcript');
+
+                recognition.onstart = () => {
+                    if (statusEl) {
+                        statusEl.innerText = "Ouvindo com atenção...";
+                        statusEl.className = "text-xs font-bold text-emerald-600 uppercase tracking-wider";
+                    }
+                };
+
+                recognition.onresult = (event) => {
+                    let transcript = event.results[0][0].transcript;
+                    if (window.correctVoiceTranscription) {
+                        transcript = window.correctVoiceTranscription(transcript);
+                    }
+
+                    if (transcriptEl) {
+                        transcriptEl.innerText = '"' + transcript + '"';
+                        transcriptEl.className = "text-xs font-bold text-navy";
+                    }
+                    if (statusEl) {
+                        statusEl.innerText = "Processando dados...";
+                        statusEl.className = "text-xs font-bold text-navy uppercase tracking-wider";
+                    }
+
+                    // Aguarda 400ms para aplicar os dados e fechar
+                    setTimeout(() => {
+                        window.applyEventVoiceData(transcript, targetField);
+                    }, 400);
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('[EventVoice] Erro:', event.error);
+                    if (event.error === 'aborted') return;
+                    if (orb) orb.className = "voice-orb voice-error";
+                    if (micIcon) {
+                        micIcon.setAttribute('data-lucide', 'mic-off');
+                        renderIcons();
+                    }
+                    if (statusEl) {
+                        statusEl.innerText = "Não foi possível ouvir. Tente novamente.";
+                        statusEl.className = "text-xs font-bold text-red-500 uppercase tracking-wider";
+                    }
+                };
+
+                try {
+                    recognition.start();
+                } catch(e) {
+                    console.error('[EventVoice] Falha ao iniciar:', e);
+                }
+            },
+
+            applyEventVoiceData: (transcript, targetField) => {
+                if (!transcript) return;
+                const clean = transcript.toLowerCase();
+                const updatedFields = [];
+
+                if (targetField === 'all') {
+                    // 1. DATA
+                    const foundDate = window.parseVoiceDate(transcript);
+                    if (foundDate) {
+                        state.formTempDate = foundDate;
+                        updatedFields.push('form-field-date');
+                    }
+
+                    // 2. HORÁRIO
+                    const foundTime = window.parseVoiceTime(transcript);
+                    if (foundTime) {
+                        state.formTempTime = foundTime;
+                        updatedFields.push('form-field-time');
+                    }
+
+                    // 3. TIPO DE EVENTO
+                    const matchedType = window.findBestMatchInList(transcript, state.types, t => t.name + ' ' + (t.sigla || ''));
+                    if (matchedType) {
+                        state.formTempType = matchedType.id;
+                        updatedFields.push('form-field-type');
+                    }
+
+                    // 4. LOCALIDADE
+                    const matchedLoc = window.findBestMatchInList(transcript, state.locations, l => l.localidade + ' ' + (l.cidade || '') + ' ' + (l.setor || ''));
+                    if (matchedLoc) {
+                        state.formTempLoc = matchedLoc.id;
+                        updatedFields.push('form-field-loc');
+                    }
+
+                    // 5. ATENDENTES
+                    const normTrans = clean.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    const matchedAtt = window.findBestMatchInList(transcript, state.attendants, a => a.name);
+                    if (matchedAtt) {
+                        state.formTempAtt = matchedAtt.id;
+                        updatedFields.push('form-field-att');
+
+                        // Se houver menção a um segundo atendente (ex: "e irmão...")
+                        if (normTrans.includes(' e ') || normTrans.includes(' com ')) {
+                            const remainingText = normTrans.replace(matchedAtt.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""), '');
+                            const secondAtt = window.findBestMatchInList(remainingText, state.attendants.filter(a => a.id !== matchedAtt.id), a => a.name);
+                            if (secondAtt) {
+                                state.formTempAtt2 = secondAtt.id;
+                                updatedFields.push('form-field-att2');
+                            }
+                        }
+                    }
+
+                    // 6. IRMÃOS / IRMÃS
+                    const irmaosMatch = clean.match(/(\d+|\w+)\s+irm[aã]os/i);
+                    if (irmaosMatch) {
+                        const num = window.parseVoiceNumber(irmaosMatch[1]);
+                        if (num !== null) {
+                            state.formTempIrmaos = num.toString();
+                            updatedFields.push('event-irmaos');
+                        }
+                    }
+
+                    const irmasMatch = clean.match(/(\d+|\w+)\s+irm[aã]s/i);
+                    if (irmasMatch) {
+                        const num = window.parseVoiceNumber(irmasMatch[1]);
+                        if (num !== null) {
+                            state.formTempIrmas = num.toString();
+                            updatedFields.push('event-irmas');
+                        }
+                    }
+                } else if (targetField === 'date') {
+                    const foundDate = window.parseVoiceDate(transcript);
+                    if (foundDate) {
+                        state.formTempDate = foundDate;
+                        updatedFields.push('form-field-date');
+                    }
+                } else if (targetField === 'time') {
+                    const foundTime = window.parseVoiceTime(transcript);
+                    if (foundTime) {
+                        state.formTempTime = foundTime;
+                        updatedFields.push('form-field-time');
+                    }
+                } else if (targetField === 'location') {
+                    const matchedLoc = window.findBestMatchInList(transcript, state.locations, l => l.localidade + ' ' + (l.cidade || ''));
+                    if (matchedLoc) {
+                        state.formTempLoc = matchedLoc.id;
+                        updatedFields.push('form-field-loc');
+                    }
+                } else if (targetField === 'type') {
+                    const matchedType = window.findBestMatchInList(transcript, state.types, t => t.name + ' ' + (t.sigla || ''));
+                    if (matchedType) {
+                        state.formTempType = matchedType.id;
+                        updatedFields.push('form-field-type');
+                    }
+                } else if (targetField === 'attendant') {
+                    const matchedAtt = window.findBestMatchInList(transcript, state.attendants, a => a.name);
+                    if (matchedAtt) {
+                        state.formTempAtt = matchedAtt.id;
+                        updatedFields.push('form-field-att');
+                    }
+                } else if (targetField === 'attendant2') {
+                    const matchedAtt = window.findBestMatchInList(transcript, state.attendants, a => a.name);
+                    if (matchedAtt) {
+                        state.formTempAtt2 = matchedAtt.id;
+                        updatedFields.push('form-field-att2');
+                    }
+                } else if (targetField === 'irmaos') {
+                    const num = window.parseVoiceNumber(transcript);
+                    if (num !== null) {
+                        state.formTempIrmaos = num.toString();
+                        updatedFields.push('event-irmaos');
+                    }
+                } else if (targetField === 'irmas') {
+                    const num = window.parseVoiceNumber(transcript);
+                    if (num !== null) {
+                        state.formTempIrmas = num.toString();
+                        updatedFields.push('event-irmas');
+                    }
+                }
+
+                // Limpa erros dos campos que foram preenchidos
+                if (state.formErrors && state.formErrors.length > 0) {
+                    state.formErrors = state.formErrors.filter(err => {
+                        if (err === 'date' && state.formTempDate) return false;
+                        if (err === 'loc' && state.formTempLoc) return false;
+                        if (err === 'type' && state.formTempType) return false;
+                        return true;
+                    });
+                }
+
+                closeModal();
+                renderEventForm();
+
+                // Destaca visualmente com animação de pulso os campos que foram preenchidos
+                setTimeout(() => {
+                    updatedFields.forEach(fieldId => {
+                        const el = document.getElementById(fieldId);
+                        if (el) {
+                            el.classList.add('field-voice-updated');
+                            setTimeout(() => el.classList.remove('field-voice-updated'), 2000);
+                        }
+                    });
+                }, 50);
+
+                if (window.updateFormButtons) {
+                    window.updateFormButtons();
+                }
+
+                if (state.autoVoiceResponse && window.speakVoiceResponse && updatedFields.length > 0) {
+                    const msg = targetField === 'all' ? 'Dados preenchidos no formulário.' : 'Campo atualizado.';
+                    window.speakVoiceResponse(msg);
+                }
+            },
             updateFormButtons: () => {
                 const isEditing = !!state.editingEventId;
                 const container = document.getElementById('form-buttons-container');
@@ -4098,7 +4766,7 @@
                 const isA = pr.startsWith('adv_');
                 const target = isA ? pr.replace('adv_', '') : pr;
                 const currentVal = target === 'attendant_comum' ? document.getElementById('row-comum')?.value : '';
-                showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${tit}</h3></div><button onclick="${isA ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="px-5 py-4"><div class="relative group"><input id="pickerSearch" type="text" placeholder="Filtrar..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium"><i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i></div></div><div id="pickerItemsList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none"></div></div>`);
+                showModal(`<div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"><div class="p-5 flex justify-between items-center bg-white border-b border-slate-50"><div class="flex items-center gap-3 text-navy"><i data-lucide="list" class="w-5 h-5"></i><h3 class="font-bold text-lg">Selecionar ${tit}</h3></div><button onclick="${isA ? 'window.renderAdvancedFilterModal()' : 'window.closeModal()'}" class="text-slate-400 p-1"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="px-5 py-4"><div class="flex items-center gap-2"><div class="relative group flex-1"><input id="pickerSearch" type="text" placeholder="Filtrar..." class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium"><i data-lucide="search" class="absolute left-3.5 top-3.5 text-slate-400 w-4 h-4"></i></div><button type="button" onclick="window.startPickerVoiceInput()" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-xl text-slate-500 transition-colors shrink-0" title="Filtrar por voz"><i data-lucide="mic" class="w-4 h-4"></i></button></div></div><div id="pickerItemsList" class="flex-1 overflow-y-auto px-2 pb-4 scrollbar-none"></div></div>`);
                 const listEl = document.getElementById('pickerItemsList');
                 if (listEl) listEl.innerHTML = renderPickerItems(items, coll, isA, target, pr, currentVal);
                 document.getElementById('pickerSearch')?.addEventListener('input', (e) => {
