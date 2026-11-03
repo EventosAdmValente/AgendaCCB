@@ -1760,28 +1760,28 @@
                                 </button>
                             </div>
 
-                            <div class="grid grid-cols-2 gap-3">
+                            <div class="grid grid-cols-2 gap-2">
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Data</label>
-                                    <div class="flex items-center gap-1.5">
-                                        <button id="form-field-date" onclick="window.openFormDate()" class="flex-1 min-w-0 flex items-center gap-2 border ${errs.includes('date') ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'} p-3 rounded-lg text-left text-sm font-medium text-navy transition-colors">
-                                            <i data-lucide="calendar" class="w-4 h-4 opacity-50 shrink-0"></i>
+                                    <div class="flex items-center gap-1">
+                                        <button id="form-field-date" onclick="window.openFormDate()" class="flex-1 min-w-0 flex items-center gap-1.5 border ${errs.includes('date') ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'} px-2.5 py-3 rounded-lg text-left text-xs sm:text-sm font-medium text-navy transition-colors">
+                                            <i data-lucide="calendar" class="w-3.5 h-3.5 opacity-50 shrink-0"></i>
                                             <span class="truncate">${state.formTempDate ? formatDate(state.formTempDate) : 'Selecionar'}</span>
                                         </button>
-                                        <button type="button" onclick="window.startEventVoiceInput('date')" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0" title="Ditar data por voz">
-                                            <i data-lucide="mic" class="w-4 h-4"></i>
+                                        <button type="button" onclick="window.startEventVoiceInput('date')" class="w-8 h-11 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0 flex items-center justify-center p-0" title="Ditar data por voz">
+                                            <i data-lucide="mic" class="w-3.5 h-3.5"></i>
                                         </button>
                                     </div>
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Hora</label>
-                                    <div class="flex items-center gap-1.5">
-                                        <button id="form-field-time" onclick="window.openTimePickerModal()" class="flex-1 min-w-0 flex items-center gap-2 border border-slate-200 p-3 rounded-lg text-left text-sm bg-slate-50 font-medium text-navy transition-colors">
-                                            <i data-lucide="clock" class="w-4 h-4 opacity-50 shrink-0"></i>
+                                    <div class="flex items-center gap-1">
+                                        <button id="form-field-time" onclick="window.openTimePickerModal()" class="flex-1 min-w-0 flex items-center gap-1.5 border border-slate-200 px-2.5 py-3 rounded-lg text-left text-xs sm:text-sm bg-slate-50 font-medium text-navy transition-colors">
+                                            <i data-lucide="clock" class="w-3.5 h-3.5 opacity-50 shrink-0"></i>
                                             <span class="truncate">${state.formTempTime}</span>
                                         </button>
-                                        <button type="button" onclick="window.startEventVoiceInput('time')" class="p-3 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0" title="Ditar horário por voz">
-                                            <i data-lucide="mic" class="w-4 h-4"></i>
+                                        <button type="button" onclick="window.startEventVoiceInput('time')" class="w-8 h-11 border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:text-orange-custom rounded-lg text-slate-400 transition-colors shrink-0 flex items-center justify-center p-0" title="Ditar horário por voz">
+                                            <i data-lucide="mic" class="w-3.5 h-3.5"></i>
                                         </button>
                                     </div>
                                 </div>
@@ -2071,6 +2071,18 @@
                             <div class="flex items-center gap-2 mb-4">
                                 <i data-lucide="mic-2" class="w-4 h-4 text-orange-custom"></i>
                                 <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Voz do Assistente</h2>
+                            </div>
+
+                            <!-- Ativar/Desativar Resposta Falada -->
+                            <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl mb-4">
+                                <div class="flex flex-col pr-2">
+                                    <span class="text-xs font-bold text-navy">Resposta Falada</span>
+                                    <span class="text-[10px] text-slate-400 font-medium">Ouvir áudio de confirmação e respostas do assistente</span>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                    <input type="checkbox" id="options-auto-voice-toggle" class="sr-only peer" ${state.autoVoiceResponse ? 'checked' : ''} onchange="window.toggleAutoVoiceResponse(this.checked)">
+                                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-custom"></div>
+                                </label>
                             </div>
 
                             <!-- Seletor do Motor de Voz -->
